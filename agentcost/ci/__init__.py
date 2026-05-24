@@ -1,4 +1,4 @@
-"""Compare profiling runs against a baseline and report results in CI."""
+"""Integrate AgentCost with CI/CD via baselines, diffs, and PR-ready reports."""
 
 from __future__ import annotations
 

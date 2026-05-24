@@ -1,3 +1,3 @@
-"""Render baseline-comparison results as markdown for PR comments."""
+"""Format cost reports for CLI output and GitHub PR comments."""
 
 from __future__ import annotations

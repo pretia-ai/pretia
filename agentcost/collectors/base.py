@@ -1,3 +1,3 @@
-"""Define StepRecord and the BaseCollector abstract interface."""
+"""Define the StepRecord dataclass and BaseCollector interface."""
 
 from __future__ import annotations

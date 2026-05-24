@@ -1,4 +1,4 @@
-"""Generate, import, and select test inputs for profiling runs."""
+"""Generate, import, and select inputs for profiling agent workflows."""
 
 from __future__ import annotations
 

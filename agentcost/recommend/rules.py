@@ -1,3 +1,3 @@
-"""Define recommendation categories and format their human-readable output."""
+"""Define recommendation types, format output, and calculate savings."""
 
 from __future__ import annotations

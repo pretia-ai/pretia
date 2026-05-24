@@ -1,3 +1,3 @@
-"""Compute distributional cost statistics (p50, p95, p99) from profiled runs."""
+"""Calculate distributional statistics (p50-p99) from profiling data."""
 
 from __future__ import annotations

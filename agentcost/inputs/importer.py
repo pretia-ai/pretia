@@ -1,3 +1,3 @@
-"""Import real traces from observability tools (Langfuse, Braintrust)."""
+"""Import production inputs and traces from Langfuse and Braintrust."""
 
 from __future__ import annotations

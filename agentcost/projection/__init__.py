@@ -1,4 +1,4 @@
-"""Project agent costs from profiling data using distributional and Monte Carlo methods."""
+"""Project costs at scale using distributional statistics and Monte Carlo simulation."""
 
 from __future__ import annotations
 

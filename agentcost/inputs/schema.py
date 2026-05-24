@@ -1,3 +1,3 @@
-"""Infer the input schema expected by an agent workflow."""
+"""Extract input schema from workflow code via type hints and signatures."""
 
 from __future__ import annotations

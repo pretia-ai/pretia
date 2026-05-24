@@ -1,3 +1,3 @@
-"""Pick the best input source (generated, imported, manual) for a given workflow."""
+"""Auto-detect the best input mode based on available credentials and config."""
 
 from __future__ import annotations

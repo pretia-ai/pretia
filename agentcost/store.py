@@ -1,3 +1,3 @@
-"""Persist profiling sessions to disk and load them back for analysis."""
+"""Persist and load profiling sessions as JSON files."""
 
 from __future__ import annotations

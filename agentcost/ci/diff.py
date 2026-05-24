@@ -1,3 +1,3 @@
-"""Compute deltas between a current profiling run and a saved baseline."""
+"""Compare two cost profiles and compute per-step deltas."""
 
 from __future__ import annotations
