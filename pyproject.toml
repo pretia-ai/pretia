@@ -1,0 +1,54 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agentcost"
+version = "0.1.0"
+description = "Pre-deployment cost intelligence for AI agent workflows"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "AgentCost contributors" }]
+dependencies = [
+    "click>=8.1",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "ruff",
+    "pyright",
+    "build",
+]
+langgraph = [
+    "langgraph",
+    "langchain-core",
+]
+openai = [
+    "openai-agents",
+]
+
+[project.scripts]
+agentcost = "agentcost.cli:cli"
+
+[tool.hatch.build.targets.wheel]
+packages = ["agentcost"]
+
+[tool.ruff]
+line-length = 99
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "ANN", "S", "B"]
+ignore = ["ANN101", "ANN102", "S101"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "integration: marks tests that make real LLM calls (deselect with '-m not integration')",
+]
