@@ -2,4 +2,6 @@
 
 from __future__ import annotations
 
-__all__: list[str] = []
+from agentcost.ci.report import format_cli_report
+
+__all__ = ["format_cli_report"]

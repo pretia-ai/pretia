@@ -1,0 +1,1337 @@
+# AgentCost — Technical Specification v2
+## "Ship slower, ship right, ship with intelligence"
+## May 2026
+
+---
+
+## THE PROBLEM
+
+AI agents are deployed cost-blind. Every team building agents today follows the same pattern: prototype a workflow, ship it to production, and discover what it costs weeks later when the invoice arrives. There is no "build step" that checks cost, no CI gate that flags regressions, no projection that says "this will cost $11,700/month at your current traffic" before you merge the PR.
+
+This isn't a minor inconvenience. The numbers are severe:
+
+- **92% of agent deployments exceed their cost budgets** (IDC 2026). Not by a small margin — the median overrun is 2-4x.
+- **40%+ of enterprise agent pilots will be canceled by 2027**, with cost cited as the #1 reason (Gartner).
+- **Agents consume 5-30x more tokens per task than chatbots** (Gartner, March 2026). A simple support agent processes 3,000-5,000 tokens per ticket. An agentic workflow with retrieval, review loops, and tool calls processes 50,000-200,000.
+- **60% of enterprise AI builders create workflows without IT oversight** (Retool 2026). Nobody is reviewing the cost implications.
+- **Context growth is the silent killer.** In looping agents, every iteration re-sends the entire conversation plus accumulated tool outputs. By iteration 8, the context might be 10x what it was at iteration 1 — and cost scales linearly with context size. Most teams don't realize this until the bill arrives.
+
+The root cause is simple: **there is no equivalent of a Lighthouse score, a test suite, or a cost estimate for agent workflows.** Every website has a performance budget. Every code change has a test suite. Every cloud deployment has a cost projection. Agent workflows have nothing.
+
+### What exists today and why it's not enough
+
+**Observability tools (Langfuse, Braintrust, LangSmith)** show you what happened AFTER your agent ran in production. They're the equivalent of looking at your credit card statement — useful for understanding the past, useless for predicting the future. They answer "what did we spend?" not "what WILL we spend?"
+
+**FinOps tools (CloudZero, Finout)** attribute cloud bills to teams and products. They see the aggregated OpenAI invoice — "$14K this month" — but can't tell you that Step 4 of your support agent is responsible for 68% of it because it re-reads the full context on every review iteration. They operate at the billing layer, not the workflow layer.
+
+**Gateways (LiteLLM, Cloudflare AI Gateway)** enforce per-key budget limits. When the budget is hit, the agent stops. Hard cutoff. No degradation. No warning before it happens. And no projection of what the budget SHOULD be.
+
+**Nobody** answers the pre-deployment question: "If I merge this PR and this agent handles 1,000 requests per day, what will it cost me per month, and which steps are the biggest cost drivers?"
+
+---
+
+## THE SOLUTION
+
+AgentCost is the pre-deployment cost intelligence layer for AI agent workflows. It answers two questions before you deploy:
+
+1. **"How much will this cost at scale?"** — Profile your workflow on sample inputs, project costs at 10x/100x/1000x traffic with distributional statistics (not just averages), and detect cost time-bombs like context growth and stuck loops.
+
+2. **"How do I make it cheaper?"** — Get specific, actionable recommendations: downshift this model (estimated savings: $4,200/mo), add context compaction at this step ($7,800/mo), cap these review iterations ($2,100/mo).
+
+The delivery mechanism is a GitHub Action that comments on every PR touching an agent workflow:
+
+```
+⚠ AgentCost Report — support-agent workflow
+
+Projected monthly cost increased 388%: $2,400/mo → $11,700/mo at current traffic
+
+Step                Before    After     Change    Flag
+1. Classify intent  $180      $180      —
+2. Retrieve context $320      $340      +6%
+3. Generate draft   $890      $920      +3%
+4. Review + iterate $710      $9,200    +1,196%   🔴
+5. Format response  $300      $310      +3%
+
+💡 Recommendations:
+  MODEL SWAP: Step 4 uses Opus for review. Sonnet scores 97% equivalent
+             on this task type (confidence: 0.92). Savings: −$4,200/mo
+  ARCHITECTURE: Step 4 re-reads full context every iteration (+1,200 tok/turn).
+             Add compaction. Savings: −$7,800/mo
+  WORKFLOW: Review loops avg 8.2 iterations. Cap at 3 (quality delta <2%).
+             Savings: −$2,100/mo
+
+Total potential savings: −$14,100/mo ($11,700 → $3,200)
+```
+
+### What we build
+
+- **An open-source Python SDK** (`pip install agentcost`) that instruments LangGraph, OpenAI Agents SDK, and CrewAI workflows. Point it at your agent — it auto-generates diverse test inputs from your system prompt (~$0.02), profiles the workflow, and projects cost distributions. Two commands from install to first report:
+  ```bash
+  pip install agentcost
+  agentcost profile run my_agent.py
+  # Auto-generates 20 inputs → runs workflow → opens HTML report in browser
+  # Cost: ~$2. Time: 3 minutes. No JSONL files, no configuration.
+  ```
+- **A local web UI** (`agentcost ui`) that gives a visual experience for the full journey: select your workflow → configure input generation → watch profiling progress live → explore the interactive report with recommendations. Same pipeline as the CLI, visual interface. Runs on `localhost`, no cloud, no auth.
+- **An HTML report** generated after every profiling run — visual cost breakdown per step, recommendations with dollar savings, context growth sparklines, overall score. Opens in the browser automatically. Shareable, screenshottable, embeddable in README.
+- **Langfuse/Braintrust trace import** for teams with existing observability — analyze production traces for cost patterns without re-executing anything. Zero cost, zero friction.
+- **A GitHub Action** that runs cost checks on every PR in four modes: static analysis (free), auto-generated inputs (~$1-3), user-curated samples (~$2-5), or Langfuse trace import (free).
+- **A recommendation engine** that starts with heuristics (v1) and evolves into an ML-powered classifier trained on 800K+ public examples + proprietary user feedback (v1.5+).
+- **A cost prediction model** (v2) that estimates costs from workflow structure alone — no profiling needed — trained on accumulated user data.
+- **A benchmarking engine** (v3) that tells you "your support agent costs 2.3x the median for similar workflows" — powered by cross-company clustering.
+
+### What we don't build
+
+No proxy (use LiteLLM). No routing (use Martian). No tracing (use Langfuse). No compaction (use Morph). No quality evals (use Braintrust). AgentCost sits ABOVE the entire stack. It consumes these tools' data, it doesn't replace them.
+
+### Why this, why now, why a solo founder
+
+**Why this:** The pre-deployment cost simulation gap is the only space in the LLM tooling ecosystem that is simultaneously (a) not occupied by any player at $100M+ funding, (b) validated by adjacent tools proving the market exists (Braintrust → CI gates, CloudZero → cost attribution, Langfuse → cost visibility), and (c) buildable as an SDK by a solo developer.
+
+**Why now:** Q1-Q2 2026 is the moment of "agent bill shock." Enterprises launched agents in late 2025, and the first production bills are arriving now. The EU AI Act enforcement starts August 2, 2026 — 10 weeks away — requiring audit trails for high-risk AI systems. The pain is acute and the timing is compressed.
+
+**Why solo:** This is an SDK, not a platform. Distribution is via PyPI/npm/GitHub, not enterprise sales. Langfuse reached 26K GitHub stars starting with 2 people. The Scope founder (YC, $800K raise) is solo. The v1 is 100% buildable by one person in 12 weeks, and the ML layer is scikit-learn + XGBoost on a laptop, not a GPU cluster.
+
+---
+
+## TIMELINE OVERVIEW
+
+| Phase | Weeks | Focus | ML Component |
+|-------|-------|-------|-------------|
+| **v1.0** | 1-14 | Core SDK + projection + recommendations + CI gate + HTML report + local web UI | None (stats + heuristics) |
+| **v1.5** | 15-18 | Task Complexity Classifier | Logistic regression on RouterBench |
+| **v2.0** | 19-28 | Live monitoring + Cost Prediction Model | XGBoost on profiling data |
+| **v3.0** | 29-42 | Spend Governance + Workflow Benchmarking | HDBSCAN clustering |
+
+The v1 ships in 14 weeks (not 12 — the extra 2 weeks buy the HTML report and local web UI, which make the difference between a script and a product). Every recommendation uses heuristics and statistical methods. ML is layered on top starting at v1.5, when we have both public training data and initial user feedback. This is deliberate: the v1 must stand on its own merits. ML amplifies the moat, it doesn't create it.
+
+---
+
+## PART 1 — CORE ARCHITECTURE (v1.0, weeks 1-14)
+
+### 1.1 Instrumentation Layer
+
+All three major agent frameworks have native token tracking. They expose it differently.
+
+**LangGraph** — LangChain Callback pattern:
+```python
+callback = UsageMetadataCallbackHandler()
+config = {"callbacks": [callback]}
+for chunk in graph.astream(inputs, config=config):
+    ...
+# callback exposes tokens via on_llm_end → response.usage_metadata
+# Granularity: per LLM call + per graph node
+# Langfuse CallbackHandler captures everything automatically
+```
+
+**OpenAI Agents SDK** — Native usage tracking + RunHooks:
+```python
+result = await Runner.run(agent, "input")
+usage = result.context_wrapper.usage
+# usage.input_tokens, output_tokens, total_tokens
+# PER-REQUEST breakdown:
+for req in usage.request_usage_entries:
+    print(f"{req.input_tokens} in, {req.output_tokens} out")
+
+# RunHooks for lifecycle events:
+class CostHooks(RunHooks):
+    async def on_agent_end(self, ctx, agent, output):
+        u = ctx.usage
+        print(f"{agent.name}: {u.total_tokens} tokens")
+# Also: on_tool_start/end, on_handoff
+# Langfuse/OpenInference instrumentation supported natively
+```
+
+**CrewAI** — LangChain callbacks under the hood (built on LangChain), but exposes agents and tasks as first-class abstractions. Same `CallbackHandler` pattern.
+
+### 1.2 The Collector Abstraction
+
+```
+┌──────────────────────────────────────────────────┐
+│                 AgentCost SDK                     │
+│                                                   │
+│  ┌──────────┐  ┌───────────┐  ┌──────────────┐  │
+│  │ LangGraph│  │  OpenAI   │  │   Generic    │  │
+│  │ Collector│  │  Agents   │  │  Collector   │  │
+│  │          │  │ Collector │  │  (manual)    │  │
+│  └─────┬────┘  └─────┬─────┘  └──────┬───────┘  │
+│        │             │               │           │
+│        ▼             ▼               ▼           │
+│  ┌────────────────────────────────────────────┐  │
+│  │            Unified StepRecord              │  │
+│  │                                            │  │
+│  │  step_name: str                            │  │
+│  │  step_type: llm | tool | retrieval         │  │
+│  │  model: str                                │  │
+│  │  input_tokens: int                         │  │
+│  │  output_tokens: int                        │  │
+│  │  context_size: int  ← total prompt tokens  │  │
+│  │  tool_definitions_tokens: int              │  │
+│  │  system_prompt_hash: str  ← for ML later   │  │
+│  │  system_prompt_tokens: int                 │  │
+│  │  output_format: str  ← json|text|code      │  │
+│  │  is_retry: bool                            │  │
+│  │  iteration: int                            │  │
+│  │  parent_step: Optional[str]                │  │
+│  │  duration_ms: int                          │  │
+│  │  timestamp: datetime                       │  │
+│  └──────────────────┬─────────────────────────┘  │
+│                     │                             │
+│                     ▼                             │
+│  ┌────────────────────────────────────────────┐  │
+│  │       ProfileStore (JSON / SQLite)         │  │
+│  └────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────┘
+```
+
+**Key design decision:** StepRecord captures `system_prompt_hash`, `system_prompt_tokens`, and `output_format` from day one. These fields aren't used in v1 (heuristics don't need them), but they're the features the Task Complexity Classifier needs in v1.5. Capturing them now means we don't have to re-instrument later. Cost of carrying extra fields: ~zero.
+
+**GenericCollector for custom pipelines:**
+```python
+from agentcost import GenericCollector
+
+collector = GenericCollector()
+
+@collector.step("classify_intent")
+async def classify(input):
+    response = await client.messages.create(...)
+    return response
+
+# Or context manager:
+with collector.step("generate_draft") as step:
+    response = await client.messages.create(...)
+    step.record(response)  # auto-extracts tokens
+```
+
+Trade-off: GenericCollector requires manual step tagging (more friction than LangGraphCollector which discovers steps automatically via callbacks). Both ship in v1. Clearly documented difference.
+
+### 1.3 Input Generation — The Friction Ladder
+
+Asking a developer to curate a 100-line JSONL file is a deal-breaker for adoption. The default experience must be two commands or less. AgentCost provides five input modes, ordered from zero friction to maximum precision. The user should never need to start at the bottom.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    INPUT GENERATION MODES                      │
+│                                                                │
+│  Level 0: estimate     Code analysis only. No execution.       │
+│           ──────────   Instant. Free. Widest confidence.       │
+│                        $ agentcost estimate workflow.py         │
+│                                                                │
+│  Level 1: single       ONE example input from the user.        │
+│           ──────────   1 run + ML priors for variance.         │
+│                        $ agentcost profile run workflow.py \    │
+│                          --input "How do I reset my password?" │
+│                                                                │
+│  Level 2: auto    ★    LLM generates diverse inputs from       │  ★ DEFAULT
+│           ──────────   system prompt + type hints. ~$0.02.     │
+│                        $ agentcost profile run workflow.py \    │
+│                          --auto-generate 20                    │
+│                                                                │
+│  Level 3: import       Pull real inputs from Langfuse,         │
+│           ──────────   Braintrust, or OpenTelemetry traces.    │
+│                        $ agentcost profile run workflow.py \    │
+│                          --from-langfuse --last 100            │
+│                                                                │
+│  Level 4: manual       User-curated JSONL file.                │
+│           ──────────   Maximum precision, maximum friction.    │
+│                        $ agentcost profile run workflow.py \    │
+│                          --inputs samples.jsonl                │
+│                                                                │
+└──────────────────────────────────────────────────────────────┘
+```
+
+#### Level 0 — Static estimate (zero inputs, zero cost, instant)
+
+The v2 Cost Prediction Model parses the workflow code, extracts structural features (steps, models, loops, prompt sizes), and runs the XGBoost predictor. No execution at all. Wide confidence intervals, but a 1-second experience with zero friction. This is the entry point — the user gets a ballpark before committing to anything.
+
+Before the ML model exists (v1), static estimate uses heuristic priors from published token usage data: simple tool-calling agents = 5K-15K tokens/task, multi-agent systems = 200K-1M+, coding agents = 1-3.5M tokens/task (Iternal.ai, Gartner 2026). Combined with the model pricing tables, this gives a rough order-of-magnitude estimate.
+
+```bash
+$ agentcost estimate workflow.py
+# Output:
+# ⚡ Static estimate (no execution, wide confidence):
+# Workflow: support-agent (5 steps, 1 loop, models: haiku+opus)
+# Archetype: support-agent-with-RAG-loop
+# Estimated cost per run: $0.15 - $0.80 (p50 - p95)
+# At 1,000 runs/day: $4,500 - $24,000/month
+# ⚠ Wide range — run `agentcost profile` for precise numbers
+```
+
+#### Level 1 — Single input (one example, one run)
+
+The user provides ONE representative input as a string. The SDK runs the workflow once, captures the full trace (steps, models, tokens, iterations, context sizes). One real run gives the exact structure and a single cost data point. The projection engine then uses ML priors (from the Cost Prediction Model, or archetype-based priors in v1) to estimate the variance: "based on similar workflows, the p95 is likely 2-3x this p50."
+
+```bash
+$ agentcost profile run workflow.py --input "How do I reset my password?"
+# Executes 1 run → captures trace → projects with priors
+# Cost: one agent execution (~$0.05-0.50)
+```
+
+#### Level 2 — Auto-generated inputs ★ DEFAULT
+
+The smartest approach and the default experience. The SDK reads the workflow's system prompt + input type hints (Pydantic models, function signatures, docstrings) and calls a cheap LLM (Haiku/mini, ~$0.01-0.02) to generate diverse synthetic inputs.
+
+```python
+# Internal: what the auto-generator does
+def generate_inputs(workflow, n=20):
+    system_prompt = extract_system_prompt(workflow)
+    input_schema = extract_input_schema(workflow)  # Pydantic, type hints, or raw
+
+    generation_prompt = f"""
+    You are generating test inputs for an AI agent workflow.
+
+    Agent's system prompt (first 500 tokens):
+    {system_prompt[:2000]}
+
+    Input format expected:
+    {input_schema}
+
+    Generate {n} diverse, representative inputs that cover:
+    - Easy cases (simple, short, clear intent)
+    - Medium cases (moderate complexity, some ambiguity)
+    - Hard cases (long context, edge cases, multi-step reasoning needed)
+    - Adversarial cases (confusing input, off-topic, very long)
+
+    Return as a JSON array.
+    """
+
+    response = cheap_llm_call(generation_prompt)  # Haiku: ~$0.01
+    return parse_json_array(response)
+```
+
+The quality of generated inputs depends on how descriptive the system prompt is. Even mediocre synthetic inputs are infinitely better than zero inputs — they'll capture the step structure, model usage, loop behavior, and context growth patterns. The distribution might not perfectly match production, but the patterns are real.
+
+```bash
+$ agentcost profile run workflow.py --auto-generate 20
+# Generates 20 inputs via Haiku → runs workflow on each → full report
+# Cost: ~$0.02 (generation) + 20 × ~$0.10 (runs) = ~$2.02
+# Time: 2-5 minutes
+```
+
+**This is the default.** Running `agentcost profile run workflow.py` without flags defaults to `--auto-generate 20`. The first-time user experience is:
+
+```bash
+pip install agentcost
+agentcost profile run my_agent.py
+```
+
+Two commands. No files. No configuration. ~$2 cost. Full report with recommendations.
+
+#### Level 3 — Import from observability traces
+
+For teams already running Langfuse, Braintrust, or OpenTelemetry in production, the REAL inputs are already captured. AgentCost pulls them via the Langfuse Python SDK:
+
+```python
+# Internal: what the importer does
+from langfuse import get_client
+
+langfuse = get_client()
+traces = langfuse.api.observations.get_many(
+    fields="core,basic,usage",
+    limit=100,
+)
+inputs = [extract_input(trace) for trace in traces]
+```
+
+The user runs:
+```bash
+$ agentcost profile run workflow.py --from-langfuse --last 100
+# Pulls 100 most recent production inputs from Langfuse
+# Re-runs workflow (or uses Langfuse traces directly for token data)
+# Cost: $0 if using traces directly, ~$10 if re-running
+```
+
+This is the gold standard for accuracy — you're profiling on actual production traffic. And it's zero-friction for the user because the data already exists.
+
+**Alternative: trace-only mode (no re-execution).** If the user's Langfuse traces already contain per-step token counts (which they do if they use the Langfuse LangChain/OAI Agents integration), AgentCost can analyze the traces directly WITHOUT re-running the workflow. Zero cost, zero execution, uses existing data:
+
+```bash
+$ agentcost analyze --from-langfuse --last 100
+# No execution — analyzes existing Langfuse traces
+# Computes distributions, detects patterns, generates recommendations
+# Cost: $0
+```
+
+This is the fastest path to value for teams that already have Langfuse. "Connect your Langfuse, get cost recommendations in 30 seconds."
+
+#### Level 4 — Manual JSONL file
+
+The original approach. User provides a curated file:
+```bash
+$ agentcost profile run workflow.py --inputs samples.jsonl
+```
+
+Only makes sense for teams with existing test datasets. Stays as an option but is never the suggested starting point.
+
+#### Input mode selection logic
+
+The CLI auto-suggests the best mode:
+
+```bash
+$ agentcost profile run workflow.py
+# Detected: Langfuse credentials in environment → suggesting --from-langfuse
+# Detected: No Langfuse → defaulting to --auto-generate 20
+# Use --input "..." for a quick single-run estimate
+# Use --inputs file.jsonl if you have a test dataset
+```
+
+### 1.4 Projection Engine
+
+**Why linear projection fails:**
+
+1. **Context growth.** In looping agents, context grows per iteration. The average run has 5 iterations, outliers have 15 — and iteration 15 costs 3x iteration 5 due to accumulated context. The mean hides the tails.
+2. **Retry amplification.** Under load, rate limits trigger retries. At 100 req/min: 0% retries. At 1000 req/min: ~15%. Linear projection misses this threshold.
+3. **Log-normal distribution.** Costs per run follow a log-normal (many cheap runs, few very expensive ones). The mean is pulled up by outliers. p50 and p95 are far more useful.
+
+**Distributional scaling (v1 approach):**
+
+```
+Input:  N profiled runs (e.g. 100)
+Output: For each target traffic volume (10x, 100x, 1000x):
+  - p50, p75, p90, p95, p99 of cost per run
+  - Total monthly cost at each percentile
+  - Per-step decomposition at each percentile
+  - Warnings for detected non-linear patterns
+```
+
+**Concretely:**
+
+Step 1 — Collect raw runs, compute per-step stats:
+```
+Step "classify":  mean=120tok, p50=110, p95=180, model=haiku
+Step "retrieve":  mean=2400tok, p50=2100, p95=4800
+Step "generate":  mean=8900tok, p50=7200, p95=18000, model=sonnet
+Step "review":    mean=12400tok, p50=9000, p95=34000, model=opus
+                  ↑ high variance = context growth detected
+```
+
+Step 2 — Detect non-linear patterns:
+- **Context growth:** if `context_size` correlates with `iteration` (r² > 0.7) → extrapolate the curve, not the mean
+- **Loop count variance:** if iteration count varies 3-12 → model the loop count distribution and sample
+- **Token explosion:** if p95/p50 ratio > 3 → flag as "high variance", give dual projections
+
+Step 3 — Project:
+- Stable case: `monthly_cost = mean_cost_per_run × daily_volume × 30`
+- Non-linear case: Monte Carlo — simulate 10,000 runs by sampling per-step distributions, apply context growth curves, produce resulting cost distribution. ~5 seconds runtime, triggered ONLY when heuristics detect non-linearity.
+
+**Not in v1:** rate limit modeling (too many variables), cache hit rate modeling (impossible to estimate offline), latency projection (we do cost, not perf).
+
+### 1.5 Recommendation Engine (v1: heuristics only)
+
+Three recommendation types, all rule-based in v1:
+
+**TYPE 1 — MODEL SWAP**
+
+v1 method (heuristics):
+1. Classify step by task type via simple rules on system prompt keywords and input/output token ratio:
+   - High output/input ratio + creative keywords → generation (needs higher tier)
+   - Low output/input ratio + classification keywords → classification (low tier sufficient)
+   - Code in output → code generation (test before downshift)
+   - JSON schema in prompt → structured extraction (often low tier sufficient)
+2. If step uses a model above the estimated minimum tier → recommend downshift
+3. Estimate savings: `(current_price - recommended_price) × tokens × volume`
+
+Limitation: cannot guarantee quality is maintained. Recommendation always says: "Consider testing [cheaper model] — estimated savings $X/mo. Validate with an eval before switching."
+
+**TYPE 2 — ARCHITECTURE**
+
+Detect and recommend for:
+- **Context growth:** `Δcontext > 500 tokens/iteration` consistently → recommend compaction
+- **Re-sent context:** same content hash in prompts of successive steps → recommend caching or pipeline reorganization
+- **Oversized tool definitions:** tool_definitions_tokens > 30% of total prompt → recommend tool filtering per step
+
+**TYPE 3 — WORKFLOW**
+
+- **Excessive loops:** cost marginal per iteration + distribution of iteration counts → recommend cap
+- **Stuck loop detection:** runs with >2x mean iterations → flag as outliers, compute cost share, recommend circuit breaker
+
+### 1.6 GitHub Action
+
+```yaml
+# .github/workflows/agentcost.yml
+name: AgentCost
+on:
+  pull_request:
+    paths: ['agents/**', 'workflows/**']
+
+jobs:
+  cost-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: agentcost/action@v1
+        with:
+          workflow: agents/support_agent.py
+          baseline: .agentcost/baseline.json
+          traffic: 1000/day
+          threshold: 50              # % increase that blocks
+          mode: static               # static | auto-generate | sample | import
+          auto_generate_count: 5     # inputs to generate (for auto-generate mode)
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+**Four CI modes:**
+
+| Mode | How it works | Cost | Accuracy |
+|------|-------------|------|----------|
+| `static` (default) | Analyzes code diff, estimates impact from baseline | Free | Low — catches model changes, misses logic changes |
+| `auto-generate` | Generates 5 synthetic inputs, runs workflow, compares to baseline | ~$1-3/run | High — real measurements, diverse inputs |
+| `sample` | Re-runs workflow on 5-10 inputs from a JSONL file | ~$2-5/run | High — user-curated inputs |
+| `import` | Pulls latest traces from Langfuse, analyzes without re-execution | Free | High — real production data, no execution cost |
+
+Default = `static` on every PR. Recommended upgrade: `auto-generate` on PRs that touch agent logic, or `import` if Langfuse is available.
+
+**Smart mode selection:** When `LANGFUSE_PUBLIC_KEY` is in environment, the action auto-suggests `import` mode. Otherwise defaults to `static` with a comment suggesting `auto-generate` for more accurate results.
+
+**Baseline format:**
+```json
+{
+  "version": "1.0",
+  "workflow": "agents/support_agent.py",
+  "profiled_at": "2026-05-20T14:30:00Z",
+  "sample_size": 100,
+  "traffic_assumption": "1000/day",
+  "steps": {
+    "classify_intent": {
+      "model": "claude-3-haiku",
+      "tokens": {
+        "input": { "p50": 340, "p95": 520 },
+        "output": { "p50": 45, "p95": 80 }
+      },
+      "cost_per_run": { "p50": 0.00012, "p95": 0.00019 },
+      "iterations": { "mean": 1.0, "max": 1 },
+      "system_prompt_hash": "a3f8c2...",
+      "system_prompt_tokens": 280,
+      "output_format": "json",
+      "task_complexity_tier": null
+    },
+    "review_and_iterate": {
+      "model": "claude-opus-4",
+      "tokens": {
+        "input": { "p50": 9200, "p95": 34000 },
+        "output": { "p50": 1800, "p95": 4200 }
+      },
+      "cost_per_run": { "p50": 0.18, "p95": 0.62 },
+      "iterations": { "mean": 5.3, "max": 12 },
+      "context_growth_rate": 1200,
+      "flags": ["high_variance", "context_growth"],
+      "system_prompt_hash": "b7d1e9...",
+      "system_prompt_tokens": 1450,
+      "output_format": "text",
+      "task_complexity_tier": null
+    }
+  },
+  "total_monthly": {
+    "p50": 2400, "p75": 4100, "p90": 7800, "p95": 11700
+  }
+}
+```
+
+Note: `task_complexity_tier` is `null` in v1 (filled by heuristics), populated by the ML classifier in v1.5.
+
+### 1.7 User Interface Layer
+
+AgentCost has three visual output channels, all sharing the same underlying data from the ProfileStore. The UI is NOT a separate product — it's the rendering layer on top of the same analysis pipeline.
+
+#### HTML Report (ships with v1)
+
+Every `agentcost profile run` generates a self-contained HTML file (`.agentcost/report.html`) and opens it in the browser automatically. The report is a **single static file** — no server, no JavaScript framework dependency at runtime. Built with Jinja2 templates + inline CSS/JS, compiled at profiling time.
+
+**Report contents:**
+- **Score ring:** circular SVG indicator (0-100) color-coded: 0-40 red, 41-70 amber, 71-100 green. Score is calculated as: `100 - (waste_percentage)` where waste = cost reducible by following all recommendations. A score of 28 means 72% of the spend is recoverable. Displayed alongside four metric cards: monthly projected cost (red if recommendations exist), projected cost after fixes (green), cost per run (p50), and number of recommendations.
+- **Cost waterfall chart:** per-step horizontal bars showing relative cost share. Each bar width = step cost / total cost. The most expensive step is highlighted in red, others in teal. Shows step name, bar, dollar amount, and percentage. The visual must make the dominant cost driver immediately obvious.
+- **Context growth sparklines:** for each looping step, a mini SVG line chart showing how context size grows per iteration (x-axis = iteration, y-axis = token count).
+- **Recommendations cards:** each card has a colored type tag (teal for MODEL SWAP, blue for ARCHITECTURE, purple for WORKFLOW), a title, a description, estimated savings in green aligned right, and a confidence indicator (progress bar + percentage or "confirmed" for pattern-based recs). Cards are stacked vertically. Below all cards: a green summary banner showing total savings and before→after cost.
+- **Projection table:** traffic (100/day, 1K/day, 10K/day) × percentiles (p50, p75, p90, p95). Tabular numeric formatting.
+- **Raw data toggle:** expandable section with the full StepRecord JSON for power users.
+- **Footer:** "Profiled on N auto-generated inputs · workflow_name.py · framework"
+
+**Technical approach:**
+```python
+# After profiling completes:
+from agentcost.report import render_html_report
+
+report_path = render_html_report(
+    profile=profile_data,
+    projections=projection_results,
+    recommendations=recommendation_list,
+    output_path=".agentcost/report.html"
+)
+webbrowser.open(f"file://{report_path}")
+```
+
+The template is a single Jinja2 file (~300 lines) bundled with the pip package. CSS is inline (no external dependencies). Charts use inline SVG (no Chart.js or D3 needed for the v1 — the sparklines and waterfall are simple enough to generate server-side as SVG paths). The file is fully self-contained and shareable.
+
+#### Local Web UI (ships with v1, Sprint 6)
+
+`agentcost ui` launches a local web server on `localhost:7100` with a visual interface for the full workflow.
+
+**Three screens:**
+
+**Screen 1 — Setup:**
+- Workflow file input (text field with file path, auto-completes)
+- Auto-detection card: framework badge ("LangGraph — auto-detected"), steps count + loop count, models listed, tools listed. This card appears instantly when the workflow path is entered — the backend parses the file and returns the metadata.
+- Input mode selector: 2x2 grid of cards. Auto-generate (default, highlighted with green border + "default" badge) / Import from Langfuse / Single input / Upload JSONL. Each card shows a title, description, and cost estimate.
+- Profiling settings: slider for input count (5-50, default 20), dropdown for traffic volume (100/day, 1K/day, 10K/day, Custom)
+- Green "Run profiling" button, full width. Below: estimated cost and time ("~20 runs, ~$2.00, ~3 min")
+
+**Screen 2 — Live profiling:**
+- Progress bar with label: "Run 14 of 20" and "~1 min remaining"
+- Three metric cards in a row: "Cost so far" ($5.88), "Avg per run" ($0.42), "Projected/mo" ($12,600 in red if above threshold)
+- Live cost table: columns = Step, Avg tokens, Avg cost, Share (mini horizontal bar), Model. Rows fill as data accumulates. The most expensive step row turns red. Share bars use proportional width (dominant step bar fills 80%+)
+- Pattern flags: appear below the table as colored pills when detected. Red pill for danger patterns (context growth), amber for warnings (high iteration count)
+- "Currently running" card at bottom: shows the current input text in monospace, step progress as dots (filled = complete, pulsing = active, empty = pending), and step names with checkmarks
+
+**Screen 3 — Report:**
+- Same layout as the HTML report but interactive
+- Click a step in the waterfall to expand: shows per-run distribution, context growth chart, token breakdown (input vs output vs tool definitions)
+- Click a recommendation to expand: shows the full reasoning, the data behind it, and a "How to implement" section
+- Three action buttons in the header: "Export as HTML" / "Copy PR comment" / "Save baseline"
+
+**REST API endpoints:**
+
+```
+GET  /api/detect          → Parse workflow file, return framework + steps + models
+POST /api/generate-inputs → Generate synthetic inputs from system prompt
+POST /api/profile/start   → Start profiling (returns WebSocket URL for progress)
+GET  /api/profile/status  → Current profiling status
+GET  /api/report          → Full report data (JSON)
+GET  /api/report/html     → Download standalone HTML report
+GET  /api/baseline        → Current baseline
+POST /api/baseline/save   → Save current profile as baseline
+```
+
+**Technical approach:**
+
+```
+Backend:  FastAPI (lightweight, async, WebSocket support for live progress)
+Frontend: Single-page React app compiled to static bundle
+Comms:    WebSocket for live profiling updates, REST for everything else
+Bundling: Frontend pre-built and shipped inside the pip package
+          (no npm install needed by the user)
+```
+
+The React frontend is pre-compiled to a static JS bundle (~200KB gzipped) during the package build process and included in the pip distribution. When the user runs `agentcost ui`, FastAPI serves the static bundle + exposes API endpoints. No Node.js, no npm, no build step for the user.
+
+```python
+# What `agentcost ui` does:
+import uvicorn
+from agentcost.ui.app import create_app
+
+app = create_app()
+uvicorn.run(app, host="127.0.0.1", port=7100)
+# Opens browser to http://localhost:7100
+```
+
+**WebSocket protocol for live profiling:**
+```json
+// Server → Client messages during profiling:
+{"type": "run_start", "run": 1, "total": 20, "input_preview": "How do I..."}
+{"type": "step_complete", "run": 1, "step": "classify", "tokens": 340, "cost": 0.00012}
+{"type": "step_complete", "run": 1, "step": "generate", "tokens": 8900, "cost": 0.032}
+{"type": "pattern_detected", "pattern": "context_growth", "step": "review", "rate": 1200}
+{"type": "run_complete", "run": 1, "total_cost": 0.42}
+{"type": "profiling_complete", "report_url": "/api/report"}
+```
+
+**Why FastAPI and not Streamlit/Gradio:** Streamlit adds ~50MB of dependencies and imposes its own layout system. Gradio is similar. FastAPI + pre-built React bundle is ~5MB total, gives full control over the UX, and the React frontend can be reused for a future cloud version if needed.
+
+#### GitHub PR Comment (ships with v1, Sprint 5)
+
+The GitHub Action produces a formatted PR comment. This is the CI interface — developers see it without leaving their normal workflow. Same data as the HTML report, but condensed to fit a GitHub comment (~30 lines max).
+
+Already specified in section 1.6.
+
+### 1.8 v1.0 Execution Plan (Weeks 1-14)
+
+**Weeks 1-2: Foundations**
+- Python package: `pip install agentcost`
+- `StepRecord` dataclass + `ProfileStore` (JSON)
+- `LangGraphCollector`: hook into LangChain callbacks → StepRecords
+- `GenericCollector`: decorator + context manager
+- CLI: `agentcost profile run workflow.py --inputs sample.jsonl`
+- Unit tests for collectors
+
+**Weeks 3-4: OpenAI Agents SDK + Stats**
+- `OpenAIAgentsCollector`: hook via RunHooks + native usage tracking
+- Stats module: distributions per step (p50-p99)
+- Pattern detection: context growth, loop variance, high variance
+- CLI: `agentcost report profile.json --traffic 1000/day`
+
+**Weeks 5-6: Projection Engine**
+- Linear projection for stable cases
+- Monte Carlo for non-linear cases
+- Confidence intervals
+- Baseline comparison: `agentcost diff baseline.json new_profile.json`
+
+**Weeks 7-8: Recommendation Engine**
+- Rule-based recommendations (model swap, architecture, workflow)
+- Impact estimation in $/month per recommendation
+- CLI: `agentcost recommend profile.json`
+
+**Weeks 9-10: GitHub Action**
+- Three CI modes (static, dryrun, sample)
+- PR comment formatting
+- Baseline management: `agentcost baseline update`
+- Configurable thresholds
+
+**Weeks 11-12: Polish + Launch**
+- CrewAI Collector (same callback pattern as LangGraph)
+- End-to-end integration tests
+- README with demo GIF
+- Launch: PyPI + GitHub + HN + LangChain Discord
+
+---
+
+## PART 2 — ML LAYER
+
+### 2.1 Task Complexity Classifier (v1.5, weeks 15-18)
+
+**What it does:** Given a step's (system_prompt, sample_input, sample_output), predicts the minimum model tier sufficient for the task: tier-1 (Haiku/mini), tier-2 (Sonnet/4o), tier-3 (Opus/o3). Replaces the keyword heuristics in model swap recommendations with a trained classifier.
+
+**Why it matters for the moat:** Every model swap recommendation that users follow (or revert) becomes a labeled training example. After 10K swaps observed, the classifier's accuracy becomes proprietary and unreplicable.
+
+#### Data sources
+
+**Primary — RouterBench (free, 405K examples):**
+Publicly available benchmark by Martian. 405,000+ inference outcomes across 64 tasks and 11 LLMs. Each record contains: the prompt, the model's response, a quality score, and the inference cost. We derive our label: for each prompt, what's the cheapest model that achieves ≥90% of the best model's quality score? That IS the tier label.
+
+Limitations: RouterBench covers benchmark-style tasks (commonsense QA, math, coding, summarization), not real agent workflow prompts. Good for bootstrapping, needs supplementation with real workflow data.
+
+**Secondary — LLMRouterBench (free, 400K+ examples):**
+Jan 2026 benchmark. 400K+ instances across 21 datasets and 33 models including 13 recent flagship models and 5 proprietary. More recent models than RouterBench. $2.7K in API costs to build — but the data is public.
+
+**Tertiary — Self-generated synthetic data (~$150):**
+200 system prompts across difficulty levels × 3 model tiers × 5 sample inputs. Run each, score with LLM-as-judge, label tier. Fills the gap between benchmark tasks and real agent workflow prompts.
+
+**Ongoing — User feedback (free, accumulates over time):**
+Every time a user follows a model swap recommendation and reports quality maintained → positive label. Every revert → negative label. This is the most valuable data source long-term. Captured automatically via the `task_complexity_tier` field in baselines: if the user changes the model at a step and re-profiles, we see the quality delta.
+
+#### Model architecture
+
+**Simplest viable approach (what we ship first):**
+
+```python
+# Step 1: Embed the system prompt
+from sentence_transformers import SentenceTransformer
+embedder = SentenceTransformer('all-MiniLM-L6-v2')  # 22M params, runs on CPU
+prompt_embedding = embedder.encode(system_prompt)  # 384-dim vector
+
+# Step 2: Combine with numerical features
+features = np.concatenate([
+    prompt_embedding,                          # 384 dims
+    [system_prompt_tokens,                     # 1 dim
+     avg_input_tokens,                         # 1 dim
+     avg_output_tokens,                        # 1 dim
+     output_input_ratio,                       # 1 dim
+     n_constraints_in_prompt,                  # 1 dim (regex count)
+     has_json_schema,                          # 1 dim (bool)
+     has_few_shot_examples,                    # 1 dim (bool)
+     has_chain_of_thought,                     # 1 dim (bool)
+     n_tools_available]                        # 1 dim
+])  # Total: 393 features
+
+# Step 3: Train classifier
+from sklearn.linear_model import LogisticRegression
+clf = LogisticRegression(multi_class='multinomial', max_iter=1000)
+clf.fit(X_train, y_train)  # y ∈ {tier-1, tier-2, tier-3}
+
+# Step 4: Predict with confidence
+tier, confidence = clf.predict(features), clf.predict_proba(features).max()
+# Only recommend swap if confidence > 0.85
+```
+
+**Why logistic regression and not a neural net:**
+- 405K RouterBench examples + 1K synthetic = enough for logistic regression on embeddings
+- Trains in <30 seconds on CPU
+- No GPU needed, no serving infrastructure
+- Interpretable: you can inspect which features drive the tier prediction
+- Confidence scores are well-calibrated (important for "should I trust this recommendation?")
+
+**Upgrade path:** If accuracy plateaus below 85%, swap logistic regression for XGBoost (still no GPU, trains in minutes, handles feature interactions better). If that plateaus, fine-tune the sentence-transformer on domain-specific prompt pairs — but that's v3 territory.
+
+#### Training pipeline
+
+```
+RouterBench (405K) ──┐
+                     ├──▶ Label derivation ──▶ (prompt, tier) pairs
+LLMRouterBench (400K)┘    "cheapest model
+                            scoring ≥90% of
+                            best quality"
+                                │
+Synthetic prompts (1K) ────────┤
+                                │
+User feedback (ongoing) ───────┤
+                                ▼
+                     ┌──────────────────┐
+                     │  Feature pipeline │
+                     │  MiniLM embed +   │
+                     │  numerical feats   │
+                     └────────┬─────────┘
+                              │
+                              ▼
+                     ┌──────────────────┐
+                     │ LogisticRegression│
+                     │ or XGBoost       │
+                     └────────┬─────────┘
+                              │
+                              ▼
+                     ┌──────────────────┐
+                     │ Serialized model  │
+                     │ (~2MB .pkl file)  │
+                     │ Shipped with SDK  │
+                     └──────────────────┘
+```
+
+The trained model ships AS PART OF THE PIP PACKAGE (~2MB). No API calls, no cloud inference, no latency. `agentcost recommend` runs the classifier locally.
+
+#### Integration with v1
+
+The v1 baseline already captures `system_prompt_hash`, `system_prompt_tokens`, and `output_format` per step. In v1.5:
+- The `task_complexity_tier` field goes from `null` to a predicted value
+- Model swap recommendations go from "this step looks like classification based on keywords" to "our classifier (85% accuracy on 400K+ examples) predicts tier-1 is sufficient, confidence: 0.92"
+- Recommendations with confidence < 0.85 fall back to v1 heuristics with a note
+
+#### Cost to bootstrap: ~$150
+
+200 synthetic prompts × 3 model tiers × 5 inputs × ~$0.05/run = $150. Combined with 405K free RouterBench examples. Total training time: <5 minutes on a laptop.
+
+#### Weeks 15-18 execution plan
+
+- Week 15: Download RouterBench + LLMRouterBench. Write label derivation script (cheapest model at ≥90% quality). Generate 200 synthetic prompts, run through 3 tiers, score with LLM-as-judge.
+- Week 16: Build feature pipeline (MiniLM embeddings + numerical features). Train logistic regression. Evaluate accuracy on held-out set. If <80%, try XGBoost.
+- Week 17: Integrate classifier into `agentcost recommend`. Update PR comment format to show classifier confidence. Add feedback loop: detect when users change models post-recommendation.
+- Week 18: Ship v1.5. Blog post: "How we predict which model your agent step really needs."
+
+---
+
+### 2.2 Cost Prediction Model (v2.0, weeks 19-28)
+
+**What it does:** Given a NEW workflow's structure (without profiling it on 100 inputs), predicts its cost distribution. The "zero-shot cost estimate."
+
+**Why it matters:** Eliminates the cold start problem. Instead of "profile 100 runs to get a cost estimate," you get "paste your workflow code, get an instant estimate." Accuracy improves as more workflows are profiled across all users.
+
+#### Data sources
+
+**Primary — Your own profiling data (accumulates from v1 users):**
+Every `agentcost profile` run produces a (workflow_structure, cost_distribution) pair. After 6 months of v1 adoption, target: 200-500 real workflow profiles.
+
+**Secondary — Self-generated synthetic workflows (~$200):**
+Build 100 template workflows across 5 archetypes:
+- Support agent (RAG + classify + generate + review loop)
+- Code review agent (read files + analyze + suggest + iterate)
+- Data extraction agent (parse + extract + validate + format)
+- Research agent (search + summarize + synthesize, multi-agent)
+- Sales/outreach agent (qualify + personalize + draft)
+
+Vary parameters: steps (3-10), models (haiku→opus), loop iterations (1-15), context sizes. Profile each on 20 inputs.
+
+Cost: 100 workflows × 20 inputs × ~$0.10/run = $200.
+
+**Tertiary — Public priors:**
+Iternal.ai publishes token consumption per use case archetype (simple agents: 5K-15K tokens, complex multi-agent: 200K-1M+, coding agents: 1-3.5M). Use as Bayesian priors for archetypes where you have few observations.
+
+#### Model architecture
+
+**XGBoost on workflow-level features:**
+
+```python
+workflow_features = {
+    # Structure
+    "n_steps": 5,
+    "n_llm_steps": 4,
+    "n_tool_steps": 3,
+    "has_loop": True,
+    "n_loops": 1,
+    "max_loop_depth": 2,
+
+    # Models
+    "max_model_tier": 3,          # 1=haiku, 2=sonnet, 3=opus
+    "avg_model_tier": 2.1,
+    "n_distinct_models": 3,
+
+    # Prompts (from static analysis, no execution needed)
+    "total_system_prompt_tokens": 4200,
+    "avg_system_prompt_tokens": 840,
+    "max_system_prompt_tokens": 1800,
+
+    # Tools
+    "total_tools_defined": 8,
+    "total_tool_definition_tokens": 3200,
+    "has_rag": True,
+    "has_mcp": False,
+
+    # Archetype embedding (from Task Complexity Classifier)
+    "step_tier_distribution": [0.2, 0.6, 0.2],  # % tier-1, tier-2, tier-3
+}
+
+# Target: log(cost_per_run_p50), log(cost_per_run_p95)
+# Log-transform because costs are log-normally distributed
+```
+
+**Why XGBoost:**
+- Handles small datasets well (200-500 samples)
+- Handles mixed feature types (numerical + categorical)
+- Captures non-linear interactions (loops × model tier × context)
+- Feature importance is interpretable ("78% of prediction variance comes from max_model_tier and has_loop")
+- Trains in seconds, predicts in milliseconds
+- No GPU needed
+
+**Minimum data needed:** ~200 workflows for basic predictions. ~500 for reliable confidence intervals. Below 200, fall back to archetype-based lookup tables (the public priors from Iternal.ai).
+
+#### Upgrade path
+
+At 2,000+ workflows: add per-step features (not just workflow-level aggregates). Train a model that predicts cost per step, then sums. More accurate but needs more data.
+
+At 5,000+ workflows: experiment with a small neural network (2-3 hidden layers) that takes workflow graph structure as input. Only worth it if XGBoost accuracy plateaus.
+
+#### Weeks 19-24 execution plan (alongside live monitoring build)
+
+- Week 19-20: Collect all profiling data from v1 users. Generate synthetic workflows ($200). Build feature extraction pipeline from workflow code → feature dict.
+- Week 21-22: Train XGBoost. Evaluate with cross-validation. Compare against baseline (archetype lookup table + linear projection). Ship only if XGBoost beats baseline by >15% MAPE.
+- Week 23-24: Integrate into CLI: `agentcost estimate workflow.py` (instant, no profiling needed). Add to GitHub Action `static` mode: code-only cost estimate.
+
+---
+
+### 2.3 Workflow Benchmarking Engine (v3.0, weeks 29-42)
+
+**What it does:** Groups similar workflows into clusters. Enables: "your support agent costs $0.82/run. The median for similar workflows is $0.35/run. You're at the 89th percentile."
+
+**Why it matters for the moat:** The benchmark data is the ultimate network effect. Every new workflow makes every existing user's benchmark more accurate. A competitor with 50 workflows can't benchmark. You with 5,000 can.
+
+#### Data sources
+
+**Primary — Organic user data:** Every profiled workflow contributes its feature vector + cost distribution. At month 9+, target: 500-1000 workflows.
+
+**Secondary — GitHub scraping (free):**
+Parse LangGraph/CrewAI workflow definitions from public repos. Extract structure (nodes, edges, tools, models) WITHOUT executing them. Estimated yield: 500-2000 parseable workflows from GitHub search. No cost data (can't run them), but provides structural diversity for the embedding space.
+
+**Tertiary — Synthetic bootstrap (same $200 as use case 2):** The 100 synthetic workflows from the Cost Prediction Model also seed the clustering.
+
+#### Model architecture
+
+**HDBSCAN on engineered features (no training needed):**
+
+```python
+from hdbscan import HDBSCAN
+
+workflow_vectors = []  # Each: ~20 numerical features per workflow
+for w in all_workflows:
+    vec = [
+        w.n_steps, w.n_llm_steps, w.n_tool_steps,
+        w.has_loop, w.n_loops, w.max_loop_depth,
+        w.max_model_tier, w.avg_model_tier,
+        w.total_system_prompt_tokens,
+        w.has_rag, w.has_mcp,
+        w.step_tier_distribution_tier1,  # from classifier
+        w.step_tier_distribution_tier2,
+        w.step_tier_distribution_tier3,
+        w.total_cost_p50,  # log-transformed
+        w.total_cost_p95,
+        w.cost_variance_ratio,
+        # Use-case tag (one-hot): support, coding, extraction, research, sales
+    ]
+    workflow_vectors.append(vec)
+
+clusterer = HDBSCAN(min_cluster_size=15, min_samples=5)
+labels = clusterer.fit_predict(StandardScaler().fit_transform(workflow_vectors))
+
+# Each cluster = a benchmark group
+# "Cluster 3: support agents with RAG + review loop. N=47. Median cost: $0.35/run."
+```
+
+**Why HDBSCAN:**
+- Density-based: no need to specify number of clusters (k)
+- Handles noise (outlier workflows get label -1, not forced into a cluster)
+- Minimum cluster size is configurable (we set 15 = need at least 15 similar workflows to form a benchmark group)
+- No training — it's unsupervised, runs on the data directly
+- Updates incrementally as new workflows arrive (approximate_predict)
+
+**Minimum data needed:** ~15 workflows per cluster to be meaningful. With 5-10 common archetypes, need ~100-500 total workflows. Below that, benchmarks are too noisy to show users.
+
+#### Benchmark output format
+
+```json
+{
+  "workflow": "agents/support_agent.py",
+  "cluster": {
+    "id": 3,
+    "name": "Support agent with RAG + review loop",
+    "n_workflows": 47,
+    "median_cost_per_run": 0.35,
+    "p25_cost": 0.22,
+    "p75_cost": 0.58
+  },
+  "your_position": {
+    "cost_per_run": 0.82,
+    "percentile": 89,
+    "verdict": "Your workflow costs 2.3x the cluster median.",
+    "top_cost_drivers_vs_median": [
+      "Step 'review' uses Opus (cluster median: Sonnet) → +$0.28/run",
+      "Average 8.2 iterations (cluster median: 4.1) → +$0.15/run"
+    ]
+  }
+}
+```
+
+---
+
+## PART 3 — DATA STRATEGY
+
+### 3.1 What we capture from day one (even before ML)
+
+Every `agentcost profile` run produces a dataset that feeds ALL future ML features. The v1 ProfileStore saves:
+
+```
+Per workflow:
+  - Structure: n_steps, step names, step types, DAG edges
+  - Models: which model per step
+  - Tools: tool definitions, MCP servers
+  - Use-case tag: user-provided or inferred
+
+Per step per run:
+  - Tokens: input, output, context_size, tool_definitions
+  - System prompt: hash + token count + raw text (opt-in)
+  - Output format: json/text/code (auto-detected)
+  - Iteration number (if in a loop)
+  - Is_retry flag
+  - Duration
+
+Per workflow per profiling session:
+  - N runs
+  - Cost distribution (p50-p99)
+  - Detected patterns (context_growth, high_variance, stuck_loops)
+  - Recommendations generated
+  - Recommendations followed (tracked via baseline diffs)
+```
+
+**Privacy:** System prompt raw text is opt-in (some users won't share proprietary prompts). The hash + token count + output_format are always captured — enough for the classifier. For benchmarking, only aggregated/anonymized features leave the user's environment unless they opt into cloud benchmarks.
+
+### 3.2 Data flywheel
+
+```
+More users adopt v1 (free OSS)
+        │
+        ▼
+More workflows profiled
+        │
+        ├──▶ Better Task Complexity Classifier (user swap feedback)
+        ├──▶ Better Cost Prediction Model (more training examples)
+        └──▶ Better Benchmarks (more workflows per cluster)
+                │
+                ▼
+        Better recommendations + benchmarks
+                │
+                ▼
+        More users adopt (word of mouth, "the tool that knows
+        what your agent should cost")
+                │
+                ▼
+        Repeat
+```
+
+The key insight: each ML model feeds the next. The Task Complexity Classifier produces `step_tier_distribution` features that the Cost Prediction Model and Workflow Benchmarking both consume. Improving the classifier improves everything downstream.
+
+### 3.3 Total bootstrap cost
+
+| Item | Cost | What you get |
+|------|------|-------------|
+| RouterBench download | $0 | 405K labeled prompt-tier pairs |
+| LLMRouterBench download | $0 | 400K labeled prompt-tier pairs |
+| Synthetic prompts for classifier | ~$150 | 1K domain-specific training examples |
+| Synthetic workflows for cost model | ~$200 | 100 profiled workflows across 5 archetypes |
+| GitHub scraping for benchmarking | $0 | 500-2000 workflow structures (no cost data) |
+| **Total** | **~$350** | Bootstrap data for all three ML models |
+
+---
+
+## PART 4 — RISKS AND MITIGATIONS
+
+### Technical risks
+
+**Projections are wrong.** The #1 credibility killer. Mitigation: always show intervals (p50-p95), flag high-variance steps, disclaimer "based on N samples." The ML cost predictor (v2) adds a confidence score: "estimate confidence: 72% — run a full profile for higher accuracy."
+
+**Profiling is expensive.** 100 runs × $1/run = $100. Mitigation: three CI modes (static/dryrun/sample). The ML cost predictor (v2) eliminates the need for profiling in many cases — instant estimate from code structure.
+
+**Framework APIs change.** LangGraph changed callback APIs 3x in 2025. OpenAI Agents SDK is v0.14. Mitigation: Collector abstraction isolates the SDK. If LangGraph changes, update one file.
+
+**Classifier generalizes poorly.** RouterBench = benchmark tasks ≠ real agent prompts. Mitigation: synthetic data fills the gap initially. User feedback corrects over time. Confidence threshold (0.85) prevents bad recommendations — low-confidence falls back to heuristics.
+
+**Not enough data for ML.** If v1 adoption is slow, ML models don't have enough training data. Mitigation: all ML features have a heuristic fallback. The product works without ML (v1 is stats-only). ML is an accelerant, not a dependency.
+
+### Strategic risks
+
+**Braintrust adds a cost check.** Their CI quality gate is one feature flag away from a cost gate. Mitigation: our projection engine (distributional + Monte Carlo) and ML-powered recommendations are deeper than a simple cost threshold. And once we have the benchmark data, the network effect is the moat.
+
+**Langfuse adds cost projection.** ClickHouse has unlimited engineering resources. Mitigation: Langfuse is observability-first (post-hoc). Cost projection is pre-deployment. Different product category, different buyer moment. But watch closely.
+
+**"Feature, not product" risk.** Cost profiling could be absorbed into agent frameworks themselves (LangGraph adds `cost_estimate()` natively). Mitigation: the ML layer (classifier + predictor + benchmarks) is the product, not the profiling. Profiling is the wedge.
+
+---
+
+## PART 5 — WHAT WE DON'T BUILD
+
+| Not in scope | Why | Who does it |
+|---|---|---|
+| TypeScript SDK | Python first. TS if demand proves out. | — |
+| Cloud-hosted SaaS | Local only in v1. Cloud version is a v3+ consideration. | — |
+| Live monitoring | v1 is offline profiling. Live monitoring = Phase 2. | Langfuse, Datadog |
+| Proxy / Gateway | We sit above gateways, not replace them. | LiteLLM, Cloudflare |
+| Model routing | We recommend which model. We don't route requests. | Martian, Unify |
+| Context compaction | We detect when it's needed. We don't do it. | Morph |
+| Quality evaluation | We do cost. Quality = Braintrust, DeepEval. | Braintrust |
+| A/B quality testing | v1 recommends swaps. v2 classifier adds confidence. v3 might auto-test. | — |
+| Pydantic AI / Mastra / Vercel AI SDK | Too many frameworks, too few hands. Cover 60-70% with LangGraph + OAI Agents. | — |
+| Dynamic pricing tables | Static lookup. User updates config if provider changes prices. | — |
+
+---
+
+## PART 6 — DEVELOPMENT PLAN
+
+### Pre-development (Week 0 — before writing a single line of code)
+
+**Day 1-2: Set up the foundation**
+- Register `agentcost` on PyPI (claim the name)
+- Create GitHub repo with MIT license, README skeleton, contributing guide
+- Set up CI (GitHub Actions for tests + linting)
+- Set up project structure:
+  ```
+  agentcost/
+  ├── agentcost/
+  │   ├── __init__.py
+  │   ├── collectors/
+  │   │   ├── base.py          # StepRecord + BaseCollector
+  │   │   ├── langgraph.py     # LangGraphCollector
+  │   │   ├── openai_agents.py # OpenAIAgentsCollector
+  │   │   └── generic.py       # GenericCollector (decorator/ctx manager)
+  │   ├── projection/
+  │   │   ├── stats.py         # Distribution calculations
+  │   │   ├── montecarlo.py    # Non-linear projection
+  │   │   └── patterns.py      # Context growth, loop variance detection
+  │   ├── recommend/
+  │   │   ├── heuristics.py    # v1 rule-based recommendations
+  │   │   ├── classifier.py    # v1.5 ML classifier (loads .pkl)
+  │   │   └── rules.py         # Recommendation types + formatting
+  │   ├── ci/
+  │   │   ├── baseline.py      # Baseline management
+  │   │   ├── diff.py          # Baseline comparison
+  │   │   └── report.py        # PR comment formatting
+  │   ├── inputs/
+  │   │   ├── generator.py     # LLM-powered synthetic input generation
+  │   │   ├── importer.py      # Langfuse/Braintrust trace import
+  │   │   ├── schema.py        # Extract input schema from workflow code
+  │   │   └── selector.py      # Auto-detect best input mode
+  │   ├── models/               # Shipped ML models (.pkl files)
+  │   ├── pricing/
+  │   │   └── tables.py        # Static model pricing lookup
+  │   ├── store.py             # ProfileStore (JSON/SQLite)
+  │   ├── report/
+  │   │   ├── template.html.j2 # Jinja2 HTML report template
+  │   │   ├── renderer.py      # Render profile data → HTML file
+  │   │   └── charts.py        # Inline SVG chart generators
+  │   ├── ui/
+  │   │   ├── app.py           # FastAPI app (REST + WebSocket)
+  │   │   ├── static/          # Pre-built React bundle (~200KB)
+  │   │   └── ws.py            # WebSocket handler for live profiling
+  │   └── cli.py               # Click-based CLI
+  ├── ui-frontend/              # React source (built separately, output → agentcost/ui/static/)
+  │   ├── src/
+  │   ├── package.json
+  │   └── vite.config.ts
+  ├── action/                   # GitHub Action
+  │   ├── action.yml
+  │   └── entrypoint.sh
+  ├── tests/
+  ├── pyproject.toml
+  └── README.md
+  ```
+
+**Day 3-5: Build the test harness FIRST**
+- Create 3 minimal agent workflows for testing:
+  - A LangGraph support agent (3 steps, no loop) — simplest case
+  - A LangGraph review agent (5 steps, 1 loop) — tests context growth
+  - An OpenAI Agents SDK tool-calling agent (2 agents, handoff) — tests multi-agent
+- These are your integration test fixtures AND your demo workflows
+- Write the expected StepRecord output for each (test-driven)
+- Estimated cost to run tests: ~$2-5 per full suite
+
+**Day 5: Validate framework APIs haven't changed**
+- Run each test workflow manually, confirm callbacks/hooks fire as documented
+- LangGraph: `UsageMetadataCallbackHandler` still works
+- OpenAI Agents SDK: `result.context_wrapper.usage.request_usage_entries` still exists
+- Document any API drift since the docs you read
+
+### v1.0 Development (Weeks 1-14)
+
+#### Sprint 1: Collectors + Input Generator (Weeks 1-2)
+
+**Goal:** `agentcost profile run workflow.py` works for LangGraph with auto-generated inputs (no JSONL file needed).
+
+| Day | Task | Output |
+|-----|------|--------|
+| 1-2 | `StepRecord` dataclass + `ProfileStore` (JSON) | Data layer |
+| 3-4 | `LangGraphCollector`: hook into LangChain `UsageMetadataCallbackHandler`, map callbacks → StepRecords. Handle: `on_llm_start` (capture model name, prompt tokens), `on_llm_end` (capture output tokens, total), `on_tool_start/end` (capture tool calls) | LangGraph instrumentation |
+| 5-6 | `GenericCollector`: `@collector.step("name")` decorator + `with collector.step("name") as s` context manager. Auto-extract tokens from OpenAI/Anthropic response objects | Manual instrumentation |
+| 7-8 | **Input generator**: extract system prompt + input schema from workflow code → generate diverse inputs via Haiku/mini call (~$0.02). Support: `--auto-generate N` (default), `--input "..."` (single), `--inputs file.jsonl` (manual). CLI skeleton (Click): `agentcost profile run`, `agentcost estimate`, `agentcost report` | Input generation + CLI |
+| 9-10 | Integration tests with the 3 fixture workflows. Test all input modes. Verify StepRecords match expected output | Test coverage |
+
+**Deliverable:** `agentcost profile run workflow.py` auto-generates 20 inputs, profiles the workflow, outputs per-step token counts. Two commands from install to first report.
+
+#### Sprint 2: OpenAI Agents SDK + Stats + Langfuse Import (Weeks 3-4)
+
+**Goal:** Multi-framework support + cost calculations + trace import.
+
+| Day | Task | Output |
+|-----|------|--------|
+| 1-3 | `OpenAIAgentsCollector`: hook via `RunHooks` (`on_agent_start/end`, `on_tool_start/end`). Use `context_wrapper.usage.request_usage_entries` for per-request breakdown. Map to StepRecords | OAI Agents instrumentation |
+| 4-5 | Pricing tables module: static lookup for all major models (OpenAI, Anthropic, Google, Mistral, DeepSeek). Token count × price = cost. Update mechanism: JSON config file user can override | Cost calculation |
+| 6-7 | Stats module: per-step distributions (p50, p75, p90, p95, p99). Detect patterns: context growth (r² correlation), loop variance (coefficient of variation), high variance (p95/p50 > 3) | Statistical analysis |
+| 8-9 | **Langfuse trace importer**: `--from-langfuse --last N` pulls traces via Langfuse Python SDK (`langfuse.api.observations.get_many`). Extract per-step token data from existing traces WITHOUT re-executing. Also: `agentcost analyze --from-langfuse` mode for zero-cost analysis of production data | Trace import |
+| 10 | `agentcost report profile.json --traffic 1000/day` → markdown report with per-step breakdown, flags, totals. Auto-detect best input mode (Langfuse available? → suggest import. Otherwise → auto-generate) | Report generation + smart defaults |
+
+**Deliverable:** Can profile LangGraph or OAI Agents workflows via auto-generate, single input, manual file, OR Langfuse import. Compute costs, detect patterns, generate reports.
+
+#### Sprint 3: Projection Engine (Weeks 5-6)
+
+**Goal:** Accurate cost projections with confidence intervals.
+
+| Day | Task | Output |
+|-----|------|--------|
+| 1-3 | Linear projector: `mean_cost × volume × 30` with distributional output (project each percentile). Works for stable workflows (no flags) | Basic projection |
+| 4-7 | Monte Carlo projector: triggered when patterns detected. Sample per-step distributions, apply context growth curves (linear extrapolation of Δcontext/iteration), sample loop counts from observed distribution. 10K simulations → cost distribution | Non-linear projection |
+| 8-10 | Baseline management: `agentcost baseline update` writes `.agentcost/baseline.json`. `agentcost diff baseline.json new_profile.json` computes per-step deltas | Baseline system |
+
+**Deliverable:** Can project costs at arbitrary traffic with confidence intervals. Can diff two profiles.
+
+#### Sprint 4: Recommendations (Weeks 7-8)
+
+**Goal:** Actionable, dollar-denominated optimization suggestions.
+
+| Day | Task | Output |
+|-----|------|--------|
+| 1-3 | Model swap recommender: task type heuristics (keyword scan on system prompt + output/input ratio) → minimum tier estimate → savings calculation. Conservative: only recommend when clear signal (classification, extraction, simple formatting) | Model swap recs |
+| 4-5 | Architecture recommender: context growth detection → compaction recommendation with savings. Re-sent context detection (hash first 200 tokens of consecutive prompts) → caching recommendation | Architecture recs |
+| 6-7 | Workflow recommender: loop analysis → iteration cap recommendation. Stuck loop detection (>2x mean iterations) → circuit breaker recommendation. Cost-per-iteration-marginal analysis | Workflow recs |
+| 8-10 | Recommendation formatting: each rec has type, title, description, estimated savings, confidence level. Aggregate: total potential savings. Integrate into `agentcost report` and `agentcost recommend` | Formatted output |
+
+**Deliverable:** `agentcost recommend profile.json` produces dollar-denominated recommendations.
+
+#### Sprint 5: GitHub Action (Weeks 9-10)
+
+**Goal:** Cost checks in CI on every PR.
+
+| Day | Task | Output |
+|-----|------|--------|
+| 1-2 | `static` mode: parse git diff, detect model changes / step additions / loop modifications in workflow code, estimate impact from baseline. No LLM calls needed | Free CI mode |
+| 3-4 | `dryrun` mode: instrument workflow, count prompt tokens via tiktoken/tokenizers WITHOUT calling LLMs, estimate output tokens from historical ratio per model | Free CI mode (better) |
+| 5-6 | `sample` mode: run workflow on 5-10 inputs, measure real costs, compare to baseline | Paid CI mode |
+| 7-8 | PR comment: format cost report + diff + recommendations as GitHub comment. Respect threshold config (block merge if cost increase > X%) | GitHub integration |
+| 9-10 | `action.yml` + `entrypoint.sh`. Test with a real GitHub repo. Publish to GitHub Marketplace | Shipped Action |
+
+**Deliverable:** Working GitHub Action in three modes, published on Marketplace.
+
+#### Sprint 6: HTML Report + Local Web UI (Weeks 11-12)
+
+**Goal:** Visual output that makes AgentCost feel like a product, not a script.
+
+| Day | Task | Output |
+|-----|------|--------|
+| 1-2 | HTML report template (Jinja2): cost waterfall chart (inline SVG bars), recommendation cards, projection table. Single self-contained .html file. `agentcost profile run` auto-opens it in browser | HTML report |
+| 3-4 | Context growth sparklines (inline SVG paths generated from StepRecord data). Score header (0-100 cost efficiency score). Raw data toggle. Polish CSS | Report complete |
+| 5-6 | FastAPI backend for `agentcost ui`: serve pre-built React frontend, REST endpoints for workflow detection + input config, WebSocket endpoint for live profiling progress | UI backend |
+| 7-8 | React frontend Screen 1 (Setup): file selector, framework detection, input mode picker, traffic config, "Run Profiling" button. Screen 2 (Live): progress bar, per-step cost accumulating via WebSocket, pattern flags | UI screens 1-2 |
+| 9-10 | React frontend Screen 3 (Report): interactive version of HTML report. Export buttons (HTML, PR comment copy, baseline generate). Pre-compile React to static bundle, include in pip package | UI complete |
+
+**Deliverable:** `agentcost profile run` opens a beautiful HTML report. `agentcost ui` launches a full visual experience.
+
+#### Sprint 7: Polish + Launch (Weeks 13-14)
+
+| Day | Task | Output |
+|-----|------|--------|
+| 1-2 | CrewAI Collector (same LangChain callback pattern — should be quick) | Third framework |
+| 3-4 | End-to-end integration tests: profile → report → recommend → baseline → diff → CI comment → HTML report → UI | Full pipeline tested |
+| 5-6 | README: clear quickstart, architecture diagram, demo GIF (record both CLI and UI experiences). Screenshots of the HTML report for social sharing | Documentation |
+| 7-8 | One-page landing website (GitHub Pages). Screenshot gallery showing the report, the UI, the PR comment | Web presence |
+| 9 | Publish v1.0 to PyPI. GitHub Action to Marketplace. Tag release | v1.0 shipped |
+| 10 | Launch: HN "Show HN", LangChain Discord, r/MachineLearning, Twitter/X, DEV.to blog post | Distribution |
+
+### v1.5 Development (Weeks 15-18)
+
+#### Sprint 8: Task Complexity Classifier
+
+| Day | Task | Output |
+|-----|------|--------|
+| 1-2 | Download RouterBench (405K) + LLMRouterBench (400K). Write label derivation: for each prompt, cheapest model scoring ≥90% of best → tier label (tier-1/2/3) | 800K labeled examples |
+| 3-4 | Generate 200 synthetic agent-style system prompts (40 per archetype: support, code review, extraction, research, sales). Run each through 3 model tiers × 5 inputs. Score with LLM-as-judge. **Cost: ~$150** | 1K domain-specific examples |
+| 5-6 | Feature pipeline: `all-MiniLM-L6-v2` embedding (384d) + 9 numerical features (prompt tokens, output/input ratio, has_json_schema, etc.) = 393 features. Train logistic regression. Evaluate on held-out 20%. If accuracy <80%, try XGBoost | Trained classifier |
+| 7-8 | Integrate into `agentcost recommend`: replace keyword heuristics with classifier prediction + confidence score. Confidence < 0.85 → fall back to heuristics with note. Serialize model as .pkl, ship in pip package (~2MB) | ML-powered recs |
+| 9-10 | Feedback capture: when user changes model at a step and re-profiles, log (prompt_hash, old_model, new_model, quality_maintained: bool). This trains future classifier versions | Feedback loop |
+
+**Deliverable:** v1.5 shipped. Model swap recommendations backed by classifier trained on 800K+ examples.
+
+### v2.0 Development (Weeks 19-28)
+
+Two parallel tracks: live monitoring + cost prediction model.
+
+#### Track A: Live Monitoring (Weeks 19-24)
+
+| Week | Task |
+|------|------|
+| 19-20 | `agentcost monitor` daemon: same Collectors but in production mode. Stream StepRecords to local SQLite or cloud store. Real-time cost accumulation per workflow/agent/team |
+| 21-22 | Delta dashboard: projection (from baseline) vs reality (from monitor). Show: "Step 4 costs 3.2x more than projected because retry rate is 18% in production vs 2% in profiling" |
+| 23-24 | Budget alerts: configurable thresholds per workflow/team. "Agent support-bot has spent $1,200 this week (budget: $1,000). At current rate, will exceed monthly budget by Tuesday." First paid tier: $500/mo for 10 workflows |
+
+#### Track B: Cost Prediction Model (Weeks 19-24)
+
+| Week | Task |
+|------|------|
+| 19-20 | Collect all profiling data from v1/v1.5 users. Generate 100 synthetic workflows across 5 archetypes ($200). Build feature extraction: workflow code → feature dict (20 features) |
+| 21-22 | Train XGBoost on log(cost) targets. Cross-validate. Compare vs baseline (archetype lookup table). Ship only if MAPE improvement >15% |
+| 23-24 | `agentcost estimate workflow.py` — instant cost estimate from code structure, no profiling. Integrate into `static` CI mode for better accuracy |
+
+#### Weeks 25-28: Integration + Paid Launch
+
+| Week | Task |
+|------|------|
+| 25-26 | Integrate monitoring + prediction into the Web UI dashboard. Paid tier launch |
+| 27-28 | First 10 paying customers. Iterate based on feedback. Blog: "How we predict agent costs before deployment" |
+
+### v3.0 Development (Weeks 29-42)
+
+| Phase | Task |
+|-------|------|
+| Weeks 29-32 | Spend Governance: budget circuit breakers per-agent (intelligent degradation: downshift model → compact context → halt gracefully). Attribution by team/workflow/client |
+| Weeks 33-36 | Audit trail: every agent spend decision logged with identity, scope, context, timestamp. EU AI Act compliance report generator |
+| Weeks 37-40 | Workflow Benchmarking: HDBSCAN clustering on accumulated workflow data. Benchmark reports: "your cost vs cluster median." Requires ~500 workflows minimum |
+| Weeks 41-42 | Enterprise pilot program: 3-5 companies on Spend Governance tier ($5K+/mo). Iterate on compliance/audit features based on their requirements |
+
+---
+
+## PART 7 — KEY MILESTONES AND SUCCESS METRICS
+
+| Milestone | When | Metric | Why it matters |
+|-----------|------|--------|---------------|
+| v1.0 shipped (with UI) | Week 14 | Package on PyPI + Action on Marketplace + UI | Product exists |
+| First 10 design partners | Week 16 | 10 teams using the SDK regularly | Validation |
+| 100 GitHub stars | Week 16 | Community signal | Social proof for YC |
+| v1.5 shipped (ML classifier) | Week 18 | Classifier accuracy >80% on held-out | ML moat begins |
+| 1,000 SDK installs | Week 22 | PyPI download count | Distribution |
+| 500 workflows profiled | Week 26 | ProfileStore telemetry | Data moat begins |
+| First paid customer | Week 26 | $500 MRR | Revenue |
+| 20 paid teams | Week 38 | $10K MRR | Business viability |
+| 3 enterprise pilots | Week 42 | $15K+ MRR pipeline | Enterprise traction |
+| Benchmark data meaningful | Week 38 | >500 workflows, >5 clusters with 15+ members | Network effect begins |
+
+---
+
+## APPENDIX — COST BUDGET
+
+| Item | Cost | When |
+|------|------|------|
+| Domain + hosting (GitHub Pages) | ~$12/year | Week 0 |
+| Test workflow execution (ongoing) | ~$50/month | Ongoing |
+| Synthetic data for ML classifier | ~$150 | Week 13 |
+| Synthetic workflows for cost model | ~$200 | Week 17 |
+| Total pre-revenue investment | **~$600** | Weeks 0-17 |

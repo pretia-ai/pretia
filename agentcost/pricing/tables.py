@@ -4,64 +4,79 @@ from __future__ import annotations
 
 # Per-million-token pricing in USD: (input_price_per_M, output_price_per_M).
 # Updated manually when vendors change rates. Numbers reflect publicly
-# announced pricing as of mid-2025; see vendor docs for the source of truth.
+# announced pricing as of May 2026; see vendor docs for the source of truth.
 MODEL_PRICING: dict[str, tuple[float, float]] = {
-    # Anthropic — https://www.anthropic.com/pricing
+    # Anthropic — https://docs.anthropic.com/en/docs/about-claude/pricing
+    "claude-opus-4-7": (5.00, 25.00),
+    "claude-opus-4-6": (5.00, 25.00),
+    "claude-sonnet-4-6": (3.00, 15.00),
+    "claude-haiku-4-5": (1.00, 5.00),
+    # Legacy Anthropic — retiring June 15, 2026
     "claude-opus-4-20250514": (15.00, 75.00),
     "claude-sonnet-4-20250514": (3.00, 15.00),
-    "claude-haiku-3-5-20241022": (0.80, 4.00),
-    "claude-sonnet-3-5-20241022": (3.00, 15.00),
     # OpenAI — https://openai.com/api/pricing/
+    "gpt-5.5": (5.00, 30.00),
+    "gpt-4.1": (2.00, 8.00),
+    "gpt-4.1-mini": (0.40, 1.60),
+    "gpt-4.1-nano": (0.10, 0.40),
     "gpt-4o": (2.50, 10.00),
     "gpt-4o-mini": (0.15, 0.60),
-    "gpt-4-turbo": (10.00, 30.00),
-    "o1": (15.00, 60.00),
-    "o1-mini": (3.00, 12.00),
-    "o3-mini": (1.10, 4.40),
-    # Google Gemini — https://ai.google.dev/pricing (≤ 128k-context tier).
-    "gemini-2.0-flash": (0.10, 0.40),
-    "gemini-2.0-flash-lite": (0.075, 0.30),
-    "gemini-1.5-pro": (1.25, 5.00),
-    "gemini-1.5-flash": (0.075, 0.30),
+    "o3": (2.00, 8.00),
+    "o4-mini": (1.10, 4.40),
+    # Google Gemini — https://ai.google.dev/gemini-api/docs/pricing
+    # Prices shown for ≤200k-context tier.
+    "gemini-2.5-pro": (1.25, 10.00),
+    "gemini-2.5-flash": (0.15, 0.60),
     # Meta Llama via Together AI — https://www.together.ai/pricing
-    "llama-3.1-70b": (0.88, 0.88),
-    "llama-3.1-8b": (0.18, 0.18),
-    # Mistral — https://mistral.ai/technology/#pricing
+    "llama-4-maverick": (0.27, 0.85),
+    "llama-4-scout": (0.10, 0.40),
+    # Mistral — https://mistral.ai/pricing
     "mistral-large-latest": (2.00, 6.00),
-    "mistral-small-latest": (0.20, 0.60),
+    "mistral-small-latest": (0.10, 0.30),
+    # DeepSeek — https://api-docs.deepseek.com/quick_start/pricing
+    "deepseek-chat": (0.14, 0.28),
+    "deepseek-reasoner": (0.55, 2.19),
 }
 
 MODEL_ALIASES: dict[str, str] = {
-    "claude-opus-4": "claude-opus-4-20250514",
-    "claude-sonnet-4": "claude-sonnet-4-20250514",
-    "claude-haiku-3.5": "claude-haiku-3-5-20241022",
-    "claude-sonnet-3.5": "claude-sonnet-3-5-20241022",
-    "gpt-4o-2024-08-06": "gpt-4o",
-    "gpt-4o-mini-2024-07-18": "gpt-4o-mini",
-    "gpt-4-turbo-2024-04-09": "gpt-4-turbo",
+    "claude-opus-4": "claude-opus-4-7",
+    "claude-sonnet-4": "claude-sonnet-4-6",
+    "claude-haiku-4": "claude-haiku-4-5",
+    "claude-haiku": "claude-haiku-4-5",
+    "claude-sonnet": "claude-sonnet-4-6",
+    "claude-opus": "claude-opus-4-7",
+    "gpt-4.1-micro": "gpt-4.1-nano",
+    "o3-mini": "o4-mini",
+    "mistral-large": "mistral-large-latest",
+    "mistral-small": "mistral-small-latest",
+    "deepseek": "deepseek-chat",
 }
 
 # Capability tier, not price. Stored separately because hosted llama/mistral
 # pricing varies enough by provider that derived tiers would be misleading.
 MODEL_TIERS: dict[str, str] = {
+    "claude-opus-4-7": "frontier",
+    "claude-opus-4-6": "frontier",
     "claude-opus-4-20250514": "frontier",
-    "gpt-4-turbo": "frontier",
-    "o1": "frontier",
-    "gemini-1.5-pro": "frontier",
+    "gpt-5.5": "frontier",
+    "o3": "frontier",
+    "gemini-2.5-pro": "frontier",
+    "mistral-large-latest": "frontier",
+    "claude-sonnet-4-6": "mid",
     "claude-sonnet-4-20250514": "mid",
-    "claude-sonnet-3-5-20241022": "mid",
+    "gpt-4.1": "mid",
     "gpt-4o": "mid",
-    "o3-mini": "mid",
-    "mistral-large-latest": "mid",
-    "gemini-2.0-flash": "mid",
-    "llama-3.1-70b": "mid",
-    "claude-haiku-3-5-20241022": "fast",
+    "o4-mini": "mid",
+    "llama-4-maverick": "mid",
+    "deepseek-reasoner": "mid",
+    "claude-haiku-4-5": "fast",
+    "gpt-4.1-mini": "fast",
+    "gpt-4.1-nano": "fast",
     "gpt-4o-mini": "fast",
-    "o1-mini": "fast",
-    "gemini-1.5-flash": "fast",
-    "gemini-2.0-flash-lite": "fast",
+    "gemini-2.5-flash": "fast",
+    "llama-4-scout": "fast",
     "mistral-small-latest": "fast",
-    "llama-3.1-8b": "fast",
+    "deepseek-chat": "fast",
 }
 
 _PER_MILLION = 1_000_000

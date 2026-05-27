@@ -26,14 +26,13 @@ class TestGetModelPricing:
         assert out_price > 0
 
     def test_returns_per_token_scale(self):
-        # gpt-4o input is $2.50/M ≈ 2.5e-6/token. Anything sane is well below 1e-3.
         in_price, out_price = get_model_pricing("gpt-4o")
         assert in_price < 1e-3
         assert out_price < 1e-3
 
     def test_alias_returns_same_pricing(self):
         assert get_model_pricing("claude-sonnet-4") == get_model_pricing(
-            "claude-sonnet-4-20250514"
+            "claude-sonnet-4-6"
         )
 
     @pytest.mark.parametrize("model", list_models())
@@ -45,10 +44,10 @@ class TestGetModelPricing:
 
 class TestResolveModel:
     def test_alias_resolves_to_canonical(self):
-        assert resolve_model("claude-sonnet-4") == "claude-sonnet-4-20250514"
+        assert resolve_model("claude-sonnet-4") == "claude-sonnet-4-6"
 
     def test_canonical_returns_itself(self):
-        assert resolve_model("claude-sonnet-4-20250514") == "claude-sonnet-4-20250514"
+        assert resolve_model("claude-sonnet-4-6") == "claude-sonnet-4-6"
 
     def test_unknown_model_raises_value_error(self):
         with pytest.raises(ValueError, match="nonexistent-model"):
@@ -70,7 +69,7 @@ class TestCalculateCost:
 
     def test_alias_and_canonical_agree(self):
         a = calculate_cost("claude-sonnet-4", 1000, 500)
-        b = calculate_cost("claude-sonnet-4-20250514", 1000, 500)
+        b = calculate_cost("claude-sonnet-4-6", 1000, 500)
         assert a == b
 
     def test_math_matches_pricing_dict(self):
@@ -94,7 +93,7 @@ class TestCalculateCost:
 
 class TestModelTier:
     def test_opus_is_frontier(self):
-        assert model_tier("claude-opus-4-20250514") == "frontier"
+        assert model_tier("claude-opus-4-7") == "frontier"
 
     def test_mini_is_fast(self):
         assert model_tier("gpt-4o-mini") == "fast"
@@ -126,7 +125,7 @@ class TestListModels:
 
 
 class TestStructuralInvariants:
-    """Catch drift between MODEL_PRICING, MODEL_ALIASES, and MODEL_TIERS as we add models."""
+    """Catch drift between MODEL_PRICING, MODEL_ALIASES, and MODEL_TIERS."""
 
     def test_every_model_has_a_tier_entry(self):
         assert set(MODEL_PRICING) == set(MODEL_TIERS)
@@ -141,6 +140,7 @@ class TestStructuralInvariants:
         assert "gemini" in models
         assert "llama" in models
         assert "mistral" in models
+        assert "deepseek" in models
 
 
 class TestStepRecordIntegration:
@@ -156,11 +156,8 @@ class TestStepRecordIntegration:
         assert cost == expected
 
     def test_step_record_built_with_pricing_model(self, sample_record):
-        # Sanity check: a record using a model from the pricing table can be costed
-        # via the StepRecord.cost() method too, given a per-token pricing dict.
         record = dataclasses.replace(sample_record, model="gpt-4o-mini")
         pricing = {record.model: get_model_pricing(record.model)}
-        # StepRecord.cost rounds nothing; calculate_cost rounds to 6.
         assert isinstance(record, StepRecord)
         assert record.cost(pricing) == pytest.approx(
             calculate_cost(record.model, record.input_tokens, record.output_tokens),
