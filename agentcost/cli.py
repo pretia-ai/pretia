@@ -351,5 +351,224 @@ def analyze_cmd(
         sys.exit(1)
 
 
+@cli.group()
+def baseline() -> None:
+    """Manage cost baselines."""
+
+
+@baseline.command("update")
+@click.argument("profile_path")
+@click.option(
+    "--traffic",
+    type=int,
+    default=1000,
+    help="Daily traffic volume for projection (default: 1000).",
+)
+@click.option(
+    "--output-dir",
+    type=click.Path(),
+    default=".agentcost",
+    help="Directory for baseline file.",
+)
+def baseline_update(
+    profile_path: str,
+    traffic: int,
+    output_dir: str,
+) -> None:
+    """Save current profile as a cost baseline."""
+    from agentcost.ci.baseline import create_baseline, save_baseline
+    from agentcost.store import ProfileStore
+
+    store = ProfileStore(storage_dir=Path(output_dir))
+
+    try:
+        if profile_path == "latest":
+            sessions = store.list_sessions()
+            if not sessions:
+                console.print(
+                    "[red]Error:[/red] No saved profiles found. "
+                    "Run 'agentcost profile run' first.",
+                )
+                sys.exit(1)
+            session = store.load(sessions[0])
+        else:
+            p = Path(profile_path)
+            if not p.exists():
+                console.print(
+                    f"[red]Error:[/red] Profile not found: {profile_path}",
+                )
+                sys.exit(1)
+            session = store.load(p)
+    except Exception as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        sys.exit(1)
+
+    try:
+        bl = create_baseline(session, traffic=traffic)
+        saved_path = save_baseline(bl, output_dir=output_dir)
+    except ValueError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        sys.exit(1)
+
+    console.print(f"Baseline saved: [bold]{saved_path}[/bold]")
+    console.print()
+    console.print("[dim]Assumptions baked into this baseline:[/dim]")
+    for assumption in bl.assumptions:
+        console.print(f"  [dim]• {assumption}[/dim]")
+
+
+@cli.command("diff")
+@click.argument("baseline_path")
+@click.argument("profile_path")
+@click.option(
+    "--traffic",
+    type=int,
+    default=None,
+    help="Override traffic volume (default: use baseline assumption).",
+)
+@click.option(
+    "--threshold",
+    type=int,
+    default=None,
+    help="Fail if monthly cost increase exceeds this percentage.",
+)
+def diff_cmd(
+    baseline_path: str,
+    profile_path: str,
+    traffic: int | None,
+    threshold: int | None,
+) -> None:
+    """Compare a baseline to a new profile and show cost deltas."""
+    from agentcost.ci.baseline import load_baseline
+    from agentcost.ci.diff import diff_baseline, format_diff_report
+    from agentcost.projection.patterns import detect_patterns
+    from agentcost.projection.stats import compute_stats
+    from agentcost.store import ProfileStore
+
+    try:
+        bl = load_baseline(baseline_path)
+    except (FileNotFoundError, ValueError) as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        sys.exit(1)
+
+    store = ProfileStore()
+    try:
+        if profile_path == "latest":
+            sessions = store.list_sessions()
+            if not sessions:
+                console.print(
+                    "[red]Error:[/red] No saved profiles found.",
+                )
+                sys.exit(1)
+            session = store.load(sessions[0])
+        else:
+            p = Path(profile_path)
+            if not p.exists():
+                console.print(
+                    f"[red]Error:[/red] Profile not found: {profile_path}",
+                )
+                sys.exit(1)
+            session = store.load(p)
+    except Exception as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        sys.exit(1)
+
+    if "stats" not in session.metadata and session.runs:
+        profiling_stats = compute_stats(session.runs)
+        patterns = detect_patterns(session.runs, profiling_stats)
+        session.metadata["stats"] = profiling_stats.to_dict()
+        session.metadata["patterns"] = [p.to_dict() for p in patterns]
+
+    try:
+        result = diff_baseline(bl, session, traffic=traffic)
+    except ValueError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        sys.exit(1)
+
+    console.print(format_diff_report(result))
+
+    if threshold is not None:
+        p50_pct = result.total_monthly_pct_change.get("p50", 0)
+        if p50_pct > threshold:
+            console.print(
+                f"\n[red]Cost increase ({p50_pct:.0f}%) exceeds "
+                f"threshold ({threshold}%). Failing.[/red]",
+            )
+            sys.exit(1)
+
+
+@cli.command("validate")
+@click.argument("workflow_path", type=click.Path(exists=True))
+@click.option(
+    "--budget",
+    type=float,
+    default=10.0,
+    help="Estimated cost for both profiling runs (default: $10).",
+)
+@click.option(
+    "--small-n",
+    type=int,
+    default=20,
+    help="First sample size (default: 20).",
+)
+@click.option(
+    "--large-n",
+    type=int,
+    default=100,
+    help="Second sample size (default: 100).",
+)
+@click.option(
+    "-v",
+    "--verbose",
+    is_flag=True,
+    default=False,
+    help="Verbose output with debug logging.",
+)
+def validate_cmd(
+    workflow_path: str,
+    budget: float,
+    small_n: int,
+    large_n: int,
+    verbose: bool,
+) -> None:
+    """Run projection quality check (small-n vs large-n comparison)."""
+    log_level = logging.DEBUG if verbose else logging.WARNING
+    logging.basicConfig(level=log_level, format="%(message)s")
+
+    total_runs = small_n + large_n
+    if not click.confirm(
+        f"This will profile your workflow {total_runs} times. "
+        f"Estimated cost: ~${budget:.2f}. Proceed?"
+    ):
+        console.print("Cancelled.")
+        return
+
+    try:
+        from agentcost.validation.validate_cmd import (
+            format_validate_report,
+            run_validation,
+        )
+
+        with console.status("[bold green]Running validation..."):
+            result = run_validation(
+                workflow_path, budget=budget, small_n=small_n, large_n=large_n,
+            )
+
+        console.print(format_validate_report(result))
+
+        if result.score.verdict == "FAIL":
+            sys.exit(1)
+
+    except Exception as exc:
+        if verbose:
+            console.print(traceback.format_exc())
+        else:
+            console.print(
+                f"[red]Error:[/red] {exc}\n"
+                "Run with -v for full traceback.",
+            )
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     cli()

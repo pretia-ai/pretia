@@ -204,6 +204,8 @@ class TestFullPipeline:
         assert "cost_summary" in session.metadata
         assert "stats" in session.metadata
         assert "patterns" in session.metadata
+        assert "projection" in session.metadata
+        assert "confidence" in session.metadata
 
         cost = session.metadata["cost_summary"]
         assert cost["mean_cost_per_run"] > 0
@@ -211,6 +213,14 @@ class TestFullPipeline:
         stats = session.metadata["stats"]
         assert stats["total_runs"] == 2
         assert isinstance(session.metadata["patterns"], list)
+
+        proj = session.metadata["projection"]
+        assert proj["method"] in ("linear", "montecarlo")
+        assert "projections" in proj
+        assert "confidence" in proj
+
+        conf = session.metadata["confidence"]
+        assert conf["tier"] in ("HIGH", "MODERATE", "LOW", "VERY_LOW")
 
     def test_profile_saved_to_disk(self, tmp_path):
         wf = tmp_path / "agent.py"

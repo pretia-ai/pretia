@@ -20,6 +20,7 @@ from agentcost.inputs.generator import generate_inputs
 from agentcost.inputs.selector import InputSelection, select_input_mode
 from agentcost.pricing.tables import calculate_cost, model_tier
 from agentcost.projection.patterns import detect_patterns
+from agentcost.projection.projector import project
 from agentcost.projection.stats import compute_stats
 from agentcost.store import ProfileStore, ProfilingSession
 
@@ -297,6 +298,9 @@ class ProfileRunner:
 
         profiling_stats = compute_stats(runs)
         patterns = detect_patterns(runs, profiling_stats)
+        projection = project(
+            profiling_stats, patterns, runs=runs, input_source=selection.mode,
+        )
 
         workflow_src = Path(self.workflow_path).read_bytes()
         session = ProfilingSession(
@@ -310,6 +314,8 @@ class ProfileRunner:
                 "cost_summary": cost_summary,
                 "stats": profiling_stats.to_dict(),
                 "patterns": [p.to_dict() for p in patterns],
+                "projection": projection.to_dict(),
+                "confidence": projection.confidence.to_dict(),
             },
         )
 
@@ -317,7 +323,24 @@ class ProfileRunner:
         saved_path = store.save(session)
         session.metadata["saved_path"] = str(saved_path)
 
+        self._auto_diff_baseline(session)
+
         return session
+
+    def _auto_diff_baseline(self, session: ProfilingSession) -> None:
+        """Show a one-line diff summary if a baseline exists."""
+        baseline_path = Path(self.output_dir) / "baseline.json"
+        if not baseline_path.exists():
+            return
+        try:
+            from agentcost.ci.baseline import load_baseline
+            from agentcost.ci.diff import diff_baseline
+
+            bl = load_baseline(str(baseline_path))
+            result = diff_baseline(bl, session)
+            session.metadata["baseline_diff_summary"] = result.summary
+        except Exception:
+            logger.debug("Auto-diff against baseline failed", exc_info=True)
 
     def run_sync(self) -> ProfilingSession:
         """Synchronous wrapper around `run()`."""
@@ -355,6 +378,9 @@ class ProfileRunner:
 
         profiling_stats = compute_stats(runs)
         patterns = detect_patterns(runs, profiling_stats)
+        projection = project(
+            profiling_stats, patterns, runs=runs, input_source="langfuse",
+        )
 
         session = ProfilingSession(
             workflow_name=f"langfuse-import ({len(traces)} traces)",
@@ -368,6 +394,8 @@ class ProfileRunner:
                 "stats": profiling_stats.to_dict(),
                 "patterns": [p.to_dict() for p in patterns],
                 "langfuse_trace_count": len(traces),
+                "projection": projection.to_dict(),
+                "confidence": projection.confidence.to_dict(),
             },
         )
 

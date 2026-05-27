@@ -83,7 +83,10 @@ def format_cli_report(
 
     renderables.append(_build_step_table(stats, cost_summary, session.sample_size))
 
-    renderables.append(_build_projection_panel(stats, cost_summary, traffic))
+    projection = meta.get("projection")
+    renderables.append(
+        _build_projection_panel(stats, cost_summary, traffic, projection),
+    )
 
     renderables.append(_build_patterns_panel(patterns))
 
@@ -200,7 +203,111 @@ def _build_step_table(
     return table
 
 
+_CONFIDENCE_STYLES: dict[str, str] = {
+    "HIGH": "green",
+    "MODERATE": "yellow",
+    "LOW": "bright_red",
+    "VERY_LOW": "red",
+}
+
+
 def _build_projection_panel(
+    stats: dict[str, Any] | None,
+    cost_summary: dict[str, Any],
+    traffic: int | None,
+    projection: dict[str, Any] | None = None,
+) -> Panel:
+    if projection is not None:
+        return _build_new_projection_panel(projection, traffic)
+    return _build_legacy_projection_panel(stats, cost_summary, traffic)
+
+
+def _build_new_projection_panel(
+    projection: dict[str, Any],
+    traffic: int | None,
+) -> Panel:
+    method = projection.get("method", "linear")
+    confidence = projection.get("confidence", {})
+    tier = confidence.get("tier", "MODERATE")
+    display_range = confidence.get("display_range", "p50 – p95")
+    deductions = confidence.get("deductions", [])
+    warnings = projection.get("warnings", [])
+    mc_result = projection.get("montecarlo_result")
+
+    tier_style = _CONFIDENCE_STYLES.get(tier, "dim")
+
+    method_label = "Linear"
+    if method == "montecarlo":
+        n_sims = mc_result.get("n_simulations", 10000) if mc_result else 10000
+        method_label = f"Monte Carlo ({n_sims:,} sims)"
+
+    projs = projection.get("projections", {})
+
+    if traffic is not None:
+        volumes = [traffic]
+    else:
+        volumes = projection.get("traffic_volumes", [100, 1000, 10000])
+
+    table = Table(show_lines=True, pad_edge=True)
+    table.add_column("", style="bold")
+    for v in volumes:
+        table.add_column(f"{v:,}/day", justify="right")
+
+    for pct in ("p50", "p75", "p90", "p95", "Mean"):
+        row: list[str] = [pct]
+        for v in volumes:
+            vol_data = projs.get(str(v), projs.get(v, {}))
+            monthly = vol_data.get("monthly_cost", {})
+            val = monthly.get(pct.lower() if pct != "Mean" else "mean", 0)
+            row.append(format_cost(val))
+        table.add_row(*row)
+
+    text = Text()
+    text.append("Monthly Cost Projection", style="bold")
+    text.append(f" ({method_label})", style="dim")
+    text.append(" — Confidence: ", style="dim")
+    text.append(tier, style=f"bold {tier_style}")
+    text.append("\n")
+    text.append(f'  "{display_range}"', style="dim italic")
+
+    parts: list[Any] = [text, table]
+
+    footer = Text()
+    footer.append(f"Method: {method_label}", style="dim")
+
+    trigger_reasons = [
+        w.removeprefix("Monte Carlo triggered by: ")
+        for w in warnings
+        if w.startswith("Monte Carlo triggered by:")
+    ]
+    if trigger_reasons:
+        footer.append(f" — triggered by {trigger_reasons[0][:80]}", style="dim")
+
+    if deductions:
+        footer.append(
+            "\nConfidence deductions: " + ", ".join(deductions[:3]),
+            style="dim",
+        )
+
+    if mc_result:
+        growth_delta = mc_result.get("growth_model_delta", 0)
+        if growth_delta > 20:
+            footer.append(
+                f"\nNote: linear vs logarithmic context growth models differ by "
+                f"{growth_delta:.0f}%. The projection uses the average of both. "
+                "If your agent's context plateaus after several iterations, "
+                "actual costs may be closer to the lower bound.",
+                style="dim italic",
+            )
+
+    parts.append(footer)
+
+    from rich.console import Group
+
+    return Panel(Group(*parts), expand=False)
+
+
+def _build_legacy_projection_panel(
     stats: dict[str, Any] | None,
     cost_summary: dict[str, Any],
     traffic: int | None,

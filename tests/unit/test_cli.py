@@ -276,3 +276,155 @@ class TestAnalyzeCommand:
 
         assert result.exit_code == 0, result.output
         assert "test_workflow" in result.output or "Profile saved" in result.output
+
+
+# ---------------------------------------------------------------------------
+# baseline commands
+# ---------------------------------------------------------------------------
+
+class TestBaselineCommand:
+    def test_help(self):
+        result = runner.invoke(cli, ["baseline", "--help"])
+        assert result.exit_code == 0
+        assert "Manage cost baselines" in result.output
+
+    def test_update_help(self):
+        result = runner.invoke(cli, ["baseline", "update", "--help"])
+        assert result.exit_code == 0
+        assert "PROFILE_PATH" in result.output
+
+    def test_update_latest(self, tmp_path):
+        session = ProfilingSession(
+            workflow_name="test.py",
+            workflow_hash="abc",
+            profiled_at=datetime(2026, 5, 25, 12, 0, 0, tzinfo=UTC),
+            sample_size=10,
+            input_mode="auto-generate",
+            runs=[],
+            metadata={
+                "stats": {
+                    "total_runs": 10,
+                    "total_steps": 20,
+                    "cost_per_run": {
+                        "mean": 0.03, "p50": 0.028, "p75": 0.035,
+                        "p90": 0.042, "p95": 0.048, "p99": 0.06,
+                        "min": 0.015, "max": 0.08, "std": 0.012,
+                    },
+                    "tokens_per_run": {
+                        "mean": 2000.0, "p50": 1800.0, "p75": 2400.0,
+                        "p90": 2800.0, "p95": 3200.0, "p99": 3800.0,
+                        "min": 1000.0, "max": 4500.0, "std": 600.0,
+                    },
+                    "step_stats": {
+                        "step_a": {
+                            "step_name": "step_a", "step_type": "llm",
+                            "model": "gpt-4o-mini", "call_count": 10,
+                            "runs_present": 10,
+                            "input_tokens": {"mean": 200.0, "p50": 180.0,
+                                             "p75": 220.0, "p90": 250.0,
+                                             "p95": 280.0, "p99": 300.0,
+                                             "min": 100.0, "max": 350.0, "std": 40.0},
+                            "output_tokens": {"mean": 60.0, "p50": 55.0,
+                                              "p75": 70.0, "p90": 80.0,
+                                              "p95": 85.0, "p99": 95.0,
+                                              "min": 30.0, "max": 110.0, "std": 12.0},
+                            "total_tokens": {"mean": 260.0, "p50": 235.0,
+                                             "p75": 290.0, "p90": 330.0,
+                                             "p95": 365.0, "p99": 395.0,
+                                             "min": 130.0, "max": 460.0, "std": 52.0},
+                            "cost": {"mean": 0.001, "p50": 0.0009, "p75": 0.0012,
+                                     "p90": 0.0014, "p95": 0.0016, "p99": 0.002,
+                                     "min": 0.0004, "max": 0.003, "std": 0.0003},
+                            "duration_ms": {"mean": 180.0, "p50": 160.0,
+                                            "p75": 200.0, "p90": 230.0,
+                                            "p95": 250.0, "p99": 280.0,
+                                            "min": 80.0, "max": 350.0, "std": 45.0},
+                            "context_size": {"mean": 200.0, "p50": 180.0,
+                                             "p75": 220.0, "p90": 250.0,
+                                             "p95": 280.0, "p99": 300.0,
+                                             "min": 100.0, "max": 350.0, "std": 40.0},
+                            "iterations_per_run": {"mean": 1.0, "p50": 1.0,
+                                                   "p75": 1.0, "p90": 1.0,
+                                                   "p95": 1.0, "p99": 1.0,
+                                                   "min": 1.0, "max": 1.0, "std": 0.0},
+                            "mean_iterations": 1.0,
+                        },
+                    },
+                    "run_stats": [],
+                },
+                "patterns": [],
+                "projection": {
+                    "method": "linear",
+                    "traffic_volumes": [1000],
+                    "projections": {
+                        "1000": {
+                            "daily_volume": 1000,
+                            "monthly_cost": {"p50": 840.0, "p75": 1050.0,
+                                             "p90": 1260.0, "p95": 1440.0,
+                                             "p99": 1800.0, "mean": 900.0},
+                            "daily_cost": {"p50": 28.0, "p75": 35.0,
+                                           "p90": 42.0, "p95": 48.0,
+                                           "p99": 60.0, "mean": 30.0},
+                            "cost_per_run": {"p50": 0.028, "p75": 0.035,
+                                             "p90": 0.042, "p95": 0.048,
+                                             "p99": 0.06, "mean": 0.03},
+                        },
+                    },
+                    "confidence": {"score": 72, "tier": "MODERATE",
+                                   "display_range": "p50 – p95",
+                                   "language": "estimated",
+                                   "deductions": [], "bonuses": []},
+                    "warnings": [],
+                    "patterns_detected": [],
+                },
+                "confidence": {"score": 72, "tier": "MODERATE",
+                               "display_range": "p50 – p95",
+                               "language": "estimated",
+                               "deductions": [], "bonuses": []},
+            },
+        )
+        profile_path = tmp_path / "test.json"
+        profile_path.write_text(json.dumps(session.to_dict(), indent=2))
+
+        with patch(
+            "agentcost.store.ProfileStore.list_sessions",
+            return_value=[profile_path],
+        ):
+            result = runner.invoke(
+                cli,
+                ["baseline", "update", "latest",
+                 "--output-dir", str(tmp_path)],
+            )
+
+        assert result.exit_code == 0, result.output
+        assert "Baseline saved" in result.output
+        assert (tmp_path / "baseline.json").exists()
+
+
+# ---------------------------------------------------------------------------
+# diff command
+# ---------------------------------------------------------------------------
+
+class TestDiffCommand:
+    def test_help(self):
+        result = runner.invoke(cli, ["diff", "--help"])
+        assert result.exit_code == 0
+
+    def test_baseline_not_found(self):
+        result = runner.invoke(
+            cli, ["diff", "nonexistent.json", "also_nonexistent.json"],
+        )
+        assert result.exit_code == 1
+        assert "not found" in result.output.lower() or "error" in result.output.lower()
+
+
+# ---------------------------------------------------------------------------
+# validate command
+# ---------------------------------------------------------------------------
+
+class TestValidateCommand:
+    def test_help(self):
+        result = runner.invoke(cli, ["validate", "--help"])
+        assert result.exit_code == 0
+        assert "WORKFLOW_PATH" in result.output
+        assert "--budget" in result.output

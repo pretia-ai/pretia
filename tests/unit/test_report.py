@@ -375,6 +375,94 @@ class TestIterationSection:
 
 
 # ---------------------------------------------------------------------------
+# Projection table with confidence badge
+# ---------------------------------------------------------------------------
+
+class TestProjectionTable:
+    def test_renders_with_projection_metadata(self):
+        meta = _make_stats_metadata()
+        meta["projection"] = {
+            "method": "montecarlo",
+            "traffic_volumes": [100, 1000, 10000],
+            "projections": {
+                "100": {
+                    "daily_volume": 100,
+                    "monthly_cost": {
+                        "p50": 89.0, "p75": 134.0, "p90": 198.0,
+                        "p95": 256.0, "p99": 350.0, "mean": 103.0,
+                    },
+                    "daily_cost": {
+                        "p50": 2.97, "p75": 4.47, "p90": 6.6,
+                        "p95": 8.53, "p99": 11.67, "mean": 3.43,
+                    },
+                    "cost_per_run": {
+                        "p50": 0.03, "p75": 0.045, "p90": 0.066,
+                        "p95": 0.085, "p99": 0.12, "mean": 0.034,
+                    },
+                },
+                "1000": {
+                    "daily_volume": 1000,
+                    "monthly_cost": {
+                        "p50": 890.0, "p75": 1340.0, "p90": 1980.0,
+                        "p95": 2560.0, "p99": 3500.0, "mean": 1030.0,
+                    },
+                    "daily_cost": {
+                        "p50": 29.7, "p75": 44.7, "p90": 66.0,
+                        "p95": 85.3, "p99": 116.7, "mean": 34.3,
+                    },
+                    "cost_per_run": {
+                        "p50": 0.03, "p75": 0.045, "p90": 0.066,
+                        "p95": 0.085, "p99": 0.12, "mean": 0.034,
+                    },
+                },
+                "10000": {
+                    "daily_volume": 10000,
+                    "monthly_cost": {
+                        "p50": 8900.0, "p75": 13400.0, "p90": 19800.0,
+                        "p95": 25600.0, "p99": 35000.0, "mean": 10300.0,
+                    },
+                    "daily_cost": {
+                        "p50": 297.0, "p75": 447.0, "p90": 660.0,
+                        "p95": 853.0, "p99": 1167.0, "mean": 343.0,
+                    },
+                    "cost_per_run": {
+                        "p50": 0.03, "p75": 0.045, "p90": 0.066,
+                        "p95": 0.085, "p99": 0.12, "mean": 0.034,
+                    },
+                },
+            },
+            "confidence": {
+                "score": 65,
+                "tier": "MODERATE",
+                "display_range": "p50 – p95",
+                "language": "estimated",
+                "deductions": ["Small sample size (20 runs)."],
+                "bonuses": [],
+            },
+            "warnings": [
+                "Monte Carlo triggered by: Context grows in 'review'",
+            ],
+            "patterns_detected": [],
+            "montecarlo_result": {
+                "n_simulations": 10000,
+                "growth_model_delta": 12.5,
+                "convergence_check": True,
+                "monthly_projection": {},
+                "daily_projection": {},
+                "per_run_projection": {},
+                "linear_monthly": {},
+                "log_monthly": {},
+            },
+        }
+        session = _make_session(metadata=meta)
+        result = format_cli_report(session)
+        output = _render_to_string(result)
+        assert "Monte Carlo" in output
+        assert "MODERATE" in output
+        assert "$" in output
+
+
+# ---------------------------------------------------------------------------
 # format_cost
 # ---------------------------------------------------------------------------
 

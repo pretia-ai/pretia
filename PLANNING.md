@@ -43,6 +43,8 @@ Full command surface:
 - `agentcost ui` — Launch local web UI on localhost:7100.
 - `agentcost baseline update` — Save current profile as baseline to `.agentcost/baseline.json`.
 - `agentcost diff baseline.json new_profile.json` — Compare two profiles, show per-step deltas.
+- `agentcost validate workflow.py --budget 10` — Run projection quality check (20-vs-100 comparison).
+- `agentcost verify --baseline .agentcost/baseline.json` — Re-profile and compare against baseline.
 
 Note: `agentcost profile run` also generates an HTML report (`.agentcost/report.html`) and auto-opens it in the browser, in addition to the rich terminal output.
 
@@ -161,6 +163,42 @@ Detects steps using a higher-tier model than the task requires. v1: keyword heur
 - Excessive loop iterations: cost marginal per iteration + distribution of iteration counts → recommend cap.
 - Stuck loops: runs with >2x mean iterations → flag as outliers, compute cost share, recommend circuit breaker.
 
+## Verification Loop
+
+The optimize → verify → iterate cycle makes recommendations actionable and measurable:
+
+1. **Profile** — `agentcost profile run workflow.py` captures the baseline cost profile.
+2. **Recommend** — `agentcost recommend` generates prioritized optimization recommendations.
+3. **Implement** — Implementation prompts (see below) guide the developer through each recommendation.
+4. **Re-profile** — `agentcost verify --baseline .agentcost/baseline.json` re-profiles the workflow and compares to the saved baseline.
+5. **Iterate** — The verify output shows which recommendations were applied, actual vs predicted savings, and an updated optimization score.
+
+### Score Gamification
+
+The optimization score provides a clear progress signal: 28/100 (red) → implement 2 recommendations → 62/100 (amber) → implement the last → 89/100 (green). Each score change is visible and motivating.
+
+### Training Signal
+
+Every verify result — predicted savings vs actual savings — is a training signal for the future v1.5 ML classifier. Even in v1, the data is persisted for later use.
+
+## Implementation Prompts
+
+Recommendations are only useful if developers can act on them. Implementation prompts bridge the gap between "what to change" and "how to change it."
+
+### Three Tiers
+
+- **Tier 1 (simple)** — Model swap, parameter changes. Mechanical replacements: change `model="gpt-4o"` to `model="gpt-4o-mini"`. No framework knowledge needed.
+- **Tier 2 (medium)** — Iteration caps, circuit breakers. Requires framework-specific patterns: LangGraph's `recursion_limit`, OpenAI Agents SDK's `max_turns`, CrewAI's `max_iter`.
+- **Tier 3 (complex)** — Compaction insertion, step insertion. Needs full graph context to determine where to insert new nodes. Uses a graph-as-text renderer to produce a textual representation of the workflow DAG for inclusion in the prompt.
+
+### Optimization Loop Closure
+
+All prompts end with `agentcost profile run {file_path}` to verify the change. This closes the optimization loop: every recommendation leads to a measurable before/after comparison.
+
+### Framework-Specific Helpers
+
+Each supported framework (LangGraph, OpenAI Agents SDK, CrewAI) has helper templates that generate syntactically correct code snippets for that framework's API. The generic collector falls back to prose instructions.
+
 ## Projection Engine
 
 Distributional scaling, not averages. For each target traffic volume:
@@ -169,6 +207,78 @@ Distributional scaling, not averages. For each target traffic volume:
 - Detect non-linear patterns: context growth (context_size correlated with iteration, r² > 0.7), loop count variance (coefficient of variation), high variance (p95/p50 ratio > 3).
 - Stable case: `monthly_cost = mean_cost_per_run × daily_volume × 30` with distributional output.
 - Non-linear case: Monte Carlo — simulate 10,000 runs by sampling per-step distributions, apply context growth curves, sample loop counts. Triggered ONLY when heuristics detect non-linearity. ~5 seconds runtime.
+
+## Prediction Quality Assurance
+
+The projection engine is validated via a backtesting suite before v1 ships. This is a launch gate, not a nice-to-have.
+
+### Backtesting Philosophy
+
+The goal is to be usefully right within stated bounds, not exactly right. Three properties define "useful":
+
+1. **Calibration** — the projected p50 is exceeded ~50% of the time in real runs. Not a point estimate; a distributional center.
+2. **Directional accuracy** — the most expensive step identified from 20 synthetic runs is actually the most expensive step at 500 runs.
+3. **Useful range** — the p95/p50 ratio is less than 5x. Wider than that, the projection tells you nothing actionable.
+
+### Test Workflows
+
+10 test workflows across 5 archetypes × 2 complexity levels:
+
+- **Support agent** — simple (no loops) and complex (with loops)
+- **Code review** — simple and complex
+- **Data extraction** — simple and complex
+- **Research agent** — simple and complex
+- **Sales/outreach** — simple and complex
+
+Each workflow is profiled at three sample sizes: 20, 100, and 500 runs. The 500-run profile serves as ground truth.
+
+### Calibration Metrics
+
+| Metric | Definition | Pass Threshold |
+|--------|-----------|----------------|
+| p50 ratio | projected p50 / actual p50 | 0.5–2.0x |
+| p95 coverage | % of actual runs below projected p95 | ≥80% |
+| Range ratio | projected p95 / projected p50 | <5x |
+| Top step correct | most expensive step matches ground truth | yes |
+| Step ranking correlation | Spearman r between projected and actual step cost ranks | >0.8 |
+
+### Launch Gate
+
+All 10 workflows must pass on Synthetic-20 (the default user experience). If p50 ratio or top step correctness fails for any workflow, the projection engine is debugged and re-tested before launch.
+
+### `agentcost validate` Command
+
+Runs a 20-vs-100 comparison test on any user workflow: profiles at 20 samples, then at 100, compares the projections, and reports whether 20 samples is sufficient for that specific workflow. Users can run this on their own workflows to check projection quality.
+
+### Budget
+
+~$950 for ground truth profiling across all 10 workflows at 500 samples each. This is the most important pre-launch investment — a projection engine that gives wrong numbers is worse than no projection engine.
+
+## Confidence System
+
+Every projection includes a confidence tier derived from sample size, variance, and detected patterns. The tier determines which percentile range is displayed and the language used in reports.
+
+### Four Tiers
+
+| Tier | Score | Display Range | Language |
+|------|-------|---------------|----------|
+| HIGH | ≥80 | p50–p90 | "projected" |
+| MODERATE | ≥60 | p50–p95 | "estimated" |
+| LOW | ≥40 | p25–p99 | "ballpark" |
+| VERY LOW | <40 | order of magnitude | "ballpark" |
+
+### Scoring
+
+Base score: 100.
+
+**Deductions:**
+- Small sample size: -10 (n<50), -20 (n<20), -30 (n<10), -40 (n<5)
+- High step CV: -8 per step (CV 0.5–1.0), -15 per step (CV >1.0)
+- Detected non-linear patterns: -10 each (context growth, loop variance, high token variance)
+
+**Bonuses:**
+- Langfuse import source: +15 (real production data is higher quality than synthetic)
+- Large sample size ≥200: +10
 
 ## GitHub Action
 
@@ -194,10 +304,10 @@ Configurable threshold: block merge if cost increase exceeds X%. Config lives in
 
 ## Roadmap
 
-- **v1.0** (weeks 1-14): Core SDK. Collectors (LangGraph, OpenAI Agents SDK, CrewAI, Generic), auto input generation, projection engine, heuristic recommendations, GitHub Action, HTML report, local web UI (FastAPI + React), polish + PyPI publish. No ML.
-- **v1.5** (weeks 15-18): Task Complexity Classifier. Logistic regression on 800K+ RouterBench/LLMRouterBench examples + 1K synthetic agent prompts. MiniLM embeddings (384d) + 9 numerical features = 393 features. Trains in <30s on CPU. Ships as ~2MB .pkl. ML-powered model swap recommendations.
-- **v2.0** (weeks 19-28): Live monitoring (`agentcost monitor` daemon) + Cost Prediction Model. XGBoost on 20 workflow-level features. Predicts cost from code structure alone. `agentcost estimate` becomes ML-powered.
-- **v3.0** (weeks 29-42): Spend Governance (budget circuit breakers, intelligent degradation) + Workflow Benchmarking. HDBSCAN clustering on accumulated workflow data. "Your support agent costs 2.3x the median for similar workflows." Requires ~500 workflows minimum.
+- **v1.0** (weeks 1-20): Core SDK. Collectors (LangGraph, OpenAI Agents SDK, CrewAI, Generic), auto input generation, projection engine with confidence tiers, backtesting suite, heuristic recommendations with implementation prompts, verify loop, GitHub Action, HTML report with graph view, local web UI (FastAPI + React), polish + PyPI publish. No ML.
+- **v1.5** (weeks 21-24): Task Complexity Classifier. Logistic regression on 800K+ RouterBench/LLMRouterBench examples + 1K synthetic agent prompts. MiniLM embeddings (384d) + 9 numerical features = 393 features. Trains in <30s on CPU. Ships as ~2MB .pkl. ML-powered model swap recommendations.
+- **v2.0** (weeks 25-34): Live monitoring (`agentcost monitor` daemon) + Cost Prediction Model. XGBoost on 20 workflow-level features. Predicts cost from code structure alone. `agentcost estimate` becomes ML-powered.
+- **v3.0** (weeks 35-48): Spend Governance (budget circuit breakers, intelligent degradation) + Workflow Benchmarking. HDBSCAN clustering on accumulated workflow data. "Your support agent costs 2.3x the median for similar workflows." Requires ~500 workflows minimum.
 
 ## Sprint Plan
 
@@ -205,12 +315,12 @@ Configurable threshold: block merge if cost increase exceeds X%. Config lives in
 |--------|-------|-------|--------|
 | 0 | 0 | Project skeleton, CLAUDE.md, PLANNING.md | ✅ Complete |
 | 1 | 1-2 | Collectors (LangGraph + Generic) + input generator + CLI `profile run` | ✅ Complete |
-| 2 | 3-4 | OpenAI Agents SDK collector + stats module + pattern detection + Langfuse import + CLI `report` | 🔜 Next |
-| 3 | 5-6 | Projection engine (linear + Monte Carlo) + baseline management + `diff` command | Planned |
-| 4 | 7-8 | Recommendation engine (model swap + architecture + workflow heuristics) + `recommend` command | Planned |
-| 5 | 9-10 | GitHub Action (static/auto-generate/sample/import modes) + PR comment formatting | Planned |
-| 6 | 11-12 | HTML report (Jinja2 + inline SVG) + local web UI (FastAPI + React + WebSocket) | Planned |
-| 7 | 13-14 | CrewAI collector + integration tests + README + landing page + PyPI publish + launch | Planned |
+| 2 | 3-4 | OpenAI Agents SDK collector + stats module + pattern detection + Langfuse import + CLI `report` + `analyze` | ✅ Complete |
+| 3 | 5-8 | Projection engine (linear + Monte Carlo + confidence tiers) + baseline management + backtesting suite (10 workflows, calibration scoring) + `validate` command | 🔜 Next |
+| 4 | 9-12 | Recommendation engine (model swap + architecture + workflow heuristics) + implementation prompts (3 tiers) + verify loop + `recommend` + `verify` commands | Planned |
+| 5 | 13-14 | GitHub Action (static/auto-generate/sample/import modes) + PR comment formatting | Planned |
+| 6 | 15-18 | HTML report (Jinja2 + inline SVG + graph view) + local web UI (FastAPI + React + WebSocket) | Planned |
+| 7 | 19-20 | CrewAI collector + integration tests + README + landing page + PyPI publish + launch | Planned |
 
 ## What We Don't Build
 
