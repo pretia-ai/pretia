@@ -5,7 +5,13 @@ from __future__ import annotations
 from agentcost.collectors.base import BaseCollector, StepRecord
 from agentcost.collectors.generic import GenericCollector
 
-__all__ = ["BaseCollector", "GenericCollector", "LangGraphCollector", "StepRecord"]
+__all__ = [
+    "BaseCollector",
+    "GenericCollector",
+    "LangGraphCollector",
+    "OpenAIAgentsCollector",
+    "StepRecord",
+]
 
 
 def __getattr__(name: str) -> type:
@@ -13,4 +19,8 @@ def __getattr__(name: str) -> type:
         from agentcost.collectors.langgraph import LangGraphCollector
 
         return LangGraphCollector
+    if name == "OpenAIAgentsCollector":
+        from agentcost.collectors.openai_agents import OpenAIAgentsCollector
+
+        return OpenAIAgentsCollector
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

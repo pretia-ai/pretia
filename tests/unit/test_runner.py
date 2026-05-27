@@ -202,9 +202,15 @@ class TestFullPipeline:
         assert len(session.runs) == 2
         assert session.workflow_name == str(wf)
         assert "cost_summary" in session.metadata
+        assert "stats" in session.metadata
+        assert "patterns" in session.metadata
 
         cost = session.metadata["cost_summary"]
         assert cost["mean_cost_per_run"] > 0
+
+        stats = session.metadata["stats"]
+        assert stats["total_runs"] == 2
+        assert isinstance(session.metadata["patterns"], list)
 
     def test_profile_saved_to_disk(self, tmp_path):
         wf = tmp_path / "agent.py"

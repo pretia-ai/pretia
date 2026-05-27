@@ -98,16 +98,16 @@ No proxy (use LiteLLM). No routing (use Martian). No tracing (use Langfuse). No 
 
 | Phase | Weeks | Focus | ML Component |
 |-------|-------|-------|-------------|
-| **v1.0** | 1-14 | Core SDK + projection + recommendations + CI gate + HTML report + local web UI | None (stats + heuristics) |
-| **v1.5** | 15-18 | Task Complexity Classifier | Logistic regression on RouterBench |
-| **v2.0** | 19-28 | Live monitoring + Cost Prediction Model | XGBoost on profiling data |
-| **v3.0** | 29-42 | Spend Governance + Workflow Benchmarking | HDBSCAN clustering |
+| **v1.0** | 1-20 | Core SDK + projection + backtesting + recommendations + verify loop + CI gate + HTML report + graph view + local web UI | None (stats + heuristics) |
+| **v1.5** | 21-24 | Task Complexity Classifier | Logistic regression on RouterBench |
+| **v2.0** | 25-34 | Live monitoring + Cost Prediction Model | XGBoost on profiling data |
+| **v3.0** | 35-48 | Spend Governance + Workflow Benchmarking | HDBSCAN clustering |
 
-The v1 ships in 14 weeks (not 12 — the extra 2 weeks buy the HTML report and local web UI, which make the difference between a script and a product). Every recommendation uses heuristics and statistical methods. ML is layered on top starting at v1.5, when we have both public training data and initial user feedback. This is deliberate: the v1 must stand on its own merits. ML amplifies the moat, it doesn't create it.
+The v1 ships in 20 weeks. The extra time (vs. a CLI-only 12-week version) buys the backtesting suite ($950 to validate predictions on 10 real-world archetypes), implementation prompts with verify loop, graph visualization, HTML report, and local web UI. Every one of these additions addresses a specific risk: backtesting prevents wrong predictions (product-killing), the verify loop creates stickiness, the graph view makes the product demo-ready. ML is layered on top starting at v1.5. This is deliberate: the v1 must stand on its own merits. ML amplifies the moat, it doesn't create it.
 
 ---
 
-## PART 1 — CORE ARCHITECTURE (v1.0, weeks 1-14)
+## PART 1 — CORE ARCHITECTURE (v1.0, weeks 1-20)
 
 ### 1.1 Instrumentation Layer
 
@@ -445,7 +445,223 @@ Detect and recommend for:
 - **Excessive loops:** cost marginal per iteration + distribution of iteration counts → recommend cap
 - **Stuck loop detection:** runs with >2x mean iterations → flag as outliers, compute cost share, recommend circuit breaker
 
-### 1.6 GitHub Action
+**IMPLEMENTATION PROMPTS — "Copy to Claude Code"**
+
+Every recommendation generates a copy-pasteable prompt tailored for AI coding tools (Claude Code, Codex, Cursor). The prompt is surgical because AgentCost has the full context: file path, step name, current model, system prompt content, iteration patterns, context growth data, framework-specific patterns.
+
+**Why this is harder than it looks:** A model swap is a 5-line prompt. But "add context compaction before the review loop" needs to reference LangGraph-specific patterns (state channels, conditional edges, reducer functions), handle the state schema, not break the existing graph topology, and produce code that actually compiles. Each recommendation type has a different complexity tier.
+
+**Tier 1 — Simple (model swap, parameter changes):**
+
+```python
+# Model swap — the prompt is almost mechanical
+f"""In {file_path}, the {framework} node "{step_name}" currently uses 
+model "{current_model}". Change it to "{recommended_model}". 
+
+The step does: {task_description_from_system_prompt_first_200_chars}
+Our classifier predicts {recommended_model} achieves {confidence}% 
+equivalent quality on this task type.
+
+Update the model parameter. Adjust max_tokens if needed (current: 
+{current_max_tokens}). Don't change any other logic.
+
+After making the change, run: agentcost profile run {file_path}
+to verify the cost reduction."""
+```
+
+**Tier 2 — Medium (iteration caps, circuit breakers):**
+
+```python
+# Iteration cap — needs framework-specific patterns
+f"""In {file_path}, the {framework} node "{step_name}" currently loops 
+without a maximum. It averages {mean_iterations} iterations, with 
+outliers reaching {max_observed_iterations}. 
+
+Add a maximum iteration cap of {recommended_cap}.
+
+{_framework_specific_loop_cap_instructions(framework, step_name)}
+
+After {recommended_cap} iterations, exit the loop and return the best 
+output so far. Log a warning when the cap is hit.
+
+After making the change, run: agentcost profile run {file_path}
+to verify the optimization."""
+```
+
+Where `_framework_specific_loop_cap_instructions` generates different code depending on the framework:
+
+```python
+def _framework_specific_loop_cap_instructions(framework, step_name):
+    if framework == "langgraph":
+        return f"""In your LangGraph StateGraph, the loop is likely controlled 
+by a conditional edge after "{step_name}". Add an "iteration_count" field 
+to your State TypedDict. Increment it in the {step_name} node. In the 
+conditional edge function, check if iteration_count >= {{recommended_cap}} 
+and route to the next node instead of looping back.
+
+Example:
+  class State(TypedDict):
+      messages: list
+      iteration_count: int  # ADD THIS
+      
+  def should_continue(state):
+      if state["iteration_count"] >= {{recommended_cap}}:
+          return "exit_loop"  # Route to next node
+      return "continue_loop"  # Route back to {step_name}"""
+    elif framework == "openai_agents":
+        return f"""In your OpenAI Agents SDK runner, add a loop counter 
+to the agent's context. Check it in the agent's instructions or in a 
+tool guard. When the cap is reached, the agent should return its best 
+output and stop requesting further tool calls."""
+    # ... CrewAI, Generic patterns
+```
+
+**Tier 3 — Complex (architecture changes: compaction, step insertion, pipeline restructuring):**
+
+These are the hardest because they modify the graph topology. The prompt must include:
+- The full current graph structure (nodes + edges) so the coding AI understands the context
+- The exact insertion point for the new node
+- How state flows through the new node (input/output types)
+- Framework-specific wiring (LangGraph `add_node` + `add_edge`, etc.)
+
+```python
+# Context compaction — needs full graph context
+f"""In {file_path}, the {framework} workflow has this structure:
+{_render_graph_as_text(graph_structure)}
+
+The node "{step_name}" re-sends the full conversation context on each 
+loop iteration. Context grows +{delta_tokens} tokens/iteration, reaching 
+{max_context_tokens} tokens by iteration {max_observed_iterations}.
+
+ADD a new node "compact_context" between "{preceding_node}" and 
+"{step_name}" (inside the loop, before each re-entry):
+
+1. The compact_context node receives state["{state_messages_field}"]
+2. It keeps the last 3 messages verbatim
+3. It summarizes everything before that into ~500 tokens using {cheap_model}
+4. It writes the compacted messages back to state["{state_messages_field}"]
+5. Then {step_name} receives the compacted context (~{estimated_compacted_tokens} tokens)
+
+{_framework_specific_node_insertion(framework, "compact_context", preceding_node, step_name)}
+
+IMPORTANT: The compaction must happen INSIDE the loop (before each 
+iteration of {step_name}), not outside it. The first iteration can 
+skip compaction since the context is still small.
+
+Don't change the {step_name} logic itself — only add the compaction 
+step before it.
+
+After making the change, run: agentcost profile run {file_path}
+to verify the context growth is reduced."""
+```
+
+Where `_render_graph_as_text` produces a simple textual representation of the graph:
+```
+START → classify_intent → retrieve_context → generate_draft → review_and_iterate ↺ → format_response → END
+                                                               (loop: avg 8.2 iterations)
+```
+
+And `_framework_specific_node_insertion` generates the actual code pattern:
+```python
+def _framework_specific_node_insertion(framework, new_node, before, after):
+    if framework == "langgraph":
+        return f"""In your StateGraph builder, add:
+  graph.add_node("{new_node}", compact_context_fn)
+  
+And rewire the edges:
+  # Before: ... → {before} → {after} (loop back)
+  # After:  ... → {before} → {new_node} → {after} (loop back)
+  
+Replace the edge from {before} to {after} with:
+  graph.add_edge("{before}", "{new_node}")
+  graph.add_edge("{new_node}", "{after}")"""
+```
+
+**The "render_graph_as_text" function** is reusable — the same graph extractor that feeds the visual graph view (section 1.7) also produces the text representation for the prompt. No additional parsing needed.
+
+### 1.6 Verification loop — "Optimize → Verify → Iterate"
+
+The implementation prompts all end with `run: agentcost profile run {file_path} to verify`. This is deliberate — it creates a closed optimization loop:
+
+```
+Profile → Recommend → Implement (via prompt) → Re-profile → Verify → Iterate
+```
+
+**What verification checks:**
+
+After the user implements a recommendation and re-profiles, AgentCost compares the new profile against the old one and produces a verification report:
+
+```
+✅ Verification: support_agent.py
+
+Recommendation: "Downshift model at step 4 (Opus → Sonnet)"
+  Before: $9,200/mo at step "review_and_iterate"
+  After:  $4,800/mo at step "review_and_iterate"
+  Actual savings: $4,400/mo (predicted: $4,200/mo) ✓
+  
+Recommendation: "Cap review iterations to 3"
+  Before: avg 8.2 iterations, max 12
+  After:  avg 2.8 iterations, max 3
+  Actual savings: $2,300/mo (predicted: $2,100/mo) ✓
+
+Recommendation: "Add context compaction" 
+  Status: NOT YET IMPLEMENTED
+  Step "compact_context" not found in workflow graph.
+  
+Overall: 2 of 3 recommendations applied.
+  Before: $11,700/mo → After: $5,100/mo → Remaining potential: $2,900/mo
+  New score: 62/100 (was 28/100)
+```
+
+**Implementation:**
+
+```python
+# agentcost verify compares two profiles
+def verify(old_profile, new_profile, recommendations):
+    results = []
+    for rec in recommendations:
+        if rec.type == "model_swap":
+            # Check if the model actually changed at the target step
+            old_model = old_profile.steps[rec.step].model
+            new_model = new_profile.steps[rec.step].model
+            applied = (new_model == rec.recommended_model)
+            actual_savings = old_profile.steps[rec.step].monthly_cost - new_profile.steps[rec.step].monthly_cost
+            
+        elif rec.type == "architecture":
+            # Check if new node exists in the graph
+            applied = rec.new_node_name in new_profile.steps
+            actual_savings = compute_step_delta(old_profile, new_profile, rec.step)
+            
+        elif rec.type == "workflow":
+            # Check if iteration count decreased
+            old_iters = old_profile.steps[rec.step].iterations.mean
+            new_iters = new_profile.steps[rec.step].iterations.mean
+            applied = new_iters <= rec.recommended_cap * 1.1  # 10% tolerance
+            actual_savings = compute_step_delta(old_profile, new_profile, rec.step)
+            
+        results.append(VerificationResult(
+            recommendation=rec,
+            applied=applied,
+            predicted_savings=rec.estimated_savings,
+            actual_savings=actual_savings,
+            prediction_accuracy=actual_savings / rec.estimated_savings if rec.estimated_savings else None,
+        ))
+    return results
+```
+
+**The verify command:**
+```bash
+agentcost verify --baseline .agentcost/baseline.json
+# Re-profiles the workflow, compares to baseline, shows what improved and what's left
+```
+
+**In the UI (Screen 3 — Report):** When a baseline exists, the report automatically shows a "Changes since baseline" section with green checkmarks for applied recommendations and remaining recommendations still to do. The before/after graph updates to show the current state vs. the remaining optimizations.
+
+**Why this matters for the moat:** Every verification result is a training signal. If the user applied a model swap and the actual savings were $4,400 vs. predicted $4,200, that's a data point that validates the classifier. If a compaction recommendation saved less than predicted, that's a signal to adjust the compaction heuristics. Over time, the predictions get more accurate because they're grounded in real implementation outcomes.
+
+**The "optimize until green" loop:** The score (0-100) creates a natural gamification. The user sees 28/100 (red), implements 2 of 3 recommendations, re-profiles, sees 62/100 (amber), implements the last one, re-profiles, sees 89/100 (green). Each cycle takes 5 minutes (implement → `agentcost verify`). The product becomes a game you play until your score is green.
+
+### 1.7 GitHub Action
 
 ```yaml
 # .github/workflows/agentcost.yml
@@ -531,7 +747,7 @@ Default = `static` on every PR. Recommended upgrade: `auto-generate` on PRs that
 
 Note: `task_complexity_tier` is `null` in v1 (filled by heuristics), populated by the ML classifier in v1.5.
 
-### 1.7 User Interface Layer
+### 1.8 User Interface Layer
 
 AgentCost has three visual output channels, all sharing the same underlying data from the ProfileStore. The UI is NOT a separate product — it's the rendering layer on top of the same analysis pipeline.
 
@@ -545,6 +761,18 @@ Every `agentcost profile run` generates a self-contained HTML file (`.agentcost/
 - **Context growth sparklines:** for each looping step, a mini SVG line chart showing how context size grows per iteration (x-axis = iteration, y-axis = token count).
 - **Recommendations cards:** each card has a colored type tag (teal for MODEL SWAP, blue for ARCHITECTURE, purple for WORKFLOW), a title, a description, estimated savings in green aligned right, and a confidence indicator (progress bar + percentage or "confirmed" for pattern-based recs). Cards are stacked vertically. Below all cards: a green summary banner showing total savings and before→after cost.
 - **Projection table:** traffic (100/day, 1K/day, 10K/day) × percentiles (p50, p75, p90, p95). Tabular numeric formatting.
+- **Architecture graph view — before/after:** The most visually impactful feature. Two tabs showing the agent workflow as a DAG:
+  - **"Current architecture" tab:** Each step is a node colored by cost (white = healthy, red = expensive). Edges annotated with token counts. The most expensive node is visually dominant. Recommendation badges are pinned directly on the problematic nodes (teal badge = model swap with savings, blue = architecture with savings, purple = workflow with savings). Loop edges are dashed with annotations (+1,200 tok/iter, avg 8.2 loops). The pain points are instantly visible.
+  - **"After recommendations" tab:** Same architecture but with all recommendations applied. The red node becomes green. New steps appear (e.g. compaction step inserted before the loop). Model names change (Opus → Sonnet). Loop annotations change (max 3 loops, 8K tok instead of 34K). Green "applied" badges confirm each change. Summary banner: $11,700 → $3,200, -73%.
+
+  **Technical approach for graph extraction:**
+  - LangGraph: `graph.get_graph()` returns a Mermaid-compatible graph definition with nodes and edges. Parse to extract structure.
+  - OpenAI Agents SDK: extract agents + handoff relationships from the Runner configuration.
+  - CrewAI: extract tasks + sequential/parallel relationships from the Crew definition.
+  - Generic: fall back to the StepRecord `parent_step` field to reconstruct the DAG.
+  - Graph rendering: generate SVG server-side (for HTML report) or render with React (for web UI). Simple top-to-bottom layout — no need for dagre or d3 for DAGs with 3-10 nodes. Position nodes vertically, add loop-back edges with bezier curves for iterations.
+  - Cost-to-color mapping: compute cost share per node, map to 3 tiers: <10% share = healthy (white), 10-40% = warning (amber), >40% = expensive (red).
+  - "After" graph: apply each recommendation to the graph structure programmatically (insert compaction node, change model name, cap loop annotation, recompute costs) and re-render.
 - **Raw data toggle:** expandable section with the full StepRecord JSON for power users.
 - **Footer:** "Profiled on N auto-generated inputs · workflow_name.py · framework"
 
@@ -586,8 +814,9 @@ The template is a single Jinja2 file (~300 lines) bundled with the pip package. 
 
 **Screen 3 — Report:**
 - Same layout as the HTML report but interactive
-- Click a step in the waterfall to expand: shows per-run distribution, context growth chart, token breakdown (input vs output vs tool definitions)
-- Click a recommendation to expand: shows the full reasoning, the data behind it, and a "How to implement" section
+- **Architecture graph view (primary view):** tabbed before/after showing the workflow DAG with cost overlay and recommendations applied. This is the default landing view — the graph is the first thing the user sees after profiling. The before graph has red nodes with recommendation badges. The after graph shows the optimized architecture in green with applied badges. Summary banner shows total savings and percentage.
+- Cost waterfall (secondary view): horizontal bars, click a step to expand per-run distribution, context growth chart, token breakdown
+- Recommendations list: click to expand reasoning and "how to implement" guidance
 - Three action buttons in the header: "Export as HTML" / "Copy PR comment" / "Save baseline"
 
 **REST API endpoints:**
@@ -644,7 +873,7 @@ The GitHub Action produces a formatted PR comment. This is the CI interface — 
 
 Already specified in section 1.6.
 
-### 1.8 v1.0 Execution Plan (Weeks 1-14)
+### 1.9 v1.0 Execution Plan (Weeks 1-20)
 
 **Weeks 1-2: Foundations**
 - Python package: `pip install agentcost`
@@ -687,7 +916,7 @@ Already specified in section 1.6.
 
 ## PART 2 — ML LAYER
 
-### 2.1 Task Complexity Classifier (v1.5, weeks 15-18)
+### 2.1 Task Complexity Classifier (v1.5, weeks 21-24)
 
 **What it does:** Given a step's (system_prompt, sample_input, sample_output), predicts the minimum model tier sufficient for the task: tier-1 (Haiku/mini), tier-2 (Sonnet/4o), tier-3 (Opus/o3). Replaces the keyword heuristics in model swap recommendations with a trained classifier.
 
@@ -798,16 +1027,16 @@ The v1 baseline already captures `system_prompt_hash`, `system_prompt_tokens`, a
 
 200 synthetic prompts × 3 model tiers × 5 inputs × ~$0.05/run = $150. Combined with 405K free RouterBench examples. Total training time: <5 minutes on a laptop.
 
-#### Weeks 15-18 execution plan
+#### Weeks 21-24 execution plan
 
-- Week 15: Download RouterBench + LLMRouterBench. Write label derivation script (cheapest model at ≥90% quality). Generate 200 synthetic prompts, run through 3 tiers, score with LLM-as-judge.
-- Week 16: Build feature pipeline (MiniLM embeddings + numerical features). Train logistic regression. Evaluate accuracy on held-out set. If <80%, try XGBoost.
-- Week 17: Integrate classifier into `agentcost recommend`. Update PR comment format to show classifier confidence. Add feedback loop: detect when users change models post-recommendation.
-- Week 18: Ship v1.5. Blog post: "How we predict which model your agent step really needs."
+- Week 21: Download RouterBench + LLMRouterBench. Write label derivation script (cheapest model at ≥90% quality). Generate 200 synthetic prompts, run through 3 tiers, score with LLM-as-judge.
+- Week 22: Build feature pipeline (MiniLM embeddings + numerical features). Train logistic regression. Evaluate accuracy on held-out set. If <80%, try XGBoost.
+- Week 23: Integrate classifier into `agentcost recommend`. Update PR comment format to show classifier confidence. Add feedback loop: detect when users change models post-recommendation.
+- Week 24: Ship v1.5. Blog post: "How we predict which model your agent step really needs."
 
 ---
 
-### 2.2 Cost Prediction Model (v2.0, weeks 19-28)
+### 2.2 Cost Prediction Model (v2.0, weeks 25-34)
 
 **What it does:** Given a NEW workflow's structure (without profiling it on 100 inputs), predicts its cost distribution. The "zero-shot cost estimate."
 
@@ -887,15 +1116,15 @@ At 2,000+ workflows: add per-step features (not just workflow-level aggregates).
 
 At 5,000+ workflows: experiment with a small neural network (2-3 hidden layers) that takes workflow graph structure as input. Only worth it if XGBoost accuracy plateaus.
 
-#### Weeks 19-24 execution plan (alongside live monitoring build)
+#### Weeks 25-30 execution plan (alongside live monitoring build)
 
-- Week 19-20: Collect all profiling data from v1 users. Generate synthetic workflows ($200). Build feature extraction pipeline from workflow code → feature dict.
-- Week 21-22: Train XGBoost. Evaluate with cross-validation. Compare against baseline (archetype lookup table + linear projection). Ship only if XGBoost beats baseline by >15% MAPE.
-- Week 23-24: Integrate into CLI: `agentcost estimate workflow.py` (instant, no profiling needed). Add to GitHub Action `static` mode: code-only cost estimate.
+- Week 25-26: Collect all profiling data from v1 users. Generate synthetic workflows ($200). Build feature extraction pipeline from workflow code → feature dict.
+- Week 27-28: Train XGBoost. Evaluate with cross-validation. Compare against baseline (archetype lookup table + linear projection). Ship only if XGBoost beats baseline by >15% MAPE.
+- Week 29-30: Integrate into CLI: `agentcost estimate workflow.py` (instant, no profiling needed). Add to GitHub Action `static` mode: code-only cost estimate.
 
 ---
 
-### 2.3 Workflow Benchmarking Engine (v3.0, weeks 29-42)
+### 2.3 Workflow Benchmarking Engine (v3.0, weeks 35-48)
 
 **What it does:** Groups similar workflows into clusters. Enables: "your support agent costs $0.82/run. The median for similar workflows is $0.35/run. You're at the 89th percentile."
 
@@ -1071,7 +1300,231 @@ The key insight: each ML model feeds the next. The Task Complexity Classifier pr
 
 ---
 
-## PART 5 — WHAT WE DON'T BUILD
+## PART 4B — PREDICTION QUALITY ASSURANCE
+
+This section describes the validation infrastructure that must pass before v1 launches. If the predictions are unreliable, the product is dead. No amount of UI polish or ML sophistication will save it. The backtesting suite is not a "nice to have" — it is the go/no-go gate for launch.
+
+### 4B.1 The validation philosophy
+
+The goal is NOT to be exactly right. It's to be **usefully right within stated bounds.** A projection of "$4,100 – $11,700/mo (moderate confidence)" that lands at $9,200 in production is a success. A projection of "$11,700/mo" that lands at $45,000 is a product-killing failure. The difference is honesty about uncertainty.
+
+Every projection must satisfy three properties:
+
+1. **Calibration:** The p50 estimate should be exceeded roughly 50% of the time. The p95 should be exceeded roughly 5% of the time. If the p95 is exceeded 25% of the time, the engine is systematically overconfident.
+
+2. **Directional accuracy:** If AgentCost says step 4 is the most expensive step at 78% of total cost, it should actually be the most expensive step in production. Getting the relative ranking right matters more than the absolute numbers.
+
+3. **Useful range:** The p50-to-p95 spread should be tight enough to be actionable. A projection of "$500 – $500,000/mo" is technically correct but useless. The range should be within 3-5x from bottom to top for moderate-confidence estimates.
+
+### 4B.2 The Backtesting Suite
+
+A set of real agent workflows, each profiled at small sample sizes and validated against large-sample ground truth. Run before launch. Run again after any change to the projection engine.
+
+**10 test workflows across 5 archetypes, 2 complexity levels each:**
+
+| # | Archetype | Complexity | Description | Models | Loops | Expected cost per run |
+|---|-----------|-----------|-------------|--------|-------|----------------------|
+| W1 | Support agent | Simple | Classify intent → retrieve FAQ → generate answer | haiku, sonnet | No | $0.01-0.05 |
+| W2 | Support agent | Complex | Classify → retrieve → generate → review loop → escalation routing | haiku, sonnet, opus | Yes (3-12 iter) | $0.20-1.50 |
+| W3 | Code review | Simple | Read diff → analyze → comment | sonnet | No | $0.05-0.15 |
+| W4 | Code review | Complex | Read diff → analyze → suggest fix → iterate with user → apply | sonnet, opus | Yes (2-8 iter) | $0.30-2.00 |
+| W5 | Data extraction | Simple | Parse document → extract fields → validate → format JSON | haiku, sonnet | No | $0.02-0.10 |
+| W6 | Data extraction | Complex | Parse → extract → cross-reference with DB → resolve conflicts → human review loop | sonnet, opus | Yes (1-5 iter) | $0.15-0.80 |
+| W7 | Research agent | Simple | Search web → summarize results → format report | haiku, sonnet | No | $0.05-0.20 |
+| W8 | Research agent | Complex | Multi-agent: searcher → fact-checker → synthesizer → editor with review loop | sonnet, opus | Yes (2-6 iter) | $0.50-3.00 |
+| W9 | Sales/outreach | Simple | Qualify lead → personalize template → draft email | haiku, sonnet | No | $0.02-0.08 |
+| W10 | Sales/outreach | Complex | Qualify → research company → personalize → draft → tone review → iterate | sonnet, opus | Yes (2-4 iter) | $0.10-0.60 |
+
+**For each workflow, you also build 3 input datasets:**
+
+| Dataset | Size | Source | Purpose |
+|---------|------|--------|---------|
+| Synthetic-20 | 20 inputs | Auto-generated by AgentCost (the default experience) | Tests the actual user experience |
+| Synthetic-100 | 100 inputs | Auto-generated, with explicit diversity prompt ("include edge cases, long inputs, multilingual, adversarial") | Tests whether more samples tightens the range |
+| Realistic-500 | 500 inputs | Manually curated or sourced from public datasets matching the archetype (see below) | Ground truth for calibration |
+
+**Where to get realistic inputs for each archetype:**
+
+| Archetype | Public data source | How to use |
+|-----------|--------------------|-----------|
+| Support agent | Bitext customer support dataset (HuggingFace, 27 intents, multi-turn), Ubuntu Dialogue Corpus, Twitter customer support corpus | Extract user messages as inputs |
+| Code review | GitHub PR descriptions from popular open-source repos (scrape via GitHub API, filter for PRs with 10-500 lines changed) | Use PR description + diff stats as input |
+| Data extraction | CORD-19 papers (COVID research corpus), SEC EDGAR 10-K filings, Wikipedia infoboxes | Use document excerpts as input |
+| Research agent | Google Natural Questions (NQ) dataset, MS MARCO queries, HotpotQA (multi-hop questions) | Use questions as research queries |
+| Sales/outreach | Crunchbase company descriptions (free tier), LinkedIn company profiles (public), AngelList startup data | Use company name + description as lead input |
+
+### 4B.3 The Validation Protocol
+
+For each of the 10 workflows:
+
+**Phase A — Profile at small sample sizes:**
+```
+agentcost profile run W1.py --auto-generate 20 --output w1_synth20.json
+agentcost profile run W1.py --auto-generate 100 --output w1_synth100.json
+agentcost profile run W1.py --inputs w1_realistic_500.jsonl --output w1_real500.json
+```
+
+**Phase B — Extract projections:**
+From each profile, extract the projected cost distribution at 1K/day traffic: p50, p75, p90, p95, p99, plus per-step breakdown.
+
+**Phase C — Compute ground truth:**
+The 500-run realistic profile IS the ground truth. Its distribution is the "actual" cost. Compute the actual p50, p75, p90, p95, p99.
+
+**Phase D — Score the projections:**
+
+```python
+def score_projection(projected, actual_distribution):
+    results = {}
+    
+    # 1. Calibration: is p50 near actual median?
+    results["p50_ratio"] = projected.p50 / actual_distribution.p50
+    # Ideal: 0.8 - 1.2 (within 20%)
+    
+    # 2. P95 coverage: does actual p95 fall below projected p95?
+    results["p95_coverage"] = actual_distribution.p95 <= projected.p95
+    # Ideal: True (at least 95% of actual runs are below our p95)
+    
+    # 3. Range usefulness: is p95/p50 ratio < 5x?
+    results["range_ratio"] = projected.p95 / projected.p50
+    # Ideal: < 5.0 (tight enough to be actionable)
+    
+    # 4. Directional accuracy: is the most expensive step correct?
+    proj_top_step = max(projected.steps, key=lambda s: s.cost)
+    actual_top_step = max(actual_distribution.steps, key=lambda s: s.cost)
+    results["top_step_correct"] = proj_top_step.name == actual_top_step.name
+    # Ideal: True
+    
+    # 5. Step ranking correlation
+    proj_ranking = rank_steps_by_cost(projected)
+    actual_ranking = rank_steps_by_cost(actual_distribution)
+    results["ranking_correlation"] = spearmanr(proj_ranking, actual_ranking)
+    # Ideal: > 0.8
+    
+    return results
+```
+
+**Phase E — Pass/fail criteria:**
+
+| Metric | Pass | Warn | Fail |
+|--------|------|------|------|
+| p50 ratio (projected/actual) | 0.5 – 2.0x | 2.0 – 3.0x | >3.0x or <0.33x |
+| p95 coverage | ≥ 80% | 60-80% | < 60% |
+| Range ratio (p95/p50) | < 5x | 5-10x | > 10x (useless) |
+| Top step correct | Yes | — | No |
+| Step ranking correlation | > 0.8 | 0.6 – 0.8 | < 0.6 |
+
+**The launch gate:** All 10 workflows must pass on the Synthetic-20 profile (the default user experience). If ANY workflow fails on p50 ratio or top step identification, the projection engine needs debugging before launch. Warns are acceptable in v1 if documented.
+
+### 4B.4 Expected failure modes and mitigations
+
+**Failure: p50 underestimate on loop-heavy workflows (W2, W4, W6, W8, W10).**
+Root cause: 20 synthetic inputs don't trigger enough high-iteration runs to capture the tail. The average looks fine but the p95 is way off.
+Mitigation: When the projection engine detects a loop step with high variance (CV > 0.5), it should automatically widen the confidence interval and add a warning: "Loop step detected with high variance. Projection may underestimate tail costs. Consider profiling with 50+ samples."
+
+**Failure: directional miss on multi-model workflows (W4, W8).**
+Root cause: Two steps use similar models (Sonnet vs Opus), and the relative cost depends on context size which varies by input. With 20 samples, the ranking might flip.
+Mitigation: When two steps are within 20% of each other in cost share, flag both as "co-dominant cost drivers" instead of picking one winner.
+
+**Failure: context growth overestimate.**
+Root cause: Linear extrapolation of context growth from 3 observed iterations to 12 projected iterations. In reality, agents often plateau in context size (they learn to trim or the conversation converges).
+Mitigation: Offer two context growth models — linear (conservative, current default) and logarithmic (assumes plateau after 2x the observed iterations). Report both projections and let the user see the range. If backtesting shows logarithmic is more accurate, make it the default.
+
+**Failure: synthetic inputs are too "clean."**
+Root cause: Auto-generated inputs from Haiku are grammatically perfect, moderate length, single-language. Production has typos, 2,000-word rants, code snippets, mixed languages, empty strings.
+Mitigation: The input generator prompt explicitly requests diversity tiers including adversarial cases. Add a specific "chaos inputs" tier: empty string, single character, 5,000-word input, input in wrong language, JSON blob, SQL injection attempt. These stress-test the agent's error handling paths which are often the most expensive (retries, fallbacks).
+
+### 4B.5 Confidence system implementation
+
+Every report shows a confidence tier derived from the profiling conditions:
+
+```python
+def compute_confidence(profile, patterns):
+    score = 100  # Start at max confidence
+    
+    # Deductions for small sample size
+    if profile.sample_size < 10:
+        score -= 40
+    elif profile.sample_size < 30:
+        score -= 20
+    elif profile.sample_size < 100:
+        score -= 10
+    
+    # Deductions for high variance
+    for step in profile.steps:
+        if step.cv > 1.0:  # Coefficient of variation
+            score -= 15
+        elif step.cv > 0.5:
+            score -= 8
+    
+    # Deductions for detected non-linear patterns
+    if "context_growth" in patterns:
+        score -= 10
+    if "stuck_loops" in patterns:
+        score -= 10
+    if "high_iteration_variance" in patterns:
+        score -= 10
+    
+    # Bonus for real production data
+    if profile.source == "langfuse_import":
+        score += 15
+    
+    # Bonus for large sample size
+    if profile.sample_size >= 200:
+        score += 10
+    
+    # Map to tier
+    if score >= 80:
+        return "HIGH", "p50 – p90 range"
+    elif score >= 60:
+        return "MODERATE", "p50 – p95 range"
+    elif score >= 40:
+        return "LOW", "p25 – p99 range"
+    else:
+        return "VERY LOW", "order of magnitude estimate"
+```
+
+The confidence tier determines which percentile range is shown as the primary projection, and the language used ("projected" vs "estimated" vs "ballpark").
+
+### 4B.6 Post-launch calibration tracking
+
+After launch, every `agentcost verify` call produces a (predicted, actual) pair. These accumulate and are used to:
+
+1. **Compute global calibration metrics:** "Our p50 projections have a median error of ±22%." Published on the website monthly.
+2. **Detect systematic biases:** If projections consistently underestimate loop-heavy workflows by 40%, adjust the loop projection model.
+3. **Train the ML cost prediction model (v2):** The (workflow_structure, projected_cost, actual_cost) triples are training data.
+4. **Produce per-archetype accuracy:** "For support agents, our projections are within ±15%. For multi-agent research workflows, ±40%." This helps users know how much to trust their specific projection.
+
+### 4B.7 Budget and timeline
+
+| Item | Cost | When |
+|------|------|------|
+| Build 10 test workflows (development time) | ~$0 (your time) | Sprint 3 (weeks 5-6) |
+| Curate realistic input datasets (download public datasets + processing) | ~$0 (public data) | Sprint 3 (weeks 5-6) |
+| Generate synthetic inputs (20 + 100 per workflow × 10 workflows) | ~$5 | Sprint 3 |
+| Run ground truth profiles (500 runs × 10 workflows × ~$0.15 avg) | **~$750** | Sprint 3, after projection engine is built |
+| Re-run after projection engine fixes | ~$200 (partial re-runs) | Sprint 3 and Sprint 7 |
+| **Total validation budget** | **~$950** | Pre-launch |
+
+This is the most important $950 you'll spend. It's the difference between launching with confidence ("our projections pass calibration on 10 real-world archetypes") and launching with hope ("it seems to work on our 3 test workflows").
+
+### 4B.8 The `agentcost validate` command
+
+A user-facing command that lets anyone validate the projection engine on their specific workflow:
+
+```bash
+agentcost validate workflow.py --budget 10
+# Runs the 20-vs-100 comparison test:
+# 1. Profiles on 20 auto-generated inputs → projection A
+# 2. Profiles on 100 auto-generated inputs → projection B  
+# 3. Compares A vs B
+# 4. Reports: "20-sample projection is within 18% of 100-sample projection. 
+#              20 samples is sufficient for this workflow."
+# OR: "Warning: 20-sample projection differs by 62% from 100-sample. 
+#              This workflow has high variance. Use 50+ samples."
+# Budget: ~$10 for both runs combined
+```
+
+This builds user trust — they can verify the engine's accuracy on their own data before relying on it for real cost decisions.
 
 | Not in scope | Why | Who does it |
 |---|---|---|
@@ -1113,7 +1566,9 @@ The key insight: each ML model feeds the next. The Task Complexity Classifier pr
   │   ├── recommend/
   │   │   ├── heuristics.py    # v1 rule-based recommendations
   │   │   ├── classifier.py    # v1.5 ML classifier (loads .pkl)
-  │   │   └── rules.py         # Recommendation types + formatting
+  │   │   ├── rules.py         # Recommendation types + formatting
+  │   │   ├── prompts.py       # Generate implementation prompts per framework
+  │   │   └── verify.py        # Compare old/new profiles, check if recs were applied
   │   ├── ci/
   │   │   ├── baseline.py      # Baseline management
   │   │   ├── diff.py          # Baseline comparison
@@ -1123,6 +1578,11 @@ The key insight: each ML model feeds the next. The Task Complexity Classifier pr
   │   │   ├── importer.py      # Langfuse/Braintrust trace import
   │   │   ├── schema.py        # Extract input schema from workflow code
   │   │   └── selector.py      # Auto-detect best input mode
+  │   ├── validation/
+  │   │   ├── suite.py         # Backtesting protocol runner
+  │   │   ├── scoring.py       # Calibration scoring (p50 ratio, coverage, ranking)
+  │   │   ├── validate_cmd.py  # `agentcost validate` command (20-vs-100 test)
+  │   │   └── confidence.py    # Confidence tier computation
   │   ├── models/               # Shipped ML models (.pkl files)
   │   ├── pricing/
   │   │   └── tables.py        # Static model pricing lookup
@@ -1130,7 +1590,13 @@ The key insight: each ML model feeds the next. The Task Complexity Classifier pr
   │   ├── report/
   │   │   ├── template.html.j2 # Jinja2 HTML report template
   │   │   ├── renderer.py      # Render profile data → HTML file
-  │   │   └── charts.py        # Inline SVG chart generators
+  │   │   ├── charts.py        # Inline SVG chart generators (waterfall, sparklines)
+  │   │   └── graph.py         # DAG graph renderer (before/after SVG)
+  │   ├── graph/
+  │   │   ├── extractor.py     # Extract DAG structure from LangGraph/OAI/CrewAI
+  │   │   ├── layout.py        # Position nodes (simple top-to-bottom)
+  │   │   ├── colorizer.py     # Map cost shares to node colors
+  │   │   └── transform.py     # Apply recommendations → produce "after" graph
   │   ├── ui/
   │   │   ├── app.py           # FastAPI app (REST + WebSocket)
   │   │   ├── static/          # Pre-built React bundle (~200KB)
@@ -1163,7 +1629,7 @@ The key insight: each ML model feeds the next. The Task Complexity Classifier pr
 - OpenAI Agents SDK: `result.context_wrapper.usage.request_usage_entries` still exists
 - Document any API drift since the docs you read
 
-### v1.0 Development (Weeks 1-14)
+### v1.0 Development (Weeks 1-20)
 
 #### Sprint 1: Collectors + Input Generator (Weeks 1-2)
 
@@ -1193,60 +1659,80 @@ The key insight: each ML model feeds the next. The Task Complexity Classifier pr
 
 **Deliverable:** Can profile LangGraph or OAI Agents workflows via auto-generate, single input, manual file, OR Langfuse import. Compute costs, detect patterns, generate reports.
 
-#### Sprint 3: Projection Engine (Weeks 5-6)
+#### Sprint 3: Projection Engine + Backtesting Suite (Weeks 5-8)
 
-**Goal:** Accurate cost projections with confidence intervals.
+Sprint 3 is expanded to 4 weeks. Weeks 5-6 build the projection engine. Weeks 7-8 build the backtesting suite and run it. The projection engine does NOT ship without passing the backtesting suite. This is the kill/keep gate.
+
+**Goal:** Accurate cost projections with confidence intervals, validated against 10 real-world workflow archetypes.
 
 | Day | Task | Output |
 |-----|------|--------|
-| 1-3 | Linear projector: `mean_cost × volume × 30` with distributional output (project each percentile). Works for stable workflows (no flags) | Basic projection |
-| 4-7 | Monte Carlo projector: triggered when patterns detected. Sample per-step distributions, apply context growth curves (linear extrapolation of Δcontext/iteration), sample loop counts from observed distribution. 10K simulations → cost distribution | Non-linear projection |
-| 8-10 | Baseline management: `agentcost baseline update` writes `.agentcost/baseline.json`. `agentcost diff baseline.json new_profile.json` computes per-step deltas | Baseline system |
+| 1-3 | Linear projector: `mean_cost × volume × 30` with distributional output (project each percentile). Works for stable workflows (no flags). Confidence tier system (HIGH/MODERATE/LOW/VERY LOW) based on sample size, variance, and detected patterns | Basic projection + confidence |
+| 4-7 | Monte Carlo projector: triggered when patterns detected. Sample per-step distributions, apply context growth curves (linear + logarithmic models), sample loop counts from observed distribution. 10K simulations → cost distribution. Input distribution warnings (low diversity, short inputs, single language) | Non-linear projection |
+| 8-10 | Baseline management: `agentcost baseline update` writes `.agentcost/baseline.json`. `agentcost diff baseline.json new_profile.json` computes per-step deltas. Explicit assumptions list auto-generated on every report | Baseline system + assumptions |
+| 11-13 | **Build 10 test workflows** (W1-W10) across 5 archetypes × 2 complexity levels (see Part 4B). Download public input datasets (Bitext, MS MARCO, GitHub PRs, CORD-19). Build realistic-500 JSONL files for each workflow | Test infrastructure |
+| 14-16 | **Run backtesting protocol:** profile each workflow at 20/100/500 samples. Extract projections. Compute calibration scores (p50 ratio, p95 coverage, range ratio, directional accuracy, ranking correlation). **Budget: ~$950** | Calibration results |
+| 17-18 | **Fix failures.** If any workflow fails the pass criteria (p50 off by >2x, wrong top step), debug and fix the projection model. Re-run failed tests. Repeat until all 10 pass | Validated engine |
+| 19-20 | `agentcost validate workflow.py` command: runs the 20-vs-100 comparison test on any workflow, reports whether 20 samples is sufficient | User-facing validation |
 
-**Deliverable:** Can project costs at arbitrary traffic with confidence intervals. Can diff two profiles.
+**Deliverable:** Projection engine that passes calibration on 10 real-world archetypes. `agentcost validate` for users to check projection quality on their own workflows. Launch gate: PASSED.
 
-#### Sprint 4: Recommendations (Weeks 7-8)
+#### Sprint 4: Recommendations + Verify Loop (Weeks 9-12)
 
-**Goal:** Actionable, dollar-denominated optimization suggestions.
+Sprint 4 is expanded to 4 weeks because the implementation prompts and verification loop are critical for product stickiness — without them, recommendations are just text. With them, AgentCost becomes an optimization loop users run until their score is green.
+
+**Goal:** Actionable, dollar-denominated optimization suggestions with copy-paste implementation prompts and a verification cycle.
 
 | Day | Task | Output |
 |-----|------|--------|
 | 1-3 | Model swap recommender: task type heuristics (keyword scan on system prompt + output/input ratio) → minimum tier estimate → savings calculation. Conservative: only recommend when clear signal (classification, extraction, simple formatting) | Model swap recs |
 | 4-5 | Architecture recommender: context growth detection → compaction recommendation with savings. Re-sent context detection (hash first 200 tokens of consecutive prompts) → caching recommendation | Architecture recs |
 | 6-7 | Workflow recommender: loop analysis → iteration cap recommendation. Stuck loop detection (>2x mean iterations) → circuit breaker recommendation. Cost-per-iteration-marginal analysis | Workflow recs |
-| 8-10 | Recommendation formatting: each rec has type, title, description, estimated savings, confidence level. Aggregate: total potential savings. Integrate into `agentcost report` and `agentcost recommend` | Formatted output |
+| 8-9 | Recommendation formatting: each rec has type, title, description, estimated savings, confidence level. Aggregate: total potential savings. Score calculation (100 - waste%). Integrate into `agentcost report` and `agentcost recommend` | Formatted output |
+| 10-12 | **Tier 1 prompts (simple):** model swap template — mechanical, fill from StepRecord. **Tier 2 prompts (medium):** iteration cap — framework-specific patterns (LangGraph conditional edges, OAI Agents loop guards). **Tier 3 prompts (complex):** compaction insertion — include full graph structure as text, framework-specific node insertion code, state wiring. Each template includes `_framework_specific_*` helper functions for LangGraph, OAI Agents SDK, CrewAI | Implementation prompts |
+| 13-14 | **Graph-as-text renderer:** reuse the graph extractor to produce a text representation of the workflow (e.g. `START → classify → retrieve → generate → review ↺ → format → END`) for inclusion in Tier 3 prompts. The coding AI needs to see the graph to modify it safely | Prompt context |
+| 15-16 | **Verify command:** `agentcost verify --baseline .agentcost/baseline.json` re-profiles the workflow, compares to baseline, checks which recommendations were applied (model changed? new node exists? iteration count decreased?), shows actual vs predicted savings, updates score | Verify loop |
+| 17-18 | **Verification report format:** green checkmarks for applied recs with actual savings vs predicted, remaining recs with "not yet applied", new score, and overall before→after summary. Every verify result is logged as a training signal for future classifier versions | Verify report |
+| 19-20 | Integration tests: full recommend → implement (manually) → verify cycle on the 3 fixture workflows. Ensure score improves after each recommendation is applied. Test that prompts produce valid code when pasted into Claude Code | End-to-end test |
 
-**Deliverable:** `agentcost recommend profile.json` produces dollar-denominated recommendations.
+**Deliverable:** `agentcost recommend` produces dollar-denominated recommendations with tiered implementation prompts. `agentcost verify` checks what was implemented and shows the improvement. The "optimize until green" loop works end-to-end.
 
-#### Sprint 5: GitHub Action (Weeks 9-10)
+#### Sprint 5: GitHub Action (Weeks 13-14)
 
 **Goal:** Cost checks in CI on every PR.
 
 | Day | Task | Output |
 |-----|------|--------|
 | 1-2 | `static` mode: parse git diff, detect model changes / step additions / loop modifications in workflow code, estimate impact from baseline. No LLM calls needed | Free CI mode |
-| 3-4 | `dryrun` mode: instrument workflow, count prompt tokens via tiktoken/tokenizers WITHOUT calling LLMs, estimate output tokens from historical ratio per model | Free CI mode (better) |
-| 5-6 | `sample` mode: run workflow on 5-10 inputs, measure real costs, compare to baseline | Paid CI mode |
-| 7-8 | PR comment: format cost report + diff + recommendations as GitHub comment. Respect threshold config (block merge if cost increase > X%) | GitHub integration |
+| 3-4 | `auto-generate` mode: generate 5 synthetic inputs, run workflow, compare to baseline | Standard CI mode |
+| 5-6 | `sample` mode: run workflow on 5-10 inputs from JSONL, measure real costs. `import` mode: pull Langfuse traces, analyze without re-execution | Paid + free CI modes |
+| 7-8 | PR comment: format cost report + diff + recommendations as GitHub comment. Include implementation prompts in collapsed `<details>` blocks. Respect threshold config (block merge if cost increase > X%) | GitHub integration |
 | 9-10 | `action.yml` + `entrypoint.sh`. Test with a real GitHub repo. Publish to GitHub Marketplace | Shipped Action |
 
-**Deliverable:** Working GitHub Action in three modes, published on Marketplace.
+**Deliverable:** Working GitHub Action in four modes, published on Marketplace.
 
-#### Sprint 6: HTML Report + Local Web UI (Weeks 11-12)
+#### Sprint 6: HTML Report + Graph View + Local Web UI (Weeks 15-18)
+
+Sprint 6 is extended to 4 weeks (from 2) to accommodate the graph visualization. This is the visual layer that makes the product demo-ready.
 
 **Goal:** Visual output that makes AgentCost feel like a product, not a script.
 
 | Day | Task | Output |
 |-----|------|--------|
-| 1-2 | HTML report template (Jinja2): cost waterfall chart (inline SVG bars), recommendation cards, projection table. Single self-contained .html file. `agentcost profile run` auto-opens it in browser | HTML report |
-| 3-4 | Context growth sparklines (inline SVG paths generated from StepRecord data). Score header (0-100 cost efficiency score). Raw data toggle. Polish CSS | Report complete |
-| 5-6 | FastAPI backend for `agentcost ui`: serve pre-built React frontend, REST endpoints for workflow detection + input config, WebSocket endpoint for live profiling progress | UI backend |
-| 7-8 | React frontend Screen 1 (Setup): file selector, framework detection, input mode picker, traffic config, "Run Profiling" button. Screen 2 (Live): progress bar, per-step cost accumulating via WebSocket, pattern flags | UI screens 1-2 |
-| 9-10 | React frontend Screen 3 (Report): interactive version of HTML report. Export buttons (HTML, PR comment copy, baseline generate). Pre-compile React to static bundle, include in pip package | UI complete |
+| 1-2 | **Graph extractor:** parse LangGraph `.get_graph()` to extract nodes + edges + metadata. Map StepRecords to nodes. Cost-to-color: <10% share = white, 10-40% = amber, >40% = red | Graph data |
+| 3-4 | **Graph layout + SVG renderer:** simple top-to-bottom node positioning. Bezier loop-back edges for iterations. Node badges for recommendations. Edge annotations for token counts. Generate SVG server-side (Jinja2) | Before graph |
+| 5-6 | **"After" graph transformer:** apply each recommendation to the graph structure (insert compaction node, change model name, update loop annotation, recompute costs). Re-render as green SVG. Tabbed before/after with summary banner | After graph |
+| 7-8 | HTML report template (Jinja2): score ring, 4 metric cards, cost waterfall (inline SVG bars), recommendation cards, before/after graph tabs, projection table. Single self-contained .html file. `agentcost profile run` auto-opens it | HTML report |
+| 9-10 | Context growth sparklines, raw data toggle, footer. Polish CSS. Test with demo workflows | Report complete |
+| 11-12 | FastAPI backend for `agentcost ui`: serve pre-built React frontend, REST endpoints for workflow detection + input config, WebSocket endpoint for live profiling progress | UI backend |
+| 13-14 | React frontend Screen 1 (Setup): file selector, framework detection, input mode picker, traffic config, "Run Profiling" button | UI screen 1 |
+| 15-16 | React frontend Screen 2 (Live): progress bar, per-step cost accumulating via WebSocket, pattern flags | UI screen 2 |
+| 17-18 | React frontend Screen 3 (Report): graph view as primary tab (before/after), interactive waterfall + recommendations. Export buttons | UI screen 3 |
+| 19-20 | Pre-compile React to static bundle, include in pip package. End-to-end test: CLI → HTML report → UI all rendering the same data | UI complete |
 
-**Deliverable:** `agentcost profile run` opens a beautiful HTML report. `agentcost ui` launches a full visual experience.
+**Deliverable:** `agentcost profile run` opens an HTML report with the before/after architecture graph. `agentcost ui` launches a full visual experience with live profiling and interactive graph.
 
-#### Sprint 7: Polish + Launch (Weeks 13-14)
+#### Sprint 7: Polish + Launch (Weeks 19-20)
 
 | Day | Task | Output |
 |-----|------|--------|
@@ -1257,7 +1743,7 @@ The key insight: each ML model feeds the next. The Task Complexity Classifier pr
 | 9 | Publish v1.0 to PyPI. GitHub Action to Marketplace. Tag release | v1.0 shipped |
 | 10 | Launch: HN "Show HN", LangChain Discord, r/MachineLearning, Twitter/X, DEV.to blog post | Distribution |
 
-### v1.5 Development (Weeks 15-18)
+### v1.5 Development (Weeks 21-24)
 
 #### Sprint 8: Task Complexity Classifier
 
@@ -1271,41 +1757,41 @@ The key insight: each ML model feeds the next. The Task Complexity Classifier pr
 
 **Deliverable:** v1.5 shipped. Model swap recommendations backed by classifier trained on 800K+ examples.
 
-### v2.0 Development (Weeks 19-28)
+### v2.0 Development (Weeks 25-34)
 
 Two parallel tracks: live monitoring + cost prediction model.
 
-#### Track A: Live Monitoring (Weeks 19-24)
+#### Track A: Live Monitoring (Weeks 25-30)
 
 | Week | Task |
 |------|------|
-| 19-20 | `agentcost monitor` daemon: same Collectors but in production mode. Stream StepRecords to local SQLite or cloud store. Real-time cost accumulation per workflow/agent/team |
-| 21-22 | Delta dashboard: projection (from baseline) vs reality (from monitor). Show: "Step 4 costs 3.2x more than projected because retry rate is 18% in production vs 2% in profiling" |
-| 23-24 | Budget alerts: configurable thresholds per workflow/team. "Agent support-bot has spent $1,200 this week (budget: $1,000). At current rate, will exceed monthly budget by Tuesday." First paid tier: $500/mo for 10 workflows |
+| 25-26 | `agentcost monitor` daemon: same Collectors but in production mode. Stream StepRecords to local SQLite or cloud store. Real-time cost accumulation per workflow/agent/team |
+| 27-28 | Delta dashboard: projection (from baseline) vs reality (from monitor). Show: "Step 4 costs 3.2x more than projected because retry rate is 18% in production vs 2% in profiling" |
+| 29-30 | Budget alerts: configurable thresholds per workflow/team. "Agent support-bot has spent $1,200 this week (budget: $1,000). At current rate, will exceed monthly budget by Tuesday." First paid tier: $500/mo for 10 workflows |
 
-#### Track B: Cost Prediction Model (Weeks 19-24)
-
-| Week | Task |
-|------|------|
-| 19-20 | Collect all profiling data from v1/v1.5 users. Generate 100 synthetic workflows across 5 archetypes ($200). Build feature extraction: workflow code → feature dict (20 features) |
-| 21-22 | Train XGBoost on log(cost) targets. Cross-validate. Compare vs baseline (archetype lookup table). Ship only if MAPE improvement >15% |
-| 23-24 | `agentcost estimate workflow.py` — instant cost estimate from code structure, no profiling. Integrate into `static` CI mode for better accuracy |
-
-#### Weeks 25-28: Integration + Paid Launch
+#### Track B: Cost Prediction Model (Weeks 25-30)
 
 | Week | Task |
 |------|------|
-| 25-26 | Integrate monitoring + prediction into the Web UI dashboard. Paid tier launch |
-| 27-28 | First 10 paying customers. Iterate based on feedback. Blog: "How we predict agent costs before deployment" |
+| 25-26 | Collect all profiling data from v1/v1.5 users. Generate 100 synthetic workflows across 5 archetypes ($200). Build feature extraction: workflow code → feature dict (20 features) |
+| 27-28 | Train XGBoost on log(cost) targets. Cross-validate. Compare vs baseline (archetype lookup table). Ship only if MAPE improvement >15% |
+| 29-30 | `agentcost estimate workflow.py` — instant cost estimate from code structure, no profiling. Integrate into `static` CI mode for better accuracy |
 
-### v3.0 Development (Weeks 29-42)
+#### Weeks 31-34: Integration + Paid Launch
+
+| Week | Task |
+|------|------|
+| 31-32 | Integrate monitoring + prediction into the Web UI dashboard. Paid tier launch |
+| 33-34 | First 10 paying customers. Iterate based on feedback. Blog: "How we predict agent costs before deployment" |
+
+### v3.0 Development (Weeks 35-48)
 
 | Phase | Task |
 |-------|------|
-| Weeks 29-32 | Spend Governance: budget circuit breakers per-agent (intelligent degradation: downshift model → compact context → halt gracefully). Attribution by team/workflow/client |
-| Weeks 33-36 | Audit trail: every agent spend decision logged with identity, scope, context, timestamp. EU AI Act compliance report generator |
-| Weeks 37-40 | Workflow Benchmarking: HDBSCAN clustering on accumulated workflow data. Benchmark reports: "your cost vs cluster median." Requires ~500 workflows minimum |
-| Weeks 41-42 | Enterprise pilot program: 3-5 companies on Spend Governance tier ($5K+/mo). Iterate on compliance/audit features based on their requirements |
+| Weeks 35-38 | Spend Governance: budget circuit breakers per-agent (intelligent degradation: downshift model → compact context → halt gracefully). Attribution by team/workflow/client |
+| Weeks 39-42 | Audit trail: every agent spend decision logged with identity, scope, context, timestamp. EU AI Act compliance report generator |
+| Weeks 43-46 | Workflow Benchmarking: HDBSCAN clustering on accumulated workflow data. Benchmark reports: "your cost vs cluster median." Requires ~500 workflows minimum |
+| Weeks 47-48 | Enterprise pilot program: 3-5 companies on Spend Governance tier ($5K+/mo). Iterate on compliance/audit features based on their requirements |
 
 ---
 
@@ -1313,16 +1799,17 @@ Two parallel tracks: live monitoring + cost prediction model.
 
 | Milestone | When | Metric | Why it matters |
 |-----------|------|--------|---------------|
-| v1.0 shipped (with UI) | Week 14 | Package on PyPI + Action on Marketplace + UI | Product exists |
-| First 10 design partners | Week 16 | 10 teams using the SDK regularly | Validation |
-| 100 GitHub stars | Week 16 | Community signal | Social proof for YC |
-| v1.5 shipped (ML classifier) | Week 18 | Classifier accuracy >80% on held-out | ML moat begins |
-| 1,000 SDK installs | Week 22 | PyPI download count | Distribution |
-| 500 workflows profiled | Week 26 | ProfileStore telemetry | Data moat begins |
-| First paid customer | Week 26 | $500 MRR | Revenue |
-| 20 paid teams | Week 38 | $10K MRR | Business viability |
-| 3 enterprise pilots | Week 42 | $15K+ MRR pipeline | Enterprise traction |
-| Benchmark data meaningful | Week 38 | >500 workflows, >5 clusters with 15+ members | Network effect begins |
+| Backtesting suite passes (10/10 workflows) | Week 8 | All calibration metrics in "pass" range | Predictions are trustworthy |
+| v1.0 shipped (with UI + graph) | Week 20 | Package on PyPI + Action on Marketplace + UI | Product exists |
+| First 10 design partners | Week 22 | 10 teams using the SDK regularly | Validation |
+| 100 GitHub stars | Week 22 | Community signal | Social proof for YC |
+| v1.5 shipped (ML classifier) | Week 24 | Classifier accuracy >80% on held-out | ML moat begins |
+| 1,000 SDK installs | Week 28 | PyPI download count | Distribution |
+| 500 workflows profiled | Week 32 | ProfileStore telemetry | Data moat begins |
+| First paid customer | Week 32 | $500 MRR | Revenue |
+| 20 paid teams | Week 44 | $10K MRR | Business viability |
+| 3 enterprise pilots | Week 48 | $15K+ MRR pipeline | Enterprise traction |
+| Benchmark data meaningful | Week 44 | >500 workflows, >5 clusters with 15+ members | Network effect begins |
 
 ---
 
@@ -1332,6 +1819,8 @@ Two parallel tracks: live monitoring + cost prediction model.
 |------|------|------|
 | Domain + hosting (GitHub Pages) | ~$12/year | Week 0 |
 | Test workflow execution (ongoing) | ~$50/month | Ongoing |
-| Synthetic data for ML classifier | ~$150 | Week 13 |
-| Synthetic workflows for cost model | ~$200 | Week 17 |
-| Total pre-revenue investment | **~$600** | Weeks 0-17 |
+| **Backtesting suite: ground truth profiling (10 workflows × 500 runs)** | **~$750** | Week 7-8 |
+| Backtesting suite: re-runs after fixes | ~$200 | Week 7-8 |
+| Synthetic data for ML classifier | ~$150 | Week 21 |
+| Synthetic workflows for cost model | ~$200 | Week 25 |
+| **Total pre-revenue investment** | **~$1,550** | Weeks 0-25 |

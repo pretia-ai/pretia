@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import logging
+import os
 import sys
 import traceback
+from pathlib import Path
 
 import click
 from rich.console import Console
@@ -55,7 +57,14 @@ def profile() -> None:
     "--from-langfuse",
     is_flag=True,
     default=False,
-    help="Import inputs from Langfuse traces.",
+    help="Use production traces from Langfuse as inputs.",
+)
+@click.option(
+    "--last",
+    "langfuse_last_n",
+    type=int,
+    default=10,
+    help="Number of recent Langfuse traces to use (default: 10).",
 )
 @click.option(
     "--output-dir",
@@ -77,12 +86,27 @@ def run(
     single_input: str | None,
     inputs_file: str | None,
     from_langfuse: bool,
+    langfuse_last_n: int,
     output_dir: str,
     verbose: bool,
 ) -> None:
     """Profile a workflow and generate a cost report."""
     log_level = logging.DEBUG if verbose else logging.WARNING
     logging.basicConfig(level=log_level, format="%(message)s")
+
+    if from_langfuse:
+        if not os.environ.get("LANGFUSE_SECRET_KEY") or not os.environ.get(
+            "LANGFUSE_PUBLIC_KEY"
+        ):
+            console.print(
+                "[red]Error:[/red] Langfuse credentials not found. "
+                "Set LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY "
+                "environment variables."
+            )
+            sys.exit(1)
+        console.print(
+            f"Fetching last {langfuse_last_n} traces from Langfuse...",
+        )
 
     from agentcost.ci.report import format_cli_report
     from agentcost.runner import ProfileRunner
@@ -94,6 +118,7 @@ def run(
         single_input=single_input,
         inputs_file=inputs_file,
         from_langfuse=from_langfuse,
+        langfuse_last_n=langfuse_last_n,
         output_dir=output_dir,
     )
 
@@ -107,10 +132,9 @@ def run(
         with console.status("[bold green]Running profiler..."):
             session = runner.run_sync()
 
-        cost_summary = session.metadata.get("cost_summary", {})
         saved_path = session.metadata.get("saved_path", "")
 
-        for renderable in format_cli_report(session, cost_summary):
+        for renderable in format_cli_report(session):
             console.print(renderable)
             console.print()
 
@@ -131,6 +155,191 @@ def run(
         sys.exit(1)
     except click.UsageError:
         raise
+    except Exception as exc:
+        if verbose:
+            console.print(traceback.format_exc())
+        else:
+            console.print(
+                f"[red]Error:[/red] {exc}\n"
+                "Run with -v for full traceback.",
+            )
+        sys.exit(1)
+
+
+@cli.command("report")
+@click.argument("profile_path")
+@click.option(
+    "--traffic",
+    type=int,
+    default=None,
+    help="Runs per day for monthly projection. Default: show 100/1K/10K.",
+)
+def report_cmd(profile_path: str, traffic: int | None) -> None:
+    """Generate a detailed report from a saved profile JSON."""
+    from agentcost.ci.report import format_cli_report
+    from agentcost.projection.patterns import detect_patterns
+    from agentcost.projection.stats import compute_stats
+    from agentcost.store import ProfileStore
+
+    store = ProfileStore()
+
+    try:
+        if profile_path == "latest":
+            sessions = store.list_sessions()
+            if not sessions:
+                console.print(
+                    "[red]Error:[/red] No saved profiles found. "
+                    "Run 'agentcost profile run' first.",
+                )
+                sys.exit(1)
+            session = store.load(sessions[0])
+        else:
+            p = Path(profile_path)
+            if not p.exists():
+                console.print(
+                    f"[red]Error:[/red] Profile not found: {profile_path}",
+                )
+                sys.exit(1)
+            session = store.load(p)
+    except Exception as exc:
+        console.print(
+            f"[red]Error:[/red] Invalid profile: {profile_path} — {exc}",
+        )
+        sys.exit(1)
+
+    if "stats" not in session.metadata and session.runs:
+        profiling_stats = compute_stats(session.runs)
+        patterns = detect_patterns(session.runs, profiling_stats)
+        session.metadata["stats"] = profiling_stats.to_dict()
+        session.metadata["patterns"] = [p.to_dict() for p in patterns]
+
+    for renderable in format_cli_report(session, traffic=traffic):
+        console.print(renderable)
+        console.print()
+
+
+@cli.command("analyze")
+@click.option(
+    "--from-langfuse",
+    is_flag=True,
+    required=True,
+    help="Import and analyze production traces from Langfuse.",
+)
+@click.option(
+    "--last",
+    "last_n",
+    type=int,
+    default=10,
+    help="Number of recent traces to import (default: 10).",
+)
+@click.option(
+    "--name",
+    type=str,
+    default=None,
+    help="Filter traces by workflow name in Langfuse.",
+)
+@click.option(
+    "--output-dir",
+    type=click.Path(),
+    default=".agentcost",
+    help="Directory for output files.",
+)
+@click.option(
+    "--traffic",
+    type=int,
+    default=None,
+    help="Runs per day for monthly projection.",
+)
+@click.option(
+    "-v",
+    "--verbose",
+    is_flag=True,
+    default=False,
+    help="Verbose output with debug logging.",
+)
+def analyze_cmd(
+    from_langfuse: bool,
+    last_n: int,
+    name: str | None,
+    output_dir: str,
+    traffic: int | None,
+    verbose: bool,
+) -> None:
+    """Analyze production traces without re-executing the workflow."""
+    log_level = logging.DEBUG if verbose else logging.WARNING
+    logging.basicConfig(level=log_level, format="%(message)s")
+
+    if not os.environ.get("LANGFUSE_SECRET_KEY") or not os.environ.get(
+        "LANGFUSE_PUBLIC_KEY"
+    ):
+        console.print(
+            "[red]Error:[/red] Langfuse credentials not found. "
+            "Set LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY "
+            "environment variables.",
+        )
+        sys.exit(1)
+
+    try:
+        from agentcost.ci.report import format_cli_report
+        from agentcost.inputs.importer import (
+            create_langfuse_client,
+            fetch_traces,
+            traces_to_step_records,
+        )
+        from agentcost.projection.patterns import detect_patterns
+        from agentcost.projection.stats import compute_stats
+        from agentcost.store import ProfileStore, ProfilingSession
+
+        console.print(f"Fetching last {last_n} traces from Langfuse...")
+        client = create_langfuse_client()
+        traces = fetch_traces(client, last_n=last_n, name=name)
+
+        if not traces:
+            console.print(
+                "[red]Error:[/red] No traces found in Langfuse. "
+                "Check your LANGFUSE_HOST and trace name filter.",
+            )
+            sys.exit(1)
+
+        console.print(f"Converting {len(traces)} traces to profiling data...")
+        runs = traces_to_step_records(traces)
+
+        profiling_stats = compute_stats(runs)
+        patterns = detect_patterns(runs, profiling_stats)
+
+        from datetime import UTC, datetime
+
+        workflow_name = traces[0].name or "langfuse-import"
+        session = ProfilingSession(
+            workflow_name=workflow_name,
+            workflow_hash="langfuse",
+            profiled_at=datetime.now(UTC),
+            sample_size=len(traces),
+            input_mode="langfuse-analyze",
+            runs=runs,
+            metadata={
+                "stats": profiling_stats.to_dict(),
+                "patterns": [p.to_dict() for p in patterns],
+                "langfuse_trace_count": len(traces),
+                "langfuse_trace_ids": [t.trace_id for t in traces],
+            },
+        )
+
+        store = ProfileStore(storage_dir=Path(output_dir))
+        saved_path = store.save(session)
+        session.metadata["saved_path"] = str(saved_path)
+
+        console.print()
+        for renderable in format_cli_report(session, traffic=traffic):
+            console.print(renderable)
+            console.print()
+
+        console.print(f"Profile saved to [bold]{saved_path}[/bold]")
+        console.print()
+
+    except (PermissionError, ConnectionError, OSError) as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        sys.exit(1)
     except Exception as exc:
         if verbose:
             console.print(traceback.format_exc())

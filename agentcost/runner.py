@@ -19,6 +19,8 @@ from agentcost.collectors.generic import GenericCollector
 from agentcost.inputs.generator import generate_inputs
 from agentcost.inputs.selector import InputSelection, select_input_mode
 from agentcost.pricing.tables import calculate_cost, model_tier
+from agentcost.projection.patterns import detect_patterns
+from agentcost.projection.stats import compute_stats
 from agentcost.store import ProfileStore, ProfilingSession
 
 logger = logging.getLogger(__name__)
@@ -178,6 +180,7 @@ class ProfileRunner:
         single_input: str | None = None,
         inputs_file: str | None = None,
         from_langfuse: bool = False,
+        langfuse_last_n: int = 10,
         output_dir: str = ".agentcost",
     ) -> None:
         self.workflow_path = workflow_path
@@ -186,6 +189,7 @@ class ProfileRunner:
         self.single_input = single_input
         self.inputs_file = inputs_file
         self.from_langfuse = from_langfuse
+        self.langfuse_last_n = langfuse_last_n
         self.output_dir = output_dir
 
     def _load_workflow(self) -> tuple[Any, str]:
@@ -211,9 +215,9 @@ class ProfileRunner:
             return GenericCollector()
 
         if self.collector_name == "openai":
-            raise NotImplementedError(
-                "OpenAI Agents collector is not yet implemented."
-            )
+            from agentcost.collectors.openai_agents import OpenAIAgentsCollector
+
+            return OpenAIAgentsCollector()
 
         has_ainvoke = hasattr(workflow, "ainvoke")
         has_nodes = hasattr(workflow, "nodes")
@@ -221,6 +225,11 @@ class ProfileRunner:
             from agentcost.collectors.langgraph import LangGraphCollector
 
             return LangGraphCollector()
+
+        if hasattr(workflow, "name") and hasattr(workflow, "instructions"):
+            from agentcost.collectors.openai_agents import OpenAIAgentsCollector
+
+            return OpenAIAgentsCollector()
 
         logger.info(
             "Using GenericCollector. Instrument your code with "
@@ -248,10 +257,16 @@ class ProfileRunner:
             return selection, selection.inputs
 
         if selection.mode == "langfuse":
-            raise NotImplementedError(
-                "Langfuse import is not yet implemented. "
-                "Use --auto-generate or --input instead."
+            from agentcost.inputs.importer import (
+                create_langfuse_client,
+                extract_inputs,
+                fetch_traces,
             )
+
+            client = create_langfuse_client()
+            traces = fetch_traces(client, last_n=self.langfuse_last_n)
+            inputs = extract_inputs(traces)
+            return selection, inputs
 
         raise NotImplementedError(
             "Static estimation is not yet implemented. "
@@ -280,6 +295,9 @@ class ProfileRunner:
             else:
                 cost_summary["per_step"][step_name]["tier"] = "tool"
 
+        profiling_stats = compute_stats(runs)
+        patterns = detect_patterns(runs, profiling_stats)
+
         workflow_src = Path(self.workflow_path).read_bytes()
         session = ProfilingSession(
             workflow_name=self.workflow_path,
@@ -288,7 +306,11 @@ class ProfileRunner:
             sample_size=len(inputs),
             input_mode=selection.mode,
             runs=runs,
-            metadata={"cost_summary": cost_summary},
+            metadata={
+                "cost_summary": cost_summary,
+                "stats": profiling_stats.to_dict(),
+                "patterns": [p.to_dict() for p in patterns],
+            },
         )
 
         store = ProfileStore(storage_dir=Path(self.output_dir))
@@ -300,3 +322,57 @@ class ProfileRunner:
     def run_sync(self) -> ProfilingSession:
         """Synchronous wrapper around `run()`."""
         return asyncio.run(self.run())
+
+    def analyze_langfuse(self) -> ProfilingSession:
+        """Analyze Langfuse traces without re-executing the workflow.
+
+        Used by 'agentcost analyze --from-langfuse' (CLI command added in prompt 15).
+        """
+        from agentcost.inputs.importer import (
+            create_langfuse_client,
+            fetch_traces,
+            traces_to_step_records,
+        )
+
+        client = create_langfuse_client()
+        traces = fetch_traces(client, last_n=self.langfuse_last_n)
+        runs = traces_to_step_records(traces)
+
+        cost_summary = _build_cost_summary(runs)
+
+        for step_name in cost_summary["per_step"]:
+            model = _get_step_model(runs, step_name)
+            step_type = _get_step_type(runs, step_name)
+            cost_summary["per_step"][step_name]["model"] = model
+            cost_summary["per_step"][step_name]["step_type"] = step_type
+            if model:
+                try:
+                    cost_summary["per_step"][step_name]["tier"] = model_tier(model)
+                except (ValueError, KeyError):
+                    cost_summary["per_step"][step_name]["tier"] = "unknown"
+            else:
+                cost_summary["per_step"][step_name]["tier"] = "tool"
+
+        profiling_stats = compute_stats(runs)
+        patterns = detect_patterns(runs, profiling_stats)
+
+        session = ProfilingSession(
+            workflow_name=f"langfuse-import ({len(traces)} traces)",
+            workflow_hash="langfuse",
+            profiled_at=datetime.now(UTC),
+            sample_size=len(traces),
+            input_mode="langfuse-analyze",
+            runs=runs,
+            metadata={
+                "cost_summary": cost_summary,
+                "stats": profiling_stats.to_dict(),
+                "patterns": [p.to_dict() for p in patterns],
+                "langfuse_trace_count": len(traces),
+            },
+        )
+
+        store = ProfileStore(storage_dir=Path(self.output_dir))
+        saved_path = store.save(session)
+        session.metadata["saved_path"] = str(saved_path)
+
+        return session
