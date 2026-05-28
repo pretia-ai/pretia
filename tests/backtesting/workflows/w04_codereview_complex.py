@@ -85,8 +85,7 @@ try:
                 {
                     "role": "user",
                     "content": (
-                        f"PR diff:\n{state['input']}\n\n"
-                        f"Structural analysis:\n{state['analysis']}"
+                        f"PR diff:\n{state['input']}\n\nStructural analysis:\n{state['analysis']}"
                     ),
                 },
             ]
@@ -101,10 +100,7 @@ try:
             max_tokens=1024,
         )
         review_feedback = state.get("review_feedback", "")
-        user_content = (
-            f"PR diff:\n{state['input']}\n\n"
-            f"Issues identified:\n{state['issues']}"
-        )
+        user_content = f"PR diff:\n{state['input']}\n\nIssues identified:\n{state['issues']}"
         if review_feedback:
             user_content += f"\n\nSelf-review feedback (revise accordingly):\n{review_feedback}"
 
@@ -185,8 +181,7 @@ try:
                 {
                     "role": "user",
                     "content": (
-                        f"Issues:\n{state['issues']}\n\n"
-                        f"Suggested fixes:\n{state['suggestions']}"
+                        f"Issues:\n{state['issues']}\n\nSuggested fixes:\n{state['suggestions']}"
                     ),
                 },
             ]

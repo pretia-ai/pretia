@@ -14,8 +14,7 @@ try:
     from agents.lifecycle import RunHooksBase
 except ImportError:
     raise ImportError(
-        "OpenAI Agents SDK not installed. "
-        "Run: pip install agentcost[openai]"
+        "OpenAI Agents SDK not installed. Run: pip install agentcost[openai]"
     ) from None
 
 from agentcost.collectors.base import BaseCollector, StepRecord
@@ -88,7 +87,9 @@ class AgentCostRunHooks(RunHooksBase):  # type: ignore[type-arg]
         return list(self._steps)
 
     async def on_agent_start(
-        self, context: Any, agent: Any,
+        self,
+        context: Any,
+        agent: Any,
     ) -> None:
         try:
             self._current_agent = _extract_agent_name(agent)
@@ -96,7 +97,10 @@ class AgentCostRunHooks(RunHooksBase):  # type: ignore[type-arg]
             logger.debug("Failed to process on_agent_start", exc_info=True)
 
     async def on_agent_end(
-        self, context: Any, agent: Any, output: Any,
+        self,
+        context: Any,
+        agent: Any,
+        output: Any,
     ) -> None:
         try:
             self._current_agent = None
@@ -149,7 +153,8 @@ class AgentCostRunHooks(RunHooksBase):  # type: ignore[type-arg]
             inflight = self._inflight_llm.pop(agent_name, None)
             if inflight is None:
                 logger.debug(
-                    "on_llm_end for unknown agent=%s (missed start event)", agent_name,
+                    "on_llm_end for unknown agent=%s (missed start event)",
+                    agent_name,
                 )
                 return
 
@@ -205,7 +210,10 @@ class AgentCostRunHooks(RunHooksBase):  # type: ignore[type-arg]
             logger.debug("Failed to process on_llm_end", exc_info=True)
 
     async def on_tool_start(
-        self, context: Any, agent: Any, tool: Any,
+        self,
+        context: Any,
+        agent: Any,
+        tool: Any,
     ) -> None:
         try:
             tool_name = _extract_tool_name(tool)
@@ -218,14 +226,19 @@ class AgentCostRunHooks(RunHooksBase):  # type: ignore[type-arg]
             logger.debug("Failed to process on_tool_start", exc_info=True)
 
     async def on_tool_end(
-        self, context: Any, agent: Any, tool: Any, result: str,
+        self,
+        context: Any,
+        agent: Any,
+        tool: Any,
+        result: str,
     ) -> None:
         try:
             tool_name = _extract_tool_name(tool)
             inflight = self._inflight_tool.pop(tool_name, None)
             if inflight is None:
                 logger.debug(
-                    "on_tool_end for unknown tool=%s (missed start event)", tool_name,
+                    "on_tool_end for unknown tool=%s (missed start event)",
+                    tool_name,
                 )
                 return
 
@@ -255,7 +268,10 @@ class AgentCostRunHooks(RunHooksBase):  # type: ignore[type-arg]
             logger.debug("Failed to process on_tool_end", exc_info=True)
 
     async def on_handoff(
-        self, context: Any, from_agent: Any, to_agent: Any,
+        self,
+        context: Any,
+        from_agent: Any,
+        to_agent: Any,
     ) -> None:
         try:
             target_name = _extract_agent_name(to_agent)
@@ -300,23 +316,25 @@ def _build_fallback_steps(
         if input_tokens == 0 and output_tokens == 0:
             continue
 
-        steps.append(StepRecord(
-            step_name=agent_name,
-            step_type="llm",
-            model=model,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            context_size=input_tokens,
-            tool_definitions_tokens=0,
-            system_prompt_hash=_EMPTY_HASH,
-            system_prompt_tokens=0,
-            output_format="text",
-            is_retry=False,
-            iteration=i + 1,
-            parent_step=None,
-            duration_ms=0,
-            timestamp=datetime.now(UTC),
-        ))
+        steps.append(
+            StepRecord(
+                step_name=agent_name,
+                step_type="llm",
+                model=model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                context_size=input_tokens,
+                tool_definitions_tokens=0,
+                system_prompt_hash=_EMPTY_HASH,
+                system_prompt_tokens=0,
+                output_format="text",
+                is_retry=False,
+                iteration=i + 1,
+                parent_step=None,
+                duration_ms=0,
+                timestamp=datetime.now(UTC),
+            )
+        )
     return steps
 
 
@@ -342,7 +360,8 @@ class OpenAIAgentsCollector(BaseCollector):
                 result = await Runner.run(workflow, inp, hooks=hooks)
             except Exception:
                 logger.warning(
-                    "Workflow execution failed for input=%r, skipping", inp[:80],
+                    "Workflow execution failed for input=%r, skipping",
+                    inp[:80],
                     exc_info=True,
                 )
                 runs.append([])

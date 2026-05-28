@@ -49,20 +49,17 @@ def compute_confidence(
     if sample_size < 5:
         score -= 40
         deductions.append(
-            f"Very small sample size ({sample_size} runs). "
-            "Projections have wide uncertainty."
+            f"Very small sample size ({sample_size} runs). Projections have wide uncertainty."
         )
     elif sample_size < 10:
         score -= 40
         deductions.append(
-            f"Very small sample size ({sample_size} runs). "
-            "Projections have wide uncertainty."
+            f"Very small sample size ({sample_size} runs). Projections have wide uncertainty."
         )
     elif sample_size < 30:
         score -= 20
         deductions.append(
-            f"Small sample size ({sample_size} runs). "
-            "Consider profiling with 30+ samples."
+            f"Small sample size ({sample_size} runs). Consider profiling with 30+ samples."
         )
     elif sample_size < 100:
         score -= 10
@@ -75,15 +72,11 @@ def compute_confidence(
         if cv > 1.0:
             penalty = 15
             step_deduction_total += penalty
-            deductions.append(
-                f"Step '{name}' has very high cost variance (CV={cv:.2f})."
-            )
+            deductions.append(f"Step '{name}' has very high cost variance (CV={cv:.2f}).")
         elif cv > 0.5:
             penalty = 8
             step_deduction_total += penalty
-            deductions.append(
-                f"Step '{name}' has moderate cost variance (CV={cv:.2f})."
-            )
+            deductions.append(f"Step '{name}' has moderate cost variance (CV={cv:.2f}).")
 
     step_deduction_total = min(step_deduction_total, _MAX_STEP_VARIANCE_DEDUCTION)
     score -= step_deduction_total
@@ -99,19 +92,14 @@ def compute_confidence(
         if p.pattern_type == "context_growth":
             score -= 10
             deductions.append(
-                f"Context growth detected at step '{p.step_name}'. "
-                "Non-linear cost scaling."
+                f"Context growth detected at step '{p.step_name}'. Non-linear cost scaling."
             )
         elif p.pattern_type == "loop_count_variance":
             score -= 10
-            deductions.append(
-                f"High loop count variance at step '{p.step_name}'."
-            )
+            deductions.append(f"High loop count variance at step '{p.step_name}'.")
         elif p.pattern_type == "high_token_variance":
             score -= 10
-            deductions.append(
-                f"High token variance at step '{p.step_name}'."
-            )
+            deductions.append(f"High token variance at step '{p.step_name}'.")
 
     # --- Bonuses ---
     if input_source == "langfuse":

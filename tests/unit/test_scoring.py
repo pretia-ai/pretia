@@ -27,8 +27,15 @@ def _ps(
     std: float = 0.01,
 ) -> PercentileStats:
     return PercentileStats(
-        min=mean * 0.5, max=p95 * 1.5, mean=mean, std=std,
-        p50=p50, p75=mean * 1.2, p90=p95 * 0.9, p95=p95, p99=p95 * 1.3,
+        min=mean * 0.5,
+        max=p95 * 1.5,
+        mean=mean,
+        std=std,
+        p50=p50,
+        p75=mean * 1.2,
+        p90=p95 * 0.9,
+        p95=p95,
+        p99=p95 * 1.3,
     )
 
 
@@ -41,14 +48,30 @@ def _step(
     cost_ps = _ps(cost_mean, cost_p50, cost_p95, cost_mean * 0.3)
     tok = _ps(300, 280, 450, 80)
     itr = PercentileStats(
-        min=1, max=1, mean=1, std=0, p50=1, p75=1, p90=1, p95=1, p99=1,
+        min=1,
+        max=1,
+        mean=1,
+        std=0,
+        p50=1,
+        p75=1,
+        p90=1,
+        p95=1,
+        p99=1,
     )
     return StepStats(
-        step_name=name, step_type="llm", model="gpt-4o-mini",
-        call_count=20, runs_present=20,
-        input_tokens=tok, output_tokens=tok, total_tokens=tok,
-        cost=cost_ps, duration_ms=tok, context_size=tok,
-        iterations_per_run=itr, mean_iterations=1.0,
+        step_name=name,
+        step_type="llm",
+        model="gpt-4o-mini",
+        call_count=20,
+        runs_present=20,
+        input_tokens=tok,
+        output_tokens=tok,
+        total_tokens=tok,
+        cost=cost_ps,
+        duration_ms=tok,
+        context_size=tok,
+        iterations_per_run=itr,
+        mean_iterations=1.0,
     )
 
 
@@ -70,16 +93,25 @@ def _make_stats(
     run_stats: list[RunStats] = []
     if run_costs is not None:
         for i, c in enumerate(run_costs):
-            run_stats.append(RunStats(
-                run_index=i, total_cost=c, total_tokens=300,
-                total_input_tokens=200, total_output_tokens=100,
-                step_count=2, duration_ms=200,
-            ))
+            run_stats.append(
+                RunStats(
+                    run_index=i,
+                    total_cost=c,
+                    total_tokens=300,
+                    total_input_tokens=200,
+                    total_output_tokens=100,
+                    step_count=2,
+                    duration_ms=200,
+                )
+            )
 
     return ProfilingStats(
-        step_stats=steps, run_stats=run_stats,
-        cost_per_run=cpr, tokens_per_run=_ps(2000, 1800, 3200, 600),
-        total_runs=total_runs, total_steps=total_runs * 2,
+        step_stats=steps,
+        run_stats=run_stats,
+        cost_per_run=cpr,
+        tokens_per_run=_ps(2000, 1800, 3200, 600),
+        total_runs=total_runs,
+        total_steps=total_runs * 2,
     )
 
 
@@ -93,8 +125,9 @@ class TestScoreProjectionAllPass:
         proj = _make_stats(steps=steps, cost_p50=0.028, cost_p95=0.048)
         # gt_costs must stay below projected p95 (0.048) for >=80% of runs
         gt_costs = [0.020 + (i % 40) * 0.0006 for i in range(500)]
-        gt = _make_stats(steps=steps, cost_p50=0.028, cost_p95=0.048,
-                         total_runs=500, run_costs=gt_costs)
+        gt = _make_stats(
+            steps=steps, cost_p50=0.028, cost_p95=0.048, total_runs=500, run_costs=gt_costs
+        )
         sc = score_projection(proj, gt)
         assert sc.verdict == "PASS"
         assert len(sc.failures) == 0
@@ -125,8 +158,7 @@ class TestScoreProjectionP95CoveragePass:
     def test_p95_pass(self):
         proj = _make_stats(cost_p95=0.050)
         gt_costs = [0.020 + i * 0.0005 for i in range(50)]
-        gt = _make_stats(cost_p50=0.028, cost_p95=0.048, total_runs=50,
-                         run_costs=gt_costs)
+        gt = _make_stats(cost_p50=0.028, cost_p95=0.048, total_runs=50, run_costs=gt_costs)
         sc = score_projection(proj, gt)
         assert sc.p95_coverage >= 0.80
 
@@ -135,8 +167,7 @@ class TestScoreProjectionP95CoverageFail:
     def test_p95_fail(self):
         proj = _make_stats(cost_p95=0.020)
         gt_costs = [0.025 + i * 0.002 for i in range(50)]
-        gt = _make_stats(cost_p50=0.035, cost_p95=0.070, total_runs=50,
-                         run_costs=gt_costs)
+        gt = _make_stats(cost_p50=0.035, cost_p95=0.070, total_runs=50, run_costs=gt_costs)
         sc = score_projection(proj, gt)
         assert sc.p95_coverage < 0.60
         assert sc.verdict == "FAIL"
@@ -250,22 +281,43 @@ class TestFormatCalibrationReport:
     def test_contains_all_workflows(self):
         scores = [
             CalibrationScore(
-                workflow_name="w1", sample_size=20, ground_truth_size=500,
-                p50_ratio=1.1, p95_coverage=0.92, range_ratio=2.3,
-                top_step_correct=True, ranking_correlation=0.95,
-                verdict="PASS", failures=[], warnings=[],
+                workflow_name="w1",
+                sample_size=20,
+                ground_truth_size=500,
+                p50_ratio=1.1,
+                p95_coverage=0.92,
+                range_ratio=2.3,
+                top_step_correct=True,
+                ranking_correlation=0.95,
+                verdict="PASS",
+                failures=[],
+                warnings=[],
             ),
             CalibrationScore(
-                workflow_name="w2", sample_size=20, ground_truth_size=500,
-                p50_ratio=1.8, p95_coverage=0.78, range_ratio=4.1,
-                top_step_correct=True, ranking_correlation=0.82,
-                verdict="WARN", failures=[], warnings=["p95 coverage low"],
+                workflow_name="w2",
+                sample_size=20,
+                ground_truth_size=500,
+                p50_ratio=1.8,
+                p95_coverage=0.78,
+                range_ratio=4.1,
+                top_step_correct=True,
+                ranking_correlation=0.82,
+                verdict="WARN",
+                failures=[],
+                warnings=["p95 coverage low"],
             ),
             CalibrationScore(
-                workflow_name="w3", sample_size=20, ground_truth_size=500,
-                p50_ratio=4.0, p95_coverage=0.50, range_ratio=12.0,
-                top_step_correct=False, ranking_correlation=0.45,
-                verdict="FAIL", failures=["p50 off"], warnings=[],
+                workflow_name="w3",
+                sample_size=20,
+                ground_truth_size=500,
+                p50_ratio=4.0,
+                p95_coverage=0.50,
+                range_ratio=12.0,
+                top_step_correct=False,
+                ranking_correlation=0.45,
+                verdict="FAIL",
+                failures=["p50 off"],
+                warnings=[],
             ),
         ]
         report = format_calibration_report(scores)

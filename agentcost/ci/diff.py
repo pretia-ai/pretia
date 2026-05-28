@@ -194,12 +194,14 @@ def diff_baseline(
         )
 
         if model_changed:
-            model_changes.append(ModelChange(
-                step_name=name,
-                old_model=old_step.model,
-                new_model=new_model,
-                cost_impact=cost_change_abs,
-            ))
+            model_changes.append(
+                ModelChange(
+                    step_name=name,
+                    old_model=old_step.model,
+                    new_model=new_model,
+                    cost_impact=cost_change_abs,
+                )
+            )
 
     new_steps = sorted(new_step_names - old_step_names)
     removed_steps = sorted(old_step_names - new_step_names)
@@ -273,9 +275,7 @@ def format_diff_report(diff: DiffResult) -> str:
 
     if sorted_diffs:
         lines.append("Step Comparison:")
-        lines.append(
-            f"{'Step':<20} {'Before':>10} {'After':>10} {'Change':>10} {'Flag':>5}"
-        )
+        lines.append(f"{'Step':<20} {'Before':>10} {'After':>10} {'Change':>10} {'Flag':>5}")
         lines.append("-" * 60)
         for sd in sorted_diffs:
             flag = ""
@@ -315,8 +315,7 @@ def format_diff_report(diff: DiffResult) -> str:
             impact = format_cost(abs(mc.cost_impact))
             direction = "saves" if mc.cost_impact < 0 else "costs"
             lines.append(
-                f"  {mc.step_name}: {mc.old_model} → {mc.new_model} "
-                f"({direction} {impact}/run)"
+                f"  {mc.step_name}: {mc.old_model} → {mc.new_model} ({direction} {impact}/run)"
             )
         lines.append("")
 

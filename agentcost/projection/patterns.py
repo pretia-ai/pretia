@@ -36,7 +36,8 @@ class DetectedPattern:
 
 
 def _pearson_r_squared(
-    xs: list[float], ys: list[float],
+    xs: list[float],
+    ys: list[float],
 ) -> tuple[float, float]:
     """Return (r_squared, slope) for two equal-length lists, or (0, 0) if degenerate."""
     n = len(xs)
@@ -89,34 +90,34 @@ def _detect_context_growth(
         max_iter = max(xs)
         last_iter_contexts = [y for x, y in pairs if x == max_iter]
         mean_first = (
-            sum(first_iter_contexts) / len(first_iter_contexts)
-            if first_iter_contexts else ys[0]
+            sum(first_iter_contexts) / len(first_iter_contexts) if first_iter_contexts else ys[0]
         )
         mean_last = (
-            sum(last_iter_contexts) / len(last_iter_contexts)
-            if last_iter_contexts else ys[-1]
+            sum(last_iter_contexts) / len(last_iter_contexts) if last_iter_contexts else ys[-1]
         )
         ratio = mean_last / mean_first if mean_first > 0 else 0.0
 
         severity = "danger" if r_squared > 0.85 else "warning"
-        patterns.append(DetectedPattern(
-            pattern_type="context_growth",
-            step_name=step_name,
-            severity=severity,
-            evidence={
-                "r_squared": round(r_squared, 4),
-                "slope": round(slope, 2),
-                "mean_context_first": round(mean_first, 2),
-                "mean_context_last": round(mean_last, 2),
-                "n_datapoints": len(pairs),
-            },
-            description=(
-                f"Context grows by ~{slope:.0f} tokens per iteration in step "
-                f"'{step_name}' (r²={r_squared:.2f}). At iteration {int(max_iter)}, "
-                f"context is {ratio:.1f}x the initial size. Linear projection will "
-                f"underestimate costs for high-iteration runs."
-            ),
-        ))
+        patterns.append(
+            DetectedPattern(
+                pattern_type="context_growth",
+                step_name=step_name,
+                severity=severity,
+                evidence={
+                    "r_squared": round(r_squared, 4),
+                    "slope": round(slope, 2),
+                    "mean_context_first": round(mean_first, 2),
+                    "mean_context_last": round(mean_last, 2),
+                    "n_datapoints": len(pairs),
+                },
+                description=(
+                    f"Context grows by ~{slope:.0f} tokens per iteration in step "
+                    f"'{step_name}' (r²={r_squared:.2f}). At iteration {int(max_iter)}, "
+                    f"context is {ratio:.1f}x the initial size. Linear projection will "
+                    f"underestimate costs for high-iteration runs."
+                ),
+            )
+        )
     return patterns
 
 
@@ -155,23 +156,25 @@ def _detect_loop_count_variance(
         ratio = max_i / mean_iter if mean_iter > 0 else 0.0
         severity = "danger" if cv > 1.0 or max_i > 3 * mean_iter else "warning"
 
-        patterns.append(DetectedPattern(
-            pattern_type="loop_count_variance",
-            step_name=step_name,
-            severity=severity,
-            evidence={
-                "cv": round(cv, 4),
-                "mean_iterations": round(mean_iter, 2),
-                "min_iterations": min_i,
-                "max_iterations": max_i,
-                "std_iterations": round(std_iter, 4),
-            },
-            description=(
-                f"Loop count for step '{step_name}' varies from {min_i} to {max_i} "
-                f"iterations (mean={mean_iter:.1f}, CV={cv:.2f}). Worst-case runs "
-                f"cost ~{ratio:.1f}x the average."
-            ),
-        ))
+        patterns.append(
+            DetectedPattern(
+                pattern_type="loop_count_variance",
+                step_name=step_name,
+                severity=severity,
+                evidence={
+                    "cv": round(cv, 4),
+                    "mean_iterations": round(mean_iter, 2),
+                    "min_iterations": min_i,
+                    "max_iterations": max_i,
+                    "std_iterations": round(std_iter, 4),
+                },
+                description=(
+                    f"Loop count for step '{step_name}' varies from {min_i} to {max_i} "
+                    f"iterations (mean={mean_iter:.1f}, CV={cv:.2f}). Worst-case runs "
+                    f"cost ~{ratio:.1f}x the average."
+                ),
+            )
+        )
     return patterns
 
 
@@ -194,24 +197,26 @@ def _detect_high_token_variance(
             continue
 
         severity = "danger" if ratio > 5.0 else "warning"
-        patterns.append(DetectedPattern(
-            pattern_type="high_token_variance",
-            step_name=step_name,
-            severity=severity,
-            evidence={
-                "p95_p50_ratio_tokens": round(ratio_tok, 4),
-                "p95_p50_ratio_cost": round(ratio_cost, 4),
-                "p50_tokens": round(p50_tok, 2),
-                "p95_tokens": round(p95_tok, 2),
-                "p50_cost": round(p50_cost, 6),
-                "p95_cost": round(p95_cost, 6),
-            },
-            description=(
-                f"Step '{step_name}' has high token variance: p95 is {ratio_tok:.1f}x "
-                f"the median ({p50_tok:.0f} vs {p95_tok:.0f} total tokens). "
-                f"Average-based projection will underestimate tail costs."
-            ),
-        ))
+        patterns.append(
+            DetectedPattern(
+                pattern_type="high_token_variance",
+                step_name=step_name,
+                severity=severity,
+                evidence={
+                    "p95_p50_ratio_tokens": round(ratio_tok, 4),
+                    "p95_p50_ratio_cost": round(ratio_cost, 4),
+                    "p50_tokens": round(p50_tok, 2),
+                    "p95_tokens": round(p95_tok, 2),
+                    "p50_cost": round(p50_cost, 6),
+                    "p95_cost": round(p95_cost, 6),
+                },
+                description=(
+                    f"Step '{step_name}' has high token variance: p95 is {ratio_tok:.1f}x "
+                    f"the median ({p50_tok:.0f} vs {p95_tok:.0f} total tokens). "
+                    f"Average-based projection will underestimate tail costs."
+                ),
+            )
+        )
     return patterns
 
 

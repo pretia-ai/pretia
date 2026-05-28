@@ -12,6 +12,7 @@ from agentcost.inputs.selector import read_inputs_file, select_input_mode
 # Explicit inputs
 # ---------------------------------------------------------------------------
 
+
 class TestExplicitInputs:
     def test_manual_mode(self):
         sel = select_input_mode(explicit_inputs=["a", "b", "c"])
@@ -23,6 +24,7 @@ class TestExplicitInputs:
 # ---------------------------------------------------------------------------
 # File input
 # ---------------------------------------------------------------------------
+
 
 class TestFileInput:
     def test_plain_text(self, tmp_path):
@@ -43,7 +45,8 @@ class TestFileInput:
         assert sel.mode == "file"
         assert sel.inputs[0] == "How do I reset?"
         assert json.loads(sel.inputs[1]) == {
-            "query": "billing", "lang": "en",
+            "query": "billing",
+            "lang": "en",
         }
 
     def test_missing_file_raises(self):
@@ -54,6 +57,7 @@ class TestFileInput:
 # ---------------------------------------------------------------------------
 # Single input
 # ---------------------------------------------------------------------------
+
 
 class TestSingleInput:
     def test_single_mode(self):
@@ -66,6 +70,7 @@ class TestSingleInput:
 # Langfuse flag
 # ---------------------------------------------------------------------------
 
+
 class TestLangfuseFlag:
     def test_langfuse_mode(self):
         sel = select_input_mode(from_langfuse=True)
@@ -77,6 +82,7 @@ class TestLangfuseFlag:
 # Auto-generate explicit
 # ---------------------------------------------------------------------------
 
+
 class TestAutoGenerate:
     def test_auto_generate_mode(self):
         sel = select_input_mode(auto_generate=30)
@@ -87,6 +93,7 @@ class TestAutoGenerate:
 # ---------------------------------------------------------------------------
 # Auto-detect
 # ---------------------------------------------------------------------------
+
 
 class TestAutoDetect:
     def test_langfuse_credentials(self, monkeypatch):
@@ -120,10 +127,12 @@ class TestAutoDetect:
 # Priority order
 # ---------------------------------------------------------------------------
 
+
 class TestPriorityOrder:
     def test_explicit_wins_over_auto_generate(self):
         sel = select_input_mode(
-            explicit_inputs=["a"], auto_generate=20,
+            explicit_inputs=["a"],
+            auto_generate=20,
         )
         assert sel.mode == "manual"
 
@@ -131,19 +140,22 @@ class TestPriorityOrder:
         f = tmp_path / "inputs.txt"
         f.write_text("from file\n")
         sel = select_input_mode(
-            inputs_file=str(f), single_input="query",
+            inputs_file=str(f),
+            single_input="query",
         )
         assert sel.mode == "file"
 
     def test_single_wins_over_langfuse(self):
         sel = select_input_mode(
-            single_input="query", from_langfuse=True,
+            single_input="query",
+            from_langfuse=True,
         )
         assert sel.mode == "single"
 
     def test_langfuse_wins_over_auto_generate(self):
         sel = select_input_mode(
-            from_langfuse=True, auto_generate=20,
+            from_langfuse=True,
+            auto_generate=20,
         )
         assert sel.mode == "langfuse"
 
@@ -151,6 +163,7 @@ class TestPriorityOrder:
 # ---------------------------------------------------------------------------
 # read_inputs_file standalone
 # ---------------------------------------------------------------------------
+
 
 class TestReadInputsFile:
     def test_skips_blank_lines(self, tmp_path):

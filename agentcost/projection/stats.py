@@ -66,8 +66,15 @@ def compute_percentile_stats(values: list[float]) -> PercentileStats:
     mean = sum(s) / n
     if n == 1:
         return PercentileStats(
-            min=s[0], max=s[0], mean=mean, std=0.0,
-            p50=s[0], p75=s[0], p90=s[0], p95=s[0], p99=s[0],
+            min=s[0],
+            max=s[0],
+            mean=mean,
+            std=0.0,
+            p50=s[0],
+            p75=s[0],
+            p90=s[0],
+            p95=s[0],
+            p99=s[0],
         )
     variance = sum((x - mean) ** 2 for x in s) / (n - 1)
     std = math.sqrt(variance)
@@ -226,15 +233,17 @@ def compute_stats(
 
         run_costs.append(run_cost)
         run_tokens.append(float(run_total_tokens))
-        run_stats_list.append(RunStats(
-            run_index=run_idx,
-            total_cost=run_cost,
-            total_tokens=run_total_tokens,
-            total_input_tokens=run_input_tokens,
-            total_output_tokens=run_output_tokens,
-            step_count=len(run),
-            duration_ms=run_duration,
-        ))
+        run_stats_list.append(
+            RunStats(
+                run_index=run_idx,
+                total_cost=run_cost,
+                total_tokens=run_total_tokens,
+                total_input_tokens=run_input_tokens,
+                total_output_tokens=run_output_tokens,
+                step_count=len(run),
+                duration_ms=run_duration,
+            )
+        )
 
     step_stats_dict: dict[str, StepStats] = {}
     for step_name, records in step_records.items():

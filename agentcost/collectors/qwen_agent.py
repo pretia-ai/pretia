@@ -13,10 +13,7 @@ from typing import Any
 try:
     import qwen_agent.agent  # noqa: F401
 except ImportError:
-    raise ImportError(
-        "Qwen-Agent not installed. "
-        "Run: pip install agentcost[qwen]"
-    ) from None
+    raise ImportError("Qwen-Agent not installed. Run: pip install agentcost[qwen]") from None
 
 from agentcost.collectors.base import BaseCollector, StepRecord
 
@@ -58,9 +55,7 @@ def _estimate_tool_def_tokens(agent: Any) -> int:
     if not function_map:
         return 0
     try:
-        schemas = [
-            getattr(fn, "function", {}) for fn in function_map.values()
-        ]
+        schemas = [getattr(fn, "function", {}) for fn in function_map.values()]
         return len(json.dumps(schemas)) // 4
     except Exception:
         return 0
@@ -101,8 +96,14 @@ class _CapturedCall:
     """Data captured from one intercepted LLM call."""
 
     __slots__ = (
-        "model", "input_tokens", "output_tokens", "output_text",
-        "start_ns", "end_ns", "timestamp", "is_tool_call",
+        "model",
+        "input_tokens",
+        "output_tokens",
+        "output_text",
+        "start_ns",
+        "end_ns",
+        "timestamp",
+        "is_tool_call",
     )
 
     def __init__(self) -> None:
@@ -300,23 +301,25 @@ class QwenAgentCollector(BaseCollector):
             duration_ms = (cap.end_ns - cap.start_ns) // 1_000_000 if cap.end_ns > 0 else 0
 
             try:
-                steps.append(StepRecord(
-                    step_name=step_name,
-                    step_type=step_type,
-                    model=cap.model or "",
-                    input_tokens=cap.input_tokens,
-                    output_tokens=cap.output_tokens,
-                    context_size=context_size,
-                    tool_definitions_tokens=tool_def_tokens if step_type == "llm" else 0,
-                    system_prompt_hash=prompt_hash,
-                    system_prompt_tokens=prompt_tokens,
-                    output_format=output_format,
-                    is_retry=False,
-                    iteration=count,
-                    parent_step=None,
-                    duration_ms=duration_ms,
-                    timestamp=cap.timestamp,
-                ))
+                steps.append(
+                    StepRecord(
+                        step_name=step_name,
+                        step_type=step_type,
+                        model=cap.model or "",
+                        input_tokens=cap.input_tokens,
+                        output_tokens=cap.output_tokens,
+                        context_size=context_size,
+                        tool_definitions_tokens=tool_def_tokens if step_type == "llm" else 0,
+                        system_prompt_hash=prompt_hash,
+                        system_prompt_tokens=prompt_tokens,
+                        output_format=output_format,
+                        is_retry=False,
+                        iteration=count,
+                        parent_step=None,
+                        duration_ms=duration_ms,
+                        timestamp=cap.timestamp,
+                    )
+                )
             except Exception:
                 logger.debug("Failed to create StepRecord from captured call", exc_info=True)
 

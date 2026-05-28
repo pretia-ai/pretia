@@ -347,8 +347,10 @@ def _build_legacy_projection_panel(
 def _build_patterns_panel(patterns: list[dict[str, Any]]) -> Panel:
     if not patterns:
         return Panel(
-            Text("No non-linear cost patterns detected. "
-                 "Linear projection is reliable.", style="green"),
+            Text(
+                "No non-linear cost patterns detected. Linear projection is reliable.",
+                style="green",
+            ),
             title="Patterns",
             expand=False,
         )
@@ -382,7 +384,9 @@ def _build_iteration_panel(stats: dict[str, Any] | None) -> Panel | None:
         return None
 
     table = Table(
-        title="Iteration Counts Per Run", show_lines=True, pad_edge=True,
+        title="Iteration Counts Per Run",
+        show_lines=True,
+        pad_edge=True,
     )
     table.add_column("Step", style="bold")
     table.add_column("Mean", justify="right")

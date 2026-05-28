@@ -45,13 +45,15 @@ def run_validation(
     from agentcost.runner import ProfileRunner
 
     small_runner = ProfileRunner(
-        workflow_path=workflow_path, auto_generate=small_n,
+        workflow_path=workflow_path,
+        auto_generate=small_n,
     )
     small_session = small_runner.run_sync()
     small_stats = compute_stats(small_session.runs)
 
     large_runner = ProfileRunner(
-        workflow_path=workflow_path, auto_generate=large_n,
+        workflow_path=workflow_path,
+        auto_generate=large_n,
     )
     large_session = large_runner.run_sync()
     large_stats = compute_stats(large_session.runs)
@@ -99,8 +101,7 @@ def format_validate_report(result: ValidateResult) -> str:
     lines.append("=" * 40)
     lines.append("")
     lines.append(
-        f"Profiled with {result.small_n} samples, "
-        f"validated against {result.large_n} samples."
+        f"Profiled with {result.small_n} samples, validated against {result.large_n} samples."
     )
     lines.append("")
 
@@ -127,8 +128,10 @@ def format_validate_report(result: ValidateResult) -> str:
     lines.append(f"{'Rank corr.':<14} {sc.ranking_correlation:.2f} {_check(rank_ok):>6}")
 
     lines.append("")
-    lines.append(f"Convergence: {result.convergence_pct:.1f}% difference "
-                 f"between {result.small_n} and {result.large_n} samples.")
+    lines.append(
+        f"Convergence: {result.convergence_pct:.1f}% difference "
+        f"between {result.small_n} and {result.large_n} samples."
+    )
 
     verdict_icon = "✅" if sc.verdict in ("PASS", "WARN") else "❌"
     lines.append(f"Verdict: {verdict_icon} {result.recommendation}")

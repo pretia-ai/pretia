@@ -161,9 +161,7 @@ def _precompute_growth_data(
 
         first_contexts = [c for i, c in iter_context if i == 1.0]
         base_context = (
-            sum(first_contexts) / len(first_contexts)
-            if first_contexts
-            else iter_context[0][1]
+            sum(first_contexts) / len(first_contexts) if first_contexts else iter_context[0][1]
         )
 
         n = len(iter_context)
@@ -180,9 +178,7 @@ def _precompute_growth_data(
             "base_context": base_context,
             "model": models[0] if models else "",
             "mean_output_tokens": (
-                sum(output_tokens_list) / len(output_tokens_list)
-                if output_tokens_list
-                else 0.0
+                sum(output_tokens_list) / len(output_tokens_list) if output_tokens_list else 0.0
             ),
         }
 
@@ -223,9 +219,7 @@ def _sample_step_cost(
 
             if median_iter > 1:
                 log_scale = math.log(median_iter + 1)
-                ctx_log = base_context + slope * (
-                    math.log(k + 1) / log_scale
-                ) * median_iter
+                ctx_log = base_context + slope * (math.log(k + 1) / log_scale) * median_iter
             else:
                 ctx_log = ctx_linear
             ctx_log = max(ctx_log, 0)

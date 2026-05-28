@@ -49,9 +49,7 @@ try:
                 {"role": "user", "content": state["input"]},
             ]
         )
-        text = (
-            result.content if isinstance(result.content, str) else str(result.content)
-        )
+        text = result.content if isinstance(result.content, str) else str(result.content)
         raw = text.strip().lower()
         intent = raw if raw in CANNED_FAQ else "general"
         return {"intent": intent}
@@ -83,8 +81,7 @@ try:
                 {
                     "role": "user",
                     "content": (
-                        f"Customer question: {state['input']}\n\n"
-                        f"FAQ context:\n{state['context']}"
+                        f"Customer question: {state['input']}\n\nFAQ context:\n{state['context']}"
                     ),
                 },
             ]

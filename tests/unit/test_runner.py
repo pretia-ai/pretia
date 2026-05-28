@@ -43,6 +43,7 @@ def _make_record(
 # Cost summary calculation
 # ---------------------------------------------------------------------------
 
+
 class TestBuildCostSummary:
     def test_basic_aggregation(self):
         runs = [
@@ -74,12 +75,14 @@ class TestBuildCostSummary:
 # Workflow loading
 # ---------------------------------------------------------------------------
 
+
 class TestWorkflowLoading:
     def test_found_by_graph_attr(self, tmp_path):
         f = tmp_path / "agent.py"
         f.write_text("graph = 'fake_workflow'\n")
         runner = ProfileRunner(
-            workflow_path=str(f), single_input="test",
+            workflow_path=str(f),
+            single_input="test",
         )
         workflow, _ = runner._load_workflow()
         assert workflow == "fake_workflow"
@@ -88,7 +91,8 @@ class TestWorkflowLoading:
         f = tmp_path / "agent.py"
         f.write_text("workflow = 'my_wf'\n")
         runner = ProfileRunner(
-            workflow_path=str(f), single_input="test",
+            workflow_path=str(f),
+            single_input="test",
         )
         workflow, _ = runner._load_workflow()
         assert workflow == "my_wf"
@@ -97,7 +101,8 @@ class TestWorkflowLoading:
         f = tmp_path / "empty.py"
         f.write_text("x = 42\n")
         runner = ProfileRunner(
-            workflow_path=str(f), single_input="test",
+            workflow_path=str(f),
+            single_input="test",
         )
         with pytest.raises(Exception, match="Could not find a workflow"):
             runner._load_workflow()
@@ -107,14 +112,17 @@ class TestWorkflowLoading:
 # Collector auto-detection
 # ---------------------------------------------------------------------------
 
+
 class TestCollectorDetection:
     def test_langgraph_detected(self):
         class _FakeGraph:
             nodes = {"a": None}
+
             async def ainvoke(self, *a, **kw): ...
 
         runner = ProfileRunner(
-            workflow_path="fake.py", single_input="test",
+            workflow_path="fake.py",
+            single_input="test",
         )
         try:
             coll = runner._select_collector(_FakeGraph())
@@ -124,7 +132,8 @@ class TestCollectorDetection:
 
     def test_generic_fallback(self):
         runner = ProfileRunner(
-            workflow_path="fake.py", single_input="test",
+            workflow_path="fake.py",
+            single_input="test",
         )
         coll = runner._select_collector(object())
         assert type(coll).__name__ == "GenericCollector"
@@ -134,11 +143,13 @@ class TestCollectorDetection:
 # Input mode passthrough
 # ---------------------------------------------------------------------------
 
+
 class TestInputPassthrough:
     @pytest.mark.asyncio
     async def test_single_input(self):
         runner = ProfileRunner(
-            workflow_path="fake.py", single_input="hello",
+            workflow_path="fake.py",
+            single_input="hello",
         )
         selection, inputs = await runner._resolve_inputs("")
         assert selection.mode == "single"
@@ -147,7 +158,8 @@ class TestInputPassthrough:
     @pytest.mark.asyncio
     async def test_auto_generate(self):
         runner = ProfileRunner(
-            workflow_path="fake.py", auto_generate=3,
+            workflow_path="fake.py",
+            auto_generate=3,
         )
         with patch(
             "agentcost.runner.generate_inputs",
@@ -164,6 +176,7 @@ class TestInputPassthrough:
 # ---------------------------------------------------------------------------
 # Full pipeline (mocked)
 # ---------------------------------------------------------------------------
+
 
 class TestFullPipeline:
     def test_happy_path(self, tmp_path):

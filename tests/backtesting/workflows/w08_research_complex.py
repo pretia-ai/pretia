@@ -67,10 +67,7 @@ try:
         fact_check_gaps = state.get("fact_check_result", "")
         extra = ""
         if fact_check_gaps and state.get("iteration_count", 0) > 0:
-            extra = (
-                f"\n\nPrevious fact-check found gaps. Focus on these areas:\n"
-                f"{fact_check_gaps}"
-            )
+            extra = f"\n\nPrevious fact-check found gaps. Focus on these areas:\n{fact_check_gaps}"
         result = llm.invoke(
             [
                 {

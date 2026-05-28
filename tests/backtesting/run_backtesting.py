@@ -148,14 +148,11 @@ def _run_phase_1(configs: list, resume: bool) -> None:
 def _run_phase_2(configs: list, resume: bool) -> None:
     """Phase 2: Ground truth profiles at 500 samples."""
     total_cost_est = sum(
-        (c.expected_cost_range[0] + c.expected_cost_range[1]) / 2 * 500
-        for c in configs
+        (c.expected_cost_range[0] + c.expected_cost_range[1]) / 2 * 500 for c in configs
     )
     click.echo(f"Phase 2: Ground truth profiles for {len(configs)} workflows.")
     click.echo(f"Estimated cost: ~${total_cost_est:.0f}")
-    click.echo(
-        "This is expensive. Make sure you've reviewed Phase 1 results first."
-    )
+    click.echo("This is expensive. Make sure you've reviewed Phase 1 results first.")
     if not click.confirm("Proceed with ground truth profiling?"):
         click.echo("Cancelled.")
         return
@@ -194,7 +191,8 @@ def _run_phase_3(configs: list) -> None:
                     wf_profiles[key] = ProfilingSession.from_dict(data)
                 except Exception as exc:
                     click.echo(
-                        f"  Error loading {cfg.name}/{key}: {exc}", err=True,
+                        f"  Error loading {cfg.name}/{key}: {exc}",
+                        err=True,
                     )
         if wf_profiles:
             profiles[cfg.name] = wf_profiles
@@ -214,23 +212,35 @@ def _run_phase_3(configs: list) -> None:
 
 @click.command()
 @click.option(
-    "--phase", type=int, default=None,
+    "--phase",
+    type=int,
+    default=None,
     help="Phase to run: 1 (synthetic), 2 (ground truth), 3 (score).",
 )
 @click.option(
-    "--all", "run_all", is_flag=True, default=False,
+    "--all",
+    "run_all",
+    is_flag=True,
+    default=False,
     help="Run all three phases sequentially.",
 )
 @click.option(
-    "--workflow", type=str, default=None,
+    "--workflow",
+    type=str,
+    default=None,
     help="Run only workflows matching this name (e.g., 'W1').",
 )
 @click.option(
-    "--resume", is_flag=True, default=False,
+    "--resume",
+    is_flag=True,
+    default=False,
     help="Skip workflows that already have result files.",
 )
 @click.option(
-    "-v", "--verbose", is_flag=True, default=False,
+    "-v",
+    "--verbose",
+    is_flag=True,
+    default=False,
     help="Enable debug logging.",
 )
 def main(

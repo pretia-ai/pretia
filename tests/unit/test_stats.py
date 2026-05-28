@@ -51,6 +51,7 @@ def _simple_cost_fn(model: str, inp: int, out: int) -> float:
 # PercentileStats
 # ---------------------------------------------------------------------------
 
+
 class TestPercentileStats:
     def test_percentile_stats_basic(self):
         ps = compute_percentile_stats([1.0, 2.0, 3.0, 4.0, 5.0])
@@ -94,6 +95,7 @@ class TestPercentileStats:
 # ---------------------------------------------------------------------------
 # compute_stats basic
 # ---------------------------------------------------------------------------
+
 
 class TestComputeStats:
     def test_compute_stats_basic(self):
@@ -210,6 +212,7 @@ class TestComputeStats:
 # ---------------------------------------------------------------------------
 # Serialization
 # ---------------------------------------------------------------------------
+
 
 class TestSerialization:
     def test_profiling_stats_to_dict(self):

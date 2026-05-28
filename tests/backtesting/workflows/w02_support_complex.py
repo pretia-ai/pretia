@@ -54,9 +54,7 @@ try:
                 {"role": "user", "content": state["input"]},
             ]
         )
-        text = (
-            result.content if isinstance(result.content, str) else str(result.content)
-        )
+        text = result.content if isinstance(result.content, str) else str(result.content)
         raw = text.strip().lower()
         intent = raw if raw in CANNED_FAQ else "general"
         return {"intent": intent}
@@ -74,10 +72,7 @@ try:
             max_tokens=512,
         )
         feedback = state.get("feedback", "")
-        user_content = (
-            f"Customer question: {state['input']}\n\n"
-            f"FAQ context:\n{state['context']}"
-        )
+        user_content = f"Customer question: {state['input']}\n\nFAQ context:\n{state['context']}"
         if feedback:
             user_content += f"\n\nRevision feedback from reviewer:\n{feedback}"
 
@@ -126,8 +121,7 @@ try:
                 {
                     "role": "user",
                     "content": (
-                        f"Customer question: {state['input']}\n\n"
-                        f"Draft response:\n{state['draft']}"
+                        f"Customer question: {state['input']}\n\nDraft response:\n{state['draft']}"
                     ),
                 },
             ]

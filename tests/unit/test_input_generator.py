@@ -16,6 +16,7 @@ from agentcost.inputs.generator import (
 # Response parsing
 # ---------------------------------------------------------------------------
 
+
 class TestParseResponse:
     def test_clean_output(self):
         text = "\n".join(f"Input number {i}" for i in range(20))
@@ -24,11 +25,7 @@ class TestParseResponse:
         assert all(s.strip() for s in result)
 
     def test_numbered_lines_stripped(self):
-        text = (
-            "1. How do I reset my password?\n"
-            "2. What are your hours?\n"
-            "3) Tell me about pricing"
-        )
+        text = "1. How do I reset my password?\n2. What are your hours?\n3) Tell me about pricing"
         result = _parse_response(text, 10)
         assert result == [
             "How do I reset my password?",
@@ -37,11 +34,7 @@ class TestParseResponse:
         ]
 
     def test_preamble_discarded(self):
-        text = (
-            "Here are 20 test inputs:\n"
-            "How do I reset my password?\n"
-            "What are your hours?"
-        )
+        text = "Here are 20 test inputs:\nHow do I reset my password?\nWhat are your hours?"
         result = _parse_response(text, 10)
         assert result == [
             "How do I reset my password?",
@@ -69,6 +62,7 @@ class TestParseResponse:
 # ---------------------------------------------------------------------------
 # Provider detection
 # ---------------------------------------------------------------------------
+
 
 def _mock_anthropic_sdk():
     sdk = MagicMock()
@@ -106,9 +100,7 @@ class TestProviderDetection:
 
         with patch(
             "agentcost.inputs.generator._try_import",
-            side_effect=lambda n: (
-                anthropic_sdk if n == "anthropic" else openai_sdk
-            ),
+            side_effect=lambda n: anthropic_sdk if n == "anthropic" else openai_sdk,
         ):
             result = await generate_inputs("You are a bot.", n=2)
 
@@ -124,12 +116,12 @@ class TestProviderDetection:
 
         with patch(
             "agentcost.inputs.generator._try_import",
-            side_effect=lambda n: (
-                openai_sdk if n == "openai" else None
-            ),
+            side_effect=lambda n: openai_sdk if n == "openai" else None,
         ):
             result = await generate_inputs(
-                "You are a bot.", n=2, model="gpt-4o-mini",
+                "You are a bot.",
+                n=2,
+                model="gpt-4o-mini",
             )
 
         openai_sdk.AsyncOpenAI.assert_called_once()
@@ -144,12 +136,12 @@ class TestProviderDetection:
 
         with patch(
             "agentcost.inputs.generator._try_import",
-            side_effect=lambda n: (
-                anthropic_sdk if n == "anthropic" else openai_sdk
-            ),
+            side_effect=lambda n: anthropic_sdk if n == "anthropic" else openai_sdk,
         ):
             await generate_inputs(
-                "You are a bot.", n=2, model="gpt-4o-mini",
+                "You are a bot.",
+                n=2,
+                model="gpt-4o-mini",
             )
 
         openai_sdk.AsyncOpenAI.assert_called_once()
@@ -193,7 +185,9 @@ class TestProviderDetection:
             side_effect=lambda n: openai_sdk if n == "openai" else None,
         ):
             result = await generate_inputs(
-                "You are a bot.", n=2, model="deepseek-v4-flash",
+                "You are a bot.",
+                n=2,
+                model="deepseek-v4-flash",
             )
 
         openai_sdk.AsyncOpenAI.assert_called_once()
@@ -212,9 +206,7 @@ class TestProviderDetection:
 
         with patch(
             "agentcost.inputs.generator._try_import",
-            side_effect=lambda n: (
-                anthropic_sdk if n == "anthropic" else openai_sdk
-            ),
+            side_effect=lambda n: anthropic_sdk if n == "anthropic" else openai_sdk,
         ):
             await generate_inputs("You are a bot.", n=2)
 
@@ -225,6 +217,7 @@ class TestProviderDetection:
 # ---------------------------------------------------------------------------
 # Meta-prompt content
 # ---------------------------------------------------------------------------
+
 
 class TestMetaPrompt:
     def test_has_required_placeholders(self):

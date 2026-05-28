@@ -103,9 +103,7 @@ class Baseline:
         """Deserialize from a dict."""
         version = data.get("version", "")
         if not version.startswith("1."):
-            raise ValueError(
-                f"Unsupported baseline version: {version!r}. Expected '1.x'."
-            )
+            raise ValueError(f"Unsupported baseline version: {version!r}. Expected '1.x'.")
         return cls(
             version=data["version"],
             workflow=data["workflow"],
@@ -160,8 +158,7 @@ def create_baseline(
     stats_dict = meta.get("stats")
     if stats_dict is None:
         raise ValueError(
-            "Session has no stats. "
-            "Run 'agentcost profile run' to generate a complete profile."
+            "Session has no stats. Run 'agentcost profile run' to generate a complete profile."
         )
 
     patterns_raw = meta.get("patterns", [])
@@ -190,7 +187,8 @@ def create_baseline(
         ipr = ss.get("iterations_per_run", {})
 
         prompt_hash, prompt_tokens, output_format = _extract_step_record_fields(
-            session, name,
+            session,
+            name,
         )
 
         steps[name] = BaselineStep(
@@ -257,9 +255,7 @@ def create_baseline(
         )
 
     if input_source in ("auto-generate", "auto_generate"):
-        assumptions.append(
-            "Inputs were auto-generated. Production input distribution may differ."
-        )
+        assumptions.append("Inputs were auto-generated. Production input distribution may differ.")
 
     return Baseline(
         version="1.0",
@@ -294,8 +290,7 @@ def load_baseline(path: str) -> Baseline:
     p = Path(path)
     if not p.exists():
         raise FileNotFoundError(
-            f"Baseline not found at '{path}'. "
-            "Run 'agentcost baseline update' to create one."
+            f"Baseline not found at '{path}'. Run 'agentcost baseline update' to create one."
         )
     try:
         data = json.loads(p.read_text())

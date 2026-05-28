@@ -36,6 +36,7 @@ from agentcost.inputs.importer import (  # noqa: E402
 # Mock helpers
 # ---------------------------------------------------------------------------
 
+
 class MockUsage:
     def __init__(self, input_val=100, output_val=50):
         self.input = input_val
@@ -120,6 +121,7 @@ def _make_trace(**kwargs):
 # Helper functions
 # ---------------------------------------------------------------------------
 
+
 class TestHelpers:
     def test_compute_duration_ms(self):
         start = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
@@ -161,6 +163,7 @@ class TestHelpers:
 # create_langfuse_client
 # ---------------------------------------------------------------------------
 
+
 class TestCreateClient:
     def test_create_client_with_env_vars(self, monkeypatch):
         monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-lf-test")
@@ -173,6 +176,7 @@ class TestCreateClient:
             import importlib
 
             from agentcost.inputs import importer
+
             importlib.reload(importer)
 
             mock_api_class.reset_mock()
@@ -211,6 +215,7 @@ class TestCreateClient:
 # fetch_traces
 # ---------------------------------------------------------------------------
 
+
 class TestFetchTraces:
     def test_fetch_traces_basic(self):
         obs1 = MockObservationView(obs_id="obs-1", name="classify", model="gpt-4o")
@@ -223,7 +228,10 @@ class TestFetchTraces:
         mock_client.trace.list.return_value = traces_response
 
         full_trace = MockTraceWithFullDetails(
-            "trace-1", "my_agent", "Hello", [obs1, obs2],
+            "trace-1",
+            "my_agent",
+            "Hello",
+            [obs1, obs2],
         )
         mock_client.trace.get.return_value = full_trace
 
@@ -267,7 +275,10 @@ class TestFetchTraces:
         traces_response.data = [trace_summary]
         mock_client.trace.list.return_value = traces_response
         mock_client.trace.get.return_value = MockTraceWithFullDetails(
-            "t-1", "agent", "input", [obs],
+            "t-1",
+            "agent",
+            "input",
+            [obs],
         )
 
         result = fetch_traces(mock_client, last_n=1)
@@ -283,7 +294,10 @@ class TestFetchTraces:
         traces_response.data = [trace_summary]
         mock_client.trace.list.return_value = traces_response
         mock_client.trace.get.return_value = MockTraceWithFullDetails(
-            "t-1", "agent", input_val=None, observations=[],
+            "t-1",
+            "agent",
+            input_val=None,
+            observations=[],
         )
 
         result = fetch_traces(mock_client, last_n=1)
@@ -321,14 +335,18 @@ class TestFetchTraces:
 # traces_to_step_records
 # ---------------------------------------------------------------------------
 
+
 class TestTracesToStepRecords:
     def test_basic_conversion(self):
         obs1 = _make_observation(
             name="classify", model="gpt-4o", input_tokens=100, output_tokens=50
         )
         obs2 = _make_observation(
-            observation_id="obs-2", name="respond", model="gpt-4o-mini",
-            input_tokens=200, output_tokens=100,
+            observation_id="obs-2",
+            name="respond",
+            model="gpt-4o-mini",
+            input_tokens=200,
+            output_tokens=100,
         )
         traces = [_make_trace(observations=[obs1, obs2])]
 
@@ -364,7 +382,8 @@ class TestTracesToStepRecords:
     def test_parent_step_mapping(self):
         parent_obs = _make_observation(observation_id="parent-1", name="orchestrator")
         child_obs = _make_observation(
-            observation_id="child-1", name="classify",
+            observation_id="child-1",
+            name="classify",
             parent_observation_id="parent-1",
         )
         traces = [_make_trace(observations=[parent_obs, child_obs])]
@@ -375,7 +394,9 @@ class TestTracesToStepRecords:
     def test_skips_event_observations(self):
         gen_obs = _make_observation(name="classify", observation_type="GENERATION")
         event_obs = _make_observation(
-            observation_id="ev-1", name="log_event", observation_type="EVENT",
+            observation_id="ev-1",
+            name="log_event",
+            observation_type="EVENT",
         )
         traces = [_make_trace(observations=[gen_obs, event_obs])]
 
@@ -385,7 +406,9 @@ class TestTracesToStepRecords:
 
     def test_span_mapped_to_tool(self):
         span_obs = _make_observation(
-            name="search_db", observation_type="SPAN", model=None,
+            name="search_db",
+            observation_type="SPAN",
+            model=None,
         )
         traces = [_make_trace(observations=[span_obs])]
 
@@ -395,7 +418,9 @@ class TestTracesToStepRecords:
 
     def test_retrieval_detection(self):
         retrieval_obs = _make_observation(
-            name="retrieve_documents", observation_type="SPAN", model=None,
+            name="retrieve_documents",
+            observation_type="SPAN",
+            model=None,
         )
         traces = [_make_trace(observations=[retrieval_obs])]
 
@@ -420,12 +445,10 @@ class TestTracesToStepRecords:
 # extract_inputs
 # ---------------------------------------------------------------------------
 
+
 class TestExtractInputs:
     def test_extract_inputs_basic(self):
-        traces = [
-            _make_trace(trace_id=f"t-{i}", input_text=f"input {i}")
-            for i in range(5)
-        ]
+        traces = [_make_trace(trace_id=f"t-{i}", input_text=f"input {i}") for i in range(5)]
         result = extract_inputs(traces)
         assert len(result) == 5
         assert result[0] == "input 0"
@@ -453,12 +476,14 @@ class TestExtractInputs:
 # Observation duration
 # ---------------------------------------------------------------------------
 
+
 class TestObservationDuration:
     def test_observation_duration_ms(self):
         start = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
         end = start + timedelta(seconds=1.5)
         obs = _make_observation(
-            start_time=start, end_time=end,
+            start_time=start,
+            end_time=end,
             duration_ms=_compute_duration_ms(start, end),
         )
         assert obs.duration_ms == 1500
@@ -467,6 +492,7 @@ class TestObservationDuration:
 # ---------------------------------------------------------------------------
 # Serialization
 # ---------------------------------------------------------------------------
+
 
 class TestSerialization:
     def test_observation_to_dict(self):

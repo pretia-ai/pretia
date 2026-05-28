@@ -26,12 +26,26 @@ def _make_step_stats(
         p99=cost_mean * 2.0,
     )
     tok_ps = PercentileStats(
-        min=100, max=500, mean=300, std=80,
-        p50=280, p75=350, p90=400, p95=450, p99=490,
+        min=100,
+        max=500,
+        mean=300,
+        std=80,
+        p50=280,
+        p75=350,
+        p90=400,
+        p95=450,
+        p99=490,
     )
     iter_ps = PercentileStats(
-        min=1, max=1, mean=1, std=0,
-        p50=1, p75=1, p90=1, p95=1, p99=1,
+        min=1,
+        max=1,
+        mean=1,
+        std=0,
+        p50=1,
+        p75=1,
+        p90=1,
+        p95=1,
+        p99=1,
     )
     return StepStats(
         step_name=name,
@@ -107,14 +121,10 @@ class TestConfidenceVeryLow:
 
 class TestConfidenceDeductionsCapped:
     def test_step_variance_cap(self):
-        steps = {
-            f"step_{i}": _make_step_stats(f"step_{i}", 0.01, 0.006)
-            for i in range(10)
-        }
+        steps = {f"step_{i}": _make_step_stats(f"step_{i}", 0.01, 0.006) for i in range(10)}
         result = compute_confidence(200, steps, [], input_source="langfuse")
         total_step_deduction = sum(
-            8 for s in steps.values()
-            if (s.cost.std / s.cost.mean if s.cost.mean > 0 else 0) > 0.5
+            8 for s in steps.values() if (s.cost.std / s.cost.mean if s.cost.mean > 0 else 0) > 0.5
         )
         assert total_step_deduction > 30
         assert result.score >= 100 + 10 + 15 - 30

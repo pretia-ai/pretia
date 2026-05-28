@@ -34,8 +34,7 @@ try:
                 "name": "category",
                 "type": "string",
                 "description": (
-                    "Intent category: billing, technical, account, "
-                    "general, or escalation"
+                    "Intent category: billing, technical, account, general, or escalation"
                 ),
                 "required": True,
             }

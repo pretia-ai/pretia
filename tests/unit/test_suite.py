@@ -20,8 +20,15 @@ def _ps(
     std: float = 0.01,
 ) -> PercentileStats:
     return PercentileStats(
-        min=mean * 0.5, max=p95 * 1.5, mean=mean, std=std,
-        p50=p50, p75=mean * 1.2, p90=p95 * 0.9, p95=p95, p99=p95 * 1.3,
+        min=mean * 0.5,
+        max=p95 * 1.5,
+        mean=mean,
+        std=std,
+        p50=p50,
+        p75=mean * 1.2,
+        p90=p95 * 0.9,
+        p95=p95,
+        p99=p95 * 1.3,
     )
 
 
@@ -29,14 +36,30 @@ def _step(name: str, cost_mean: float = 0.01) -> StepStats:
     cost_ps = _ps(cost_mean, cost_mean * 0.95, cost_mean * 1.7, cost_mean * 0.3)
     tok = _ps(300, 280, 450, 80)
     itr = PercentileStats(
-        min=1, max=1, mean=1, std=0, p50=1, p75=1, p90=1, p95=1, p99=1,
+        min=1,
+        max=1,
+        mean=1,
+        std=0,
+        p50=1,
+        p75=1,
+        p90=1,
+        p95=1,
+        p99=1,
     )
     return StepStats(
-        step_name=name, step_type="llm", model="gpt-4o-mini",
-        call_count=20, runs_present=20,
-        input_tokens=tok, output_tokens=tok, total_tokens=tok,
-        cost=cost_ps, duration_ms=tok, context_size=tok,
-        iterations_per_run=itr, mean_iterations=1.0,
+        step_name=name,
+        step_type="llm",
+        model="gpt-4o-mini",
+        call_count=20,
+        runs_present=20,
+        input_tokens=tok,
+        output_tokens=tok,
+        total_tokens=tok,
+        cost=cost_ps,
+        duration_ms=tok,
+        context_size=tok,
+        iterations_per_run=itr,
+        mean_iterations=1.0,
     )
 
 
@@ -56,11 +79,17 @@ def _make_session(
     run_stats: list[dict] = []
     if run_costs:
         for i, c in enumerate(run_costs):
-            run_stats.append({
-                "run_index": i, "total_cost": c, "total_tokens": 300,
-                "total_input_tokens": 200, "total_output_tokens": 100,
-                "step_count": 2, "duration_ms": 200,
-            })
+            run_stats.append(
+                {
+                    "run_index": i,
+                    "total_cost": c,
+                    "total_tokens": 300,
+                    "total_input_tokens": 200,
+                    "total_output_tokens": 100,
+                    "step_count": 2,
+                    "duration_ms": 200,
+                }
+            )
 
     stats_dict = {
         "total_runs": total_runs,
@@ -105,7 +134,8 @@ class TestRunSuiteAllPass:
                 "synth20": _make_session(total_runs=20),
                 "synth100": _make_session(total_runs=100),
                 "real500": _make_session(
-                    total_runs=500, run_costs=gt_costs,
+                    total_runs=500,
+                    run_costs=gt_costs,
                 ),
             }
         result = run_backtesting_suite(profiles, configs)

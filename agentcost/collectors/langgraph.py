@@ -108,8 +108,7 @@ class AgentCostCallbackHandler(BaseCallbackHandler):
                 tool_def_tokens = _estimate_tokens(str(tools))
 
             context_size = sum(
-                _estimate_tokens(_extract_message_content(m))
-                for m in flat_messages
+                _estimate_tokens(_extract_message_content(m)) for m in flat_messages
             )
 
             self._inflight[run_id] = {
@@ -248,12 +247,11 @@ class AgentCostCallbackHandler(BaseCallbackHandler):
         llm_output = getattr(response, "llm_output", None) or {}
         token_usage = llm_output.get("token_usage", {})
         if token_usage:
-            input_tokens = (
-                token_usage.get("prompt_tokens", 0) or token_usage.get("input_tokens", 0)
+            input_tokens = token_usage.get("prompt_tokens", 0) or token_usage.get(
+                "input_tokens", 0
             )
-            output_tokens = (
-                token_usage.get("completion_tokens", 0)
-                or token_usage.get("output_tokens", 0)
+            output_tokens = token_usage.get("completion_tokens", 0) or token_usage.get(
+                "output_tokens", 0
             )
             if input_tokens or output_tokens:
                 return int(input_tokens), int(output_tokens)
@@ -265,13 +263,9 @@ class AgentCostCallbackHandler(BaseCallbackHandler):
                 gen_info = getattr(generations[0][0], "generation_info", None) or {}
                 usage = gen_info.get("usage", {})
                 if usage:
-                    input_tokens = (
-                        usage.get("prompt_tokens", 0)
-                        or usage.get("input_tokens", 0)
-                    )
-                    output_tokens = (
-                        usage.get("completion_tokens", 0)
-                        or usage.get("output_tokens", 0)
+                    input_tokens = usage.get("prompt_tokens", 0) or usage.get("input_tokens", 0)
+                    output_tokens = usage.get("completion_tokens", 0) or usage.get(
+                        "output_tokens", 0
                     )
         except (IndexError, AttributeError, TypeError):
             pass

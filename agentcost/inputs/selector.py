@@ -78,9 +78,7 @@ def select_input_mode(
         return InputSelection(
             mode="file",
             inputs=inputs,
-            message=(
-                f"Loaded {len(inputs)} inputs from {inputs_file}."
-            ),
+            message=(f"Loaded {len(inputs)} inputs from {inputs_file}."),
         )
 
     if single_input is not None:
@@ -94,10 +92,7 @@ def select_input_mode(
         return InputSelection(
             mode="langfuse",
             inputs=[],
-            message=(
-                "Langfuse import mode: will pull traces "
-                "from Langfuse."
-            ),
+            message=("Langfuse import mode: will pull traces from Langfuse."),
         )
 
     if auto_generate is not None:
@@ -105,8 +100,7 @@ def select_input_mode(
             mode="auto-generate",
             inputs=[],
             message=(
-                f"Will auto-generate {auto_generate} "
-                f"synthetic inputs from the system prompt."
+                f"Will auto-generate {auto_generate} synthetic inputs from the system prompt."
             ),
         )
 
@@ -115,31 +109,21 @@ def select_input_mode(
 
 def _auto_detect(system_prompt: str | None) -> InputSelection:
     has_langfuse = bool(
-        os.environ.get("LANGFUSE_PUBLIC_KEY")
-        and os.environ.get("LANGFUSE_SECRET_KEY")
+        os.environ.get("LANGFUSE_PUBLIC_KEY") and os.environ.get("LANGFUSE_SECRET_KEY")
     )
     if has_langfuse:
         return InputSelection(
             mode="langfuse",
             inputs=[],
-            message=(
-                "Langfuse credentials detected. "
-                "Suggesting trace import for best accuracy."
-            ),
+            message=("Langfuse credentials detected. Suggesting trace import for best accuracy."),
         )
 
-    has_api_key = bool(
-        os.environ.get("ANTHROPIC_API_KEY")
-        or os.environ.get("OPENAI_API_KEY")
-    )
+    has_api_key = bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("OPENAI_API_KEY"))
     if system_prompt or has_api_key:
         return InputSelection(
             mode="auto-generate",
             inputs=[],
-            message=(
-                "Defaulting to auto-generate 20 synthetic "
-                "inputs from the system prompt."
-            ),
+            message=("Defaulting to auto-generate 20 synthetic inputs from the system prompt."),
         )
 
     return InputSelection(

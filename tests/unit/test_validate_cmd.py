@@ -58,21 +58,23 @@ class TestRunValidation:
         wf.write_text("graph = 'fake'\n")
 
         small_runs = [
-            [_make_record("classify", "gpt-4o-mini", 100, 50),
-             _make_record("generate", "gpt-4o-mini", 200, 100)]
+            [
+                _make_record("classify", "gpt-4o-mini", 100, 50),
+                _make_record("generate", "gpt-4o-mini", 200, 100),
+            ]
             for _ in range(20)
         ]
         large_runs = [
-            [_make_record("classify", "gpt-4o-mini", 100, 50),
-             _make_record("generate", "gpt-4o-mini", 200, 100)]
+            [
+                _make_record("classify", "gpt-4o-mini", 100, 50),
+                _make_record("generate", "gpt-4o-mini", 200, 100),
+            ]
             for _ in range(100)
         ]
         small_session = _make_mock_session(small_runs)
         large_session = _make_mock_session(large_runs)
 
-        with patch(
-            "agentcost.runner.ProfileRunner"
-        ) as mock_cls:
+        with patch("agentcost.runner.ProfileRunner") as mock_cls:
             instance = mock_cls.return_value
             instance.run_sync.side_effect = [small_session, large_session]
 
@@ -89,16 +91,16 @@ class TestRunValidationSufficientSamples:
         wf.write_text("graph = 'fake'\n")
 
         runs = [
-            [_make_record("classify", "gpt-4o-mini", 100, 50),
-             _make_record("generate", "gpt-4o-mini", 200, 100)]
+            [
+                _make_record("classify", "gpt-4o-mini", 100, 50),
+                _make_record("generate", "gpt-4o-mini", 200, 100),
+            ]
             for _ in range(100)
         ]
         small_session = _make_mock_session(runs[:20])
         large_session = _make_mock_session(runs)
 
-        with patch(
-            "agentcost.runner.ProfileRunner"
-        ) as mock_cls:
+        with patch("agentcost.runner.ProfileRunner") as mock_cls:
             instance = mock_cls.return_value
             instance.run_sync.side_effect = [small_session, large_session]
 
@@ -112,20 +114,12 @@ class TestRunValidationInsufficientSamples:
         wf = tmp_path / "agent.py"
         wf.write_text("graph = 'fake'\n")
 
-        small_runs = [
-            [_make_record("classify", "gpt-4o-mini", 500, 200)]
-            for _ in range(20)
-        ]
-        large_runs = [
-            [_make_record("classify", "gpt-4o-mini", 100, 50)]
-            for _ in range(100)
-        ]
+        small_runs = [[_make_record("classify", "gpt-4o-mini", 500, 200)] for _ in range(20)]
+        large_runs = [[_make_record("classify", "gpt-4o-mini", 100, 50)] for _ in range(100)]
         small_session = _make_mock_session(small_runs)
         large_session = _make_mock_session(large_runs)
 
-        with patch(
-            "agentcost.runner.ProfileRunner"
-        ) as mock_cls:
+        with patch("agentcost.runner.ProfileRunner") as mock_cls:
             instance = mock_cls.return_value
             instance.run_sync.side_effect = [small_session, large_session]
 
@@ -141,16 +135,16 @@ class TestFormatValidateReport:
         wf.write_text("graph = 'fake'\n")
 
         runs = [
-            [_make_record("classify", "gpt-4o-mini", 100, 50),
-             _make_record("generate", "gpt-4o-mini", 200, 100)]
+            [
+                _make_record("classify", "gpt-4o-mini", 100, 50),
+                _make_record("generate", "gpt-4o-mini", 200, 100),
+            ]
             for _ in range(100)
         ]
         small_session = _make_mock_session(runs[:20])
         large_session = _make_mock_session(runs)
 
-        with patch(
-            "agentcost.runner.ProfileRunner"
-        ) as mock_cls:
+        with patch("agentcost.runner.ProfileRunner") as mock_cls:
             instance = mock_cls.return_value
             instance.run_sync.side_effect = [small_session, large_session]
 

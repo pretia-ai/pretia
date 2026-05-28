@@ -78,7 +78,8 @@ class LangfuseTrace:
 
 
 def _compute_duration_ms(
-    start_time: datetime | None, end_time: datetime | None,
+    start_time: datetime | None,
+    end_time: datetime | None,
 ) -> int:
     if start_time is None or end_time is None:
         return 0
@@ -192,9 +193,7 @@ def fetch_traces(
                 "Langfuse authentication failed. "
                 "Check LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY."
             ) from exc
-        raise ConnectionError(
-            f"Failed to connect to Langfuse: {exc}"
-        ) from exc
+        raise ConnectionError(f"Failed to connect to Langfuse: {exc}") from exc
 
     trace_list = getattr(traces_response, "data", []) or []
     results: list[LangfuseTrace] = []
@@ -221,16 +220,18 @@ def fetch_traces(
         input_text = _extract_input_text(raw_input)
         timestamp = getattr(full_trace, "timestamp", None) or datetime.now(UTC)
 
-        results.append(LangfuseTrace(
-            trace_id=trace_id,
-            name=getattr(full_trace, "name", None),
-            input_text=input_text,
-            timestamp=timestamp,
-            observations=observations,
-            total_input_tokens=total_in,
-            total_output_tokens=total_out,
-            total_cost=total_cost,
-        ))
+        results.append(
+            LangfuseTrace(
+                trace_id=trace_id,
+                name=getattr(full_trace, "name", None),
+                input_text=input_text,
+                timestamp=timestamp,
+                observations=observations,
+                total_input_tokens=total_in,
+                total_output_tokens=total_out,
+                total_cost=total_cost,
+            )
+        )
 
     return results
 
@@ -270,23 +271,25 @@ def traces_to_step_records(
 
             timestamp = obs.start_time or trace.timestamp
 
-            step_records.append(StepRecord(
-                step_name=obs.name,
-                step_type=step_type,
-                model=obs.model or "unknown",
-                input_tokens=obs.input_tokens,
-                output_tokens=obs.output_tokens,
-                context_size=obs.input_tokens,
-                tool_definitions_tokens=0,
-                system_prompt_hash="imported",
-                system_prompt_tokens=0,
-                output_format="text",
-                is_retry=False,
-                iteration=count,
-                parent_step=parent_name,
-                duration_ms=obs.duration_ms,
-                timestamp=timestamp,
-            ))
+            step_records.append(
+                StepRecord(
+                    step_name=obs.name,
+                    step_type=step_type,
+                    model=obs.model or "unknown",
+                    input_tokens=obs.input_tokens,
+                    output_tokens=obs.output_tokens,
+                    context_size=obs.input_tokens,
+                    tool_definitions_tokens=0,
+                    system_prompt_hash="imported",
+                    system_prompt_tokens=0,
+                    output_format="text",
+                    is_retry=False,
+                    iteration=count,
+                    parent_step=parent_name,
+                    duration_ms=obs.duration_ms,
+                    timestamp=timestamp,
+                )
+            )
 
         runs.append(step_records)
     return runs

@@ -59,12 +59,26 @@ def _make_stats(mean_cost: float = 0.03, p95_cost: float = 0.05) -> ProfilingSta
         p99=p95_cost * 1.3,
     )
     tok_ps = PercentileStats(
-        min=100, max=500, mean=300, std=80,
-        p50=280, p75=350, p90=400, p95=450, p99=490,
+        min=100,
+        max=500,
+        mean=300,
+        std=80,
+        p50=280,
+        p75=350,
+        p90=400,
+        p95=450,
+        p99=490,
     )
     iter_ps = PercentileStats(
-        min=1, max=1, mean=1, std=0,
-        p50=1, p75=1, p90=1, p95=1, p99=1,
+        min=1,
+        max=1,
+        mean=1,
+        std=0,
+        p50=1,
+        p75=1,
+        p90=1,
+        p95=1,
+        p99=1,
     )
     step = StepStats(
         step_name="classify",
@@ -136,8 +150,14 @@ class TestMonteCarloTriggered:
     def test_danger_triggers_montecarlo(self):
         runs = [
             [
-                _make_record("review", "gpt-4o", 1000 + i * 800, 200, iteration=i + 1,
-                             context_size=1000 + i * 800)
+                _make_record(
+                    "review",
+                    "gpt-4o",
+                    1000 + i * 800,
+                    200,
+                    iteration=i + 1,
+                    context_size=1000 + i * 800,
+                )
                 for i in range(5)
             ]
             for _ in range(20)

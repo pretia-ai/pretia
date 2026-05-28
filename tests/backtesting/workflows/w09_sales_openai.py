@@ -73,8 +73,7 @@ try:
         )
         # Build company context from canned profiles
         profiles_text = "\n\n".join(
-            f"[{name}]: {profile}"
-            for name, profile in CANNED_COMPANY_PROFILES.items()
+            f"[{name}]: {profile}" for name, profile in CANNED_COMPANY_PROFILES.items()
         )
         result = llm.invoke(
             [

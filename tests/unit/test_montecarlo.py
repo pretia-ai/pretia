@@ -42,6 +42,7 @@ def _make_record(
 def _stable_runs(n: int = 20) -> list[list[StepRecord]]:
     """Create n runs where every run costs approximately the same."""
     import random
+
     rng = random.Random(123)
     runs = []
     for _ in range(n):
@@ -53,6 +54,7 @@ def _stable_runs(n: int = 20) -> list[list[StepRecord]]:
 def _high_variance_runs(n: int = 20) -> list[list[StepRecord]]:
     """Create n runs: 85% normal, 15% expensive outliers."""
     import random
+
     rng = random.Random(456)
     runs = []
     for _i in range(n):
@@ -66,6 +68,7 @@ def _high_variance_runs(n: int = 20) -> list[list[StepRecord]]:
 def _context_growth_runs(n: int = 20) -> list[list[StepRecord]]:
     """Create runs with a 'review' step that has clear context growth."""
     import random
+
     rng = random.Random(789)
     runs = []
     for _ in range(n):
@@ -75,8 +78,12 @@ def _context_growth_runs(n: int = 20) -> list[list[StepRecord]]:
             ctx = 1000 + 800 * k
             run_records.append(
                 _make_record(
-                    "review", "gpt-4o", ctx, 200,
-                    iteration=k, context_size=ctx,
+                    "review",
+                    "gpt-4o",
+                    ctx,
+                    200,
+                    iteration=k,
+                    context_size=ctx,
                 ),
             )
         runs.append(run_records)
@@ -88,7 +95,11 @@ class TestSimulateStableData:
         runs = _stable_runs(20)
         stats = compute_stats(runs)
         result = simulate(
-            stats, [], daily_volume=1000, runs=runs, n_simulations=1000,
+            stats,
+            [],
+            daily_volume=1000,
+            runs=runs,
+            n_simulations=1000,
         )
         expected = stats.cost_per_run.mean * 1000 * 30
         assert result.monthly_projection.mean == pytest.approx(expected, rel=0.05)
@@ -100,7 +111,11 @@ class TestSimulateHighVariance:
         runs = _high_variance_runs(20)
         stats = compute_stats(runs)
         result = simulate(
-            stats, [], daily_volume=1000, runs=runs, n_simulations=1000,
+            stats,
+            [],
+            daily_volume=1000,
+            runs=runs,
+            n_simulations=1000,
         )
         assert result.monthly_projection.p95 > result.monthly_projection.mean * 1.2
 
@@ -117,7 +132,11 @@ class TestSimulateContextGrowth:
             description="Context grows in 'review'",
         )
         mc = simulate(
-            stats, [pattern], daily_volume=1000, runs=runs, n_simulations=1000,
+            stats,
+            [pattern],
+            daily_volume=1000,
+            runs=runs,
+            n_simulations=1000,
         )
         linear_mean = stats.cost_per_run.mean * 1000 * 30
         assert mc.monthly_projection.p95 > linear_mean
@@ -135,7 +154,11 @@ class TestSimulateLinearVsLogGrowth:
             description="Context grows in 'review'",
         )
         mc = simulate(
-            stats, [pattern], daily_volume=1000, runs=runs, n_simulations=1000,
+            stats,
+            [pattern],
+            daily_volume=1000,
+            runs=runs,
+            n_simulations=1000,
         )
         assert mc.growth_model_delta > 0
         assert mc.linear_monthly.p95 != mc.log_monthly.p95
@@ -165,7 +188,11 @@ class TestSimulateConvergenceCheck:
         runs = _stable_runs(20)
         stats = compute_stats(runs)
         result = simulate(
-            stats, [], daily_volume=1000, runs=runs, n_simulations=10000,
+            stats,
+            [],
+            daily_volume=1000,
+            runs=runs,
+            n_simulations=10000,
         )
         assert result.convergence_check is True
 
@@ -175,7 +202,11 @@ class TestSimulateSmallN:
         runs = _stable_runs(5)
         stats = compute_stats(runs)
         result = simulate(
-            stats, [], daily_volume=100, runs=runs, n_simulations=10,
+            stats,
+            [],
+            daily_volume=100,
+            runs=runs,
+            n_simulations=10,
         )
         assert result.n_simulations == 10
         assert result.monthly_projection.mean > 0
@@ -184,10 +215,12 @@ class TestSimulateSmallN:
 class TestSampleStepCostNoPattern:
     def test_returns_observed_cost(self):
         import random
+
         rng = random.Random(42)
         step_run_costs = {"classify": [0.01, 0.02, 0.015]}
         result, _, _ = _sample_step_cost(
-            "classify", rng,
+            "classify",
+            rng,
             step_run_costs=step_run_costs,
             step_iterations={},
             step_occurrence_costs={},
@@ -201,6 +234,7 @@ class TestSampleStepCostNoPattern:
 class TestSampleStepCostWithContextGrowth:
     def test_accounts_for_growth(self):
         import random
+
         rng = random.Random(42)
         step_growth = {
             "review": {
@@ -211,7 +245,8 @@ class TestSampleStepCostWithContextGrowth:
             },
         }
         avg, linear, log = _sample_step_cost(
-            "review", rng,
+            "review",
+            rng,
             step_run_costs={"review": [0.05]},
             step_iterations={"review": [3, 4, 5]},
             step_occurrence_costs={"review": [0.01]},

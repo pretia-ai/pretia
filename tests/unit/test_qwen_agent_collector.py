@@ -65,6 +65,7 @@ from agentcost.collectors.qwen_agent import (  # noqa: E402, I001
 # Mock helpers
 # ---------------------------------------------------------------------------
 
+
 class MockLLM:
     def __init__(self, model="qwen3.7-max"):
         self.model = model
@@ -74,8 +75,14 @@ class MockLLM:
     def set_responses(self, responses):
         self._responses = list(responses)
 
-    def chat(self, messages=None, functions=None, stream=True,
-             delta_stream=False, extra_generate_cfg=None):
+    def chat(
+        self,
+        messages=None,
+        functions=None,
+        stream=True,
+        delta_stream=False,
+        extra_generate_cfg=None,
+    ):
         self._call_count += 1
         if self._responses:
             resp = self._responses.pop(0)
@@ -83,16 +90,22 @@ class MockLLM:
             resp = [_MockMessage(role="assistant", content="default response")]
 
         if stream:
+
             def _gen():
                 yield resp
+
             return _gen()
         return resp
 
 
 class MockAgent:
-    def __init__(self, name="test_agent", model="qwen3.7-max",
-                 system_message="You are a helpful assistant.",
-                 function_map=None):
+    def __init__(
+        self,
+        name="test_agent",
+        model="qwen3.7-max",
+        system_message="You are a helpful assistant.",
+        function_map=None,
+    ):
         self.name = name
         self.llm = MockLLM(model=model)
         self.system_message = system_message
@@ -121,6 +134,7 @@ class MockAgentWithLoop(MockAgent):
 # ---------------------------------------------------------------------------
 # Helper function tests
 # ---------------------------------------------------------------------------
+
 
 class TestHelperFunctions:
     def test_estimate_tokens(self):
@@ -157,6 +171,7 @@ class TestHelperFunctions:
 # DashScope usage extraction
 # ---------------------------------------------------------------------------
 
+
 class TestUsageExtraction:
     def test_extract_usage_from_dashscope_dict(self):
         msg = _MockMessage(
@@ -189,8 +204,9 @@ class TestUsageExtraction:
         assert ct == 0
 
     def test_extract_usage_from_dashscope_object(self):
-        usage = SimpleNamespace(input_tokens=300, output_tokens=100,
-                                prompt_tokens=0, completion_tokens=0)
+        usage = SimpleNamespace(
+            input_tokens=300, output_tokens=100, prompt_tokens=0, completion_tokens=0
+        )
         info = SimpleNamespace(usage=usage)
         msg = _MockMessage(extra={"model_service_info": info})
         pt, ct = _extract_usage_from_dashscope_message(msg)
@@ -201,6 +217,7 @@ class TestUsageExtraction:
 # ---------------------------------------------------------------------------
 # InstrumentedChatModel
 # ---------------------------------------------------------------------------
+
 
 class TestInstrumentedChatModel:
     def test_delegates_attributes(self):
@@ -232,15 +249,21 @@ class TestInstrumentedChatModel:
 
     def test_chat_captures_dashscope_usage(self):
         original = MockLLM(model="qwen3.7-max")
-        original.set_responses([
-            [_MockMessage(
-                role="assistant",
-                content="response text",
-                extra={"model_service_info": {
-                    "usage": {"input_tokens": 500, "output_tokens": 200},
-                }},
-            )],
-        ])
+        original.set_responses(
+            [
+                [
+                    _MockMessage(
+                        role="assistant",
+                        content="response text",
+                        extra={
+                            "model_service_info": {
+                                "usage": {"input_tokens": 500, "output_tokens": 200},
+                            }
+                        },
+                    )
+                ],
+            ]
+        )
         captured: list[_CapturedCall] = []
         instrumented = _InstrumentedChatModel(original, captured)
 
@@ -250,9 +273,11 @@ class TestInstrumentedChatModel:
 
     def test_chat_captures_output_text(self):
         original = MockLLM()
-        original.set_responses([
-            [_MockMessage(role="assistant", content="hello world")],
-        ])
+        original.set_responses(
+            [
+                [_MockMessage(role="assistant", content="hello world")],
+            ]
+        )
         captured: list[_CapturedCall] = []
         instrumented = _InstrumentedChatModel(original, captured)
 
@@ -262,9 +287,11 @@ class TestInstrumentedChatModel:
     def test_chat_detects_tool_call(self):
         fc = SimpleNamespace(name="search", arguments='{"q": "test"}')
         original = MockLLM()
-        original.set_responses([
-            [_MockMessage(role="assistant", content="", function_call=fc)],
-        ])
+        original.set_responses(
+            [
+                [_MockMessage(role="assistant", content="", function_call=fc)],
+            ]
+        )
         captured: list[_CapturedCall] = []
         instrumented = _InstrumentedChatModel(original, captured)
 
@@ -275,6 +302,7 @@ class TestInstrumentedChatModel:
 # ---------------------------------------------------------------------------
 # QwenAgentCollector.collect() — basic
 # ---------------------------------------------------------------------------
+
 
 class TestCollectorBasic:
     @pytest.mark.asyncio
@@ -329,15 +357,21 @@ class TestCollectorBasic:
     async def test_collector_captures_tokens_from_dashscope(self):
         collector = QwenAgentCollector()
         agent = MockAgent(model="qwen3.6-plus")
-        agent.llm.set_responses([
-            [_MockMessage(
-                role="assistant",
-                content="classified as billing",
-                extra={"model_service_info": {
-                    "usage": {"input_tokens": 150, "output_tokens": 30},
-                }},
-            )],
-        ])
+        agent.llm.set_responses(
+            [
+                [
+                    _MockMessage(
+                        role="assistant",
+                        content="classified as billing",
+                        extra={
+                            "model_service_info": {
+                                "usage": {"input_tokens": 150, "output_tokens": 30},
+                            }
+                        },
+                    )
+                ],
+            ]
+        )
 
         runs = await collector.collect(agent, ["test"])
         rec = runs[0][0]
@@ -348,6 +382,7 @@ class TestCollectorBasic:
 # ---------------------------------------------------------------------------
 # QwenAgentCollector — tool calls
 # ---------------------------------------------------------------------------
+
 
 class TestCollectorWithToolCalls:
     @pytest.mark.asyncio
@@ -365,12 +400,15 @@ class TestCollectorWithToolCalls:
 # QwenAgentCollector — iteration counting
 # ---------------------------------------------------------------------------
 
+
 class TestCollectorIterationCounting:
     @pytest.mark.asyncio
     async def test_collector_iteration_counting(self):
         collector = QwenAgentCollector()
         agent = MockAgentWithLoop(
-            loop_count=3, name="loop_agent", model="qwen3.7-max",
+            loop_count=3,
+            name="loop_agent",
+            model="qwen3.7-max",
         )
 
         runs = await collector.collect(agent, ["test"])
@@ -382,6 +420,7 @@ class TestCollectorIterationCounting:
 # ---------------------------------------------------------------------------
 # QwenAgentCollector — error resilience
 # ---------------------------------------------------------------------------
+
 
 class TestCollectorErrorResilience:
     @pytest.mark.asyncio
@@ -435,6 +474,7 @@ class TestCollectorErrorResilience:
 # QwenAgentCollector — streaming
 # ---------------------------------------------------------------------------
 
+
 class TestCollectorStreaming:
     @pytest.mark.asyncio
     async def test_collector_streaming_captures_final_usage(self):
@@ -445,15 +485,21 @@ class TestCollectorStreaming:
                 yield from self.llm.chat(messages=messages, stream=True)
 
         agent = StreamingAgent(model="qwen3.7-max")
-        agent.llm.set_responses([
-            [_MockMessage(
-                role="assistant",
-                content="streamed response",
-                extra={"model_service_info": {
-                    "usage": {"input_tokens": 300, "output_tokens": 120},
-                }},
-            )],
-        ])
+        agent.llm.set_responses(
+            [
+                [
+                    _MockMessage(
+                        role="assistant",
+                        content="streamed response",
+                        extra={
+                            "model_service_info": {
+                                "usage": {"input_tokens": 300, "output_tokens": 120},
+                            }
+                        },
+                    )
+                ],
+            ]
+        )
 
         runs = await collector.collect(agent, ["test"])
         assert len(runs[0]) == 1
@@ -465,6 +511,7 @@ class TestCollectorStreaming:
 # ---------------------------------------------------------------------------
 # Lazy import
 # ---------------------------------------------------------------------------
+
 
 class TestLazyImport:
     def test_lazy_import_in_collectors_package(self):
@@ -481,17 +528,21 @@ class TestLazyImport:
         saved_qa = sys.modules.pop("agentcost.collectors.qwen_agent", None)
 
         try:
-            with patch.dict(sys.modules, {
-                "qwen_agent": None,
-                "qwen_agent.agent": None,
-                "qwen_agent.llm": None,
-                "qwen_agent.llm.base": None,
-                "qwen_agent.llm.schema": None,
-                "qwen_agent.tools": None,
-                "qwen_agent.tools.base": None,
-            }):
+            with patch.dict(
+                sys.modules,
+                {
+                    "qwen_agent": None,
+                    "qwen_agent.agent": None,
+                    "qwen_agent.llm": None,
+                    "qwen_agent.llm.base": None,
+                    "qwen_agent.llm.schema": None,
+                    "qwen_agent.tools": None,
+                    "qwen_agent.tools.base": None,
+                },
+            ):
                 with pytest.raises(ImportError, match="Qwen-Agent"):
                     import importlib
+
                     importlib.import_module("agentcost.collectors.qwen_agent")
         finally:
             sys.modules.update(saved)
@@ -502,6 +553,7 @@ class TestLazyImport:
 # ---------------------------------------------------------------------------
 # Runner auto-detection
 # ---------------------------------------------------------------------------
+
 
 class TestRunnerAutoDetection:
     def test_runner_detects_qwen_agent(self):
@@ -516,7 +568,9 @@ class TestRunnerAutoDetection:
         from agentcost.runner import ProfileRunner
 
         runner = ProfileRunner(
-            workflow_path="fake.py", single_input="test", collector="qwen",
+            workflow_path="fake.py",
+            single_input="test",
+            collector="qwen",
         )
         coll = runner._select_collector(object())
         assert type(coll).__name__ == "QwenAgentCollector"

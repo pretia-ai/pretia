@@ -95,7 +95,9 @@ def _build_cost_summary(
         for rec in run:
             try:
                 cost = calculate_cost(
-                    rec.model, rec.input_tokens, rec.output_tokens,
+                    rec.model,
+                    rec.input_tokens,
+                    rec.output_tokens,
                 )
             except ValueError:
                 cost = 0.0
@@ -253,7 +255,8 @@ class ProfileRunner:
         return GenericCollector()
 
     async def _resolve_inputs(
-        self, system_prompt: str,
+        self,
+        system_prompt: str,
     ) -> tuple[InputSelection, list[str]]:
         selection = select_input_mode(
             single_input=self.single_input,
@@ -284,8 +287,7 @@ class ProfileRunner:
             return selection, inputs
 
         raise NotImplementedError(
-            "Static estimation is not yet implemented. "
-            "Provide an API key for input generation."
+            "Static estimation is not yet implemented. Provide an API key for input generation."
         )
 
     async def run(self) -> ProfilingSession:
@@ -313,7 +315,10 @@ class ProfileRunner:
         profiling_stats = compute_stats(runs)
         patterns = detect_patterns(runs, profiling_stats)
         projection = project(
-            profiling_stats, patterns, runs=runs, input_source=selection.mode,
+            profiling_stats,
+            patterns,
+            runs=runs,
+            input_source=selection.mode,
         )
 
         workflow_src = Path(self.workflow_path).read_bytes()
@@ -393,7 +398,10 @@ class ProfileRunner:
         profiling_stats = compute_stats(runs)
         patterns = detect_patterns(runs, profiling_stats)
         projection = project(
-            profiling_stats, patterns, runs=runs, input_source="langfuse",
+            profiling_stats,
+            patterns,
+            runs=runs,
+            input_source="langfuse",
         )
 
         session = ProfilingSession(

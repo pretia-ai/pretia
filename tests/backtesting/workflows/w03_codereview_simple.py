@@ -78,10 +78,7 @@ try:
                 },
                 {
                     "role": "user",
-                    "content": (
-                        f"PR diff:\n{state['input']}\n\n"
-                        f"Analysis:\n{state['analysis']}"
-                    ),
+                    "content": (f"PR diff:\n{state['input']}\n\nAnalysis:\n{state['analysis']}"),
                 },
             ]
         )
@@ -108,8 +105,7 @@ try:
                 {
                     "role": "user",
                     "content": (
-                        f"PR diff:\n{state['input']}\n\n"
-                        f"Review comments:\n{state['comments']}"
+                        f"PR diff:\n{state['input']}\n\nReview comments:\n{state['comments']}"
                     ),
                 },
             ]

@@ -46,6 +46,7 @@ from agentcost.collectors.openai_agents import (  # noqa: E402
 # Mock helpers
 # ---------------------------------------------------------------------------
 
+
 class MockUsage:
     def __init__(self, input_tokens=100, output_tokens=50, total_tokens=150):
         self.input_tokens = input_tokens
@@ -93,6 +94,7 @@ class MockRunResult:
 # Helper extraction functions
 # ---------------------------------------------------------------------------
 
+
 class TestHelperFunctions:
     def test_extract_model_name_string(self):
         agent = MockAgent(model="gpt-4o-mini")
@@ -139,6 +141,7 @@ class TestHelperFunctions:
 # AgentCostRunHooks — LLM lifecycle
 # ---------------------------------------------------------------------------
 
+
 class TestHooksLLMLifecycle:
     @pytest.mark.asyncio
     async def test_hooks_capture_agent_step(self):
@@ -147,7 +150,10 @@ class TestHooksLLMLifecycle:
         context = MagicMock()
 
         await hooks.on_llm_start(
-            context, agent, "You are a classifier.", [{"content": "Classify this"}],
+            context,
+            agent,
+            "You are a classifier.",
+            [{"content": "Classify this"}],
         )
         resp = MockModelResponse(usage=MockUsage(input_tokens=200, output_tokens=80))
         await hooks.on_llm_end(context, agent, resp)
@@ -205,7 +211,10 @@ class TestHooksLLMLifecycle:
         agent = MockAgent()
 
         await hooks.on_llm_start(
-            MagicMock(), agent, "system prompt text", [{"content": "user message"}],
+            MagicMock(),
+            agent,
+            "system prompt text",
+            [{"content": "user message"}],
         )
         resp = MockModelResponse(usage=MockUsage(input_tokens=0, output_tokens=0))
         await hooks.on_llm_end(MagicMock(), agent, resp)
@@ -229,6 +238,7 @@ class TestHooksLLMLifecycle:
 # ---------------------------------------------------------------------------
 # AgentCostRunHooks — tool lifecycle
 # ---------------------------------------------------------------------------
+
 
 class TestHooksToolLifecycle:
     @pytest.mark.asyncio
@@ -267,6 +277,7 @@ class TestHooksToolLifecycle:
 # AgentCostRunHooks — multi-agent / handoff
 # ---------------------------------------------------------------------------
 
+
 class TestHooksMultiAgent:
     @pytest.mark.asyncio
     async def test_hooks_capture_multiple_agents(self):
@@ -277,13 +288,15 @@ class TestHooksMultiAgent:
 
         await hooks.on_llm_start(ctx, agent_1, "Triage prompt", [])
         await hooks.on_llm_end(
-            ctx, agent_1,
+            ctx,
+            agent_1,
             MockModelResponse(usage=MockUsage(input_tokens=100, output_tokens=30)),
         )
 
         await hooks.on_llm_start(ctx, agent_2, "Resolver prompt", [])
         await hooks.on_llm_end(
-            ctx, agent_2,
+            ctx,
+            agent_2,
             MockModelResponse(usage=MockUsage(input_tokens=300, output_tokens=150)),
         )
 
@@ -311,6 +324,7 @@ class TestHooksMultiAgent:
 # ---------------------------------------------------------------------------
 # AgentCostRunHooks — iteration counting
 # ---------------------------------------------------------------------------
+
 
 class TestHooksIterationCounting:
     @pytest.mark.asyncio
@@ -350,6 +364,7 @@ class TestHooksIterationCounting:
 # AgentCostRunHooks — reset
 # ---------------------------------------------------------------------------
 
+
 class TestHooksReset:
     @pytest.mark.asyncio
     async def test_hooks_reset_between_runs(self):
@@ -373,6 +388,7 @@ class TestHooksReset:
 # ---------------------------------------------------------------------------
 # AgentCostRunHooks — error resilience
 # ---------------------------------------------------------------------------
+
 
 class TestHooksErrorResilience:
     @pytest.mark.asyncio
@@ -418,6 +434,7 @@ class TestHooksErrorResilience:
 # Fallback token extraction from RunResult
 # ---------------------------------------------------------------------------
 
+
 class TestFallbackSteps:
     def test_build_fallback_from_raw_responses(self):
         responses = [
@@ -453,6 +470,7 @@ class TestFallbackSteps:
 # OpenAIAgentsCollector.collect()
 # ---------------------------------------------------------------------------
 
+
 class TestCollect:
     @pytest.mark.asyncio
     async def test_collector_collect_basic(self):
@@ -462,16 +480,22 @@ class TestCollect:
         async def mock_run(starting_agent, inp, *, hooks=None, **kwargs):
             if hooks:
                 await hooks.on_llm_start(
-                    MagicMock(), starting_agent, "You are helpful.", [{"content": inp}],
+                    MagicMock(),
+                    starting_agent,
+                    "You are helpful.",
+                    [{"content": inp}],
                 )
                 await hooks.on_llm_end(
-                    MagicMock(), starting_agent,
+                    MagicMock(),
+                    starting_agent,
                     MockModelResponse(usage=MockUsage(input_tokens=150, output_tokens=60)),
                 )
             return MockRunResult()
 
         with patch.object(
-            sys.modules["agents"].Runner, "run", side_effect=mock_run,
+            sys.modules["agents"].Runner,
+            "run",
+            side_effect=mock_run,
         ):
             runs = await collector.collect(agent, ["hello", "world"])
 
@@ -491,18 +515,24 @@ class TestCollect:
         async def mock_run(starting_agent, inp, *, hooks=None, **kwargs):
             if hooks:
                 await hooks.on_llm_start(
-                    MagicMock(), starting_agent, None, [{"content": inp}],
+                    MagicMock(),
+                    starting_agent,
+                    None,
+                    [{"content": inp}],
                 )
                 await hooks.on_tool_start(MagicMock(), starting_agent, tool)
                 await hooks.on_tool_end(MagicMock(), starting_agent, tool, "42")
                 await hooks.on_llm_end(
-                    MagicMock(), starting_agent,
+                    MagicMock(),
+                    starting_agent,
                     MockModelResponse(usage=MockUsage(input_tokens=200, output_tokens=30)),
                 )
             return MockRunResult()
 
         with patch.object(
-            sys.modules["agents"].Runner, "run", side_effect=mock_run,
+            sys.modules["agents"].Runner,
+            "run",
+            side_effect=mock_run,
         ):
             runs = await collector.collect(agent, ["what is 6*7?"])
 
@@ -530,7 +560,9 @@ class TestCollect:
             )
 
         with patch.object(
-            sys.modules["agents"].Runner, "run", side_effect=mock_run,
+            sys.modules["agents"].Runner,
+            "run",
+            side_effect=mock_run,
         ):
             runs = await collector.collect(agent, ["test"])
 
@@ -551,7 +583,9 @@ class TestCollect:
             raise RuntimeError("API error")
 
         with patch.object(
-            sys.modules["agents"].Runner, "run", side_effect=mock_run,
+            sys.modules["agents"].Runner,
+            "run",
+            side_effect=mock_run,
         ):
             runs = await collector.collect(agent, ["bad_input"])
 
@@ -570,7 +604,8 @@ class TestCollect:
             if hooks:
                 await hooks.on_llm_start(MagicMock(), starting_agent, None, [])
                 await hooks.on_llm_end(
-                    MagicMock(), starting_agent,
+                    MagicMock(),
+                    starting_agent,
                     MockModelResponse(
                         usage=MockUsage(
                             input_tokens=call_count * 100,
@@ -581,7 +616,9 @@ class TestCollect:
             return MockRunResult()
 
         with patch.object(
-            sys.modules["agents"].Runner, "run", side_effect=mock_run,
+            sys.modules["agents"].Runner,
+            "run",
+            side_effect=mock_run,
         ):
             runs = await collector.collect(agent, ["a", "b", "c"])
 
@@ -594,6 +631,7 @@ class TestCollect:
 # ---------------------------------------------------------------------------
 # Lazy import
 # ---------------------------------------------------------------------------
+
 
 class TestLazyImport:
     def test_lazy_import_in_collectors_package(self):
@@ -610,10 +648,13 @@ class TestLazyImport:
         saved_oa = sys.modules.pop("agentcost.collectors.openai_agents", None)
 
         try:
-            with patch.dict(sys.modules, {
-                "agents": None,
-                "agents.lifecycle": None,
-            }):
+            with patch.dict(
+                sys.modules,
+                {
+                    "agents": None,
+                    "agents.lifecycle": None,
+                },
+            ):
                 with pytest.raises(ImportError, match="OpenAI Agents SDK"):
                     import importlib
 
@@ -628,6 +669,7 @@ class TestLazyImport:
 # Runner auto-detection
 # ---------------------------------------------------------------------------
 
+
 class TestRunnerAutoDetection:
     def test_runner_detects_openai_agent(self):
         from agentcost.runner import ProfileRunner
@@ -641,7 +683,9 @@ class TestRunnerAutoDetection:
         from agentcost.runner import ProfileRunner
 
         runner = ProfileRunner(
-            workflow_path="fake.py", single_input="test", collector="openai",
+            workflow_path="fake.py",
+            single_input="test",
+            collector="openai",
         )
         coll = runner._select_collector(object())
         assert type(coll).__name__ == "OpenAIAgentsCollector"

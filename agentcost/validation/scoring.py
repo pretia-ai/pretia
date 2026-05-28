@@ -76,9 +76,7 @@ def _spearman_rank_correlation(
     proj_ranks = _assign_ranks(proj_vals)
     actual_ranks = _assign_ranks(actual_vals)
 
-    d_squared_sum = sum(
-        (pr - ar) ** 2 for pr, ar in zip(proj_ranks, actual_ranks, strict=True)
-    )
+    d_squared_sum = sum((pr - ar) ** 2 for pr, ar in zip(proj_ranks, actual_ranks, strict=True))
     return 1.0 - (6.0 * d_squared_sum) / (n * (n * n - 1))
 
 
@@ -102,9 +100,7 @@ def score_projection(
         warnings.append("Ground truth p50 is zero — p50 ratio defaulted to 1.0.")
 
     if p50_ratio < 0.33 or p50_ratio > 3.0:
-        failures.append(
-            f"p50 estimate off by {p50_ratio:.1f}x — projection is unreliable"
-        )
+        failures.append(f"p50 estimate off by {p50_ratio:.1f}x — projection is unreliable")
     elif p50_ratio < 0.5 or p50_ratio > 2.0:
         warnings.append(
             f"p50 estimate off by {p50_ratio:.1f}x "
@@ -123,13 +119,11 @@ def score_projection(
 
     if p95_coverage < 0.60:
         failures.append(
-            f"p95 coverage is only {p95_coverage:.0%} — "
-            "projection is dangerously overconfident"
+            f"p95 coverage is only {p95_coverage:.0%} — projection is dangerously overconfident"
         )
     elif p95_coverage < 0.80:
         warnings.append(
-            f"p95 coverage is {p95_coverage:.0%} — "
-            "projected p95 underestimates tail costs"
+            f"p95 coverage is {p95_coverage:.0%} — projected p95 underestimates tail costs"
         )
 
     # --- Range ratio ---
@@ -139,23 +133,24 @@ def score_projection(
         range_ratio = 1.0
 
     if range_ratio >= 10.0:
-        failures.append(
-            f"Projection range is {range_ratio:.1f}x — too wide to be actionable"
-        )
+        failures.append(f"Projection range is {range_ratio:.1f}x — too wide to be actionable")
     elif range_ratio >= 5.0:
         warnings.append(
-            f"Wide projection range ({range_ratio:.1f}x). "
-            "Consider more profiling runs."
+            f"Wide projection range ({range_ratio:.1f}x). Consider more profiling runs."
         )
 
     # --- Top step correct (with co-dominant detection) ---
     top_step_correct = True
     if projected.step_stats and ground_truth.step_stats:
         proj_sorted = sorted(
-            projected.step_stats.values(), key=lambda s: s.cost.mean, reverse=True,
+            projected.step_stats.values(),
+            key=lambda s: s.cost.mean,
+            reverse=True,
         )
         actual_sorted = sorted(
-            ground_truth.step_stats.values(), key=lambda s: s.cost.mean, reverse=True,
+            ground_truth.step_stats.values(),
+            key=lambda s: s.cost.mean,
+            reverse=True,
         )
         proj_top_name = proj_sorted[0].step_name
         actual_top_name = actual_sorted[0].step_name
@@ -187,12 +182,8 @@ def score_projection(
         warnings.append("Cannot compare top step — one profile has no step stats.")
 
     # --- Spearman rank correlation ---
-    proj_step_costs = {
-        name: ss.cost.mean for name, ss in projected.step_stats.items()
-    }
-    actual_step_costs = {
-        name: ss.cost.mean for name, ss in ground_truth.step_stats.items()
-    }
+    proj_step_costs = {name: ss.cost.mean for name, ss in projected.step_stats.items()}
+    actual_step_costs = {name: ss.cost.mean for name, ss in ground_truth.step_stats.items()}
     common_steps = set(proj_step_costs) & set(actual_step_costs)
 
     if len(common_steps) < 3:
@@ -203,14 +194,14 @@ def score_projection(
         )
     else:
         ranking_correlation = _spearman_rank_correlation(
-            proj_step_costs, actual_step_costs,
+            proj_step_costs,
+            actual_step_costs,
         )
 
     if len(common_steps) >= 3:
         if ranking_correlation < 0.6:
             failures.append(
-                f"Step ranking doesn't match ground truth "
-                f"(Spearman r={ranking_correlation:.2f})"
+                f"Step ranking doesn't match ground truth (Spearman r={ranking_correlation:.2f})"
             )
         elif ranking_correlation <= 0.8:
             warnings.append(
@@ -227,9 +218,9 @@ def score_projection(
         verdict = "PASS"
 
     return CalibrationScore(
-        workflow_name=projected.step_stats[
-            next(iter(projected.step_stats))
-        ].step_name if projected.step_stats else "unknown",
+        workflow_name=projected.step_stats[next(iter(projected.step_stats))].step_name
+        if projected.step_stats
+        else "unknown",
         sample_size=projected.total_runs,
         ground_truth_size=ground_truth.total_runs,
         p50_ratio=p50_ratio,
@@ -262,6 +253,7 @@ def format_calibration_report(scores: list[CalibrationScore]) -> str:
     fail_count = 0
 
     for sc in scores:
+
         def _check(ok: bool, warn: bool = False) -> str:
             if ok and not warn:
                 return "✓"

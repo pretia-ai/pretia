@@ -34,7 +34,8 @@ try:
             max_tokens=max_tokens,
             openai_api_key=os.environ.get("DEEPSEEK_API_KEY", ""),
             openai_api_base=os.environ.get(
-                "DEEPSEEK_BASE_URL", "https://api.deepseek.com",
+                "DEEPSEEK_BASE_URL",
+                "https://api.deepseek.com",
             ),
         )
 
@@ -71,10 +72,7 @@ try:
                 {"role": "user", "content": f"Document:\n\n{state['input']}"},
             ]
         )
-        content = (
-            result.content if isinstance(result.content, str)
-            else str(result.content)
-        )
+        content = result.content if isinstance(result.content, str) else str(result.content)
         doc_type = "unknown"
         for line in content.splitlines():
             if line.strip().upper().startswith("TYPE:"):
@@ -108,10 +106,7 @@ try:
                 },
             ]
         )
-        text = (
-            result.content if isinstance(result.content, str)
-            else str(result.content)
-        )
+        text = result.content if isinstance(result.content, str) else str(result.content)
         return {"extracted_json": text}
 
     def validate(state: ExtractionDeepSeekState) -> dict:
@@ -145,10 +140,7 @@ try:
                 },
             ]
         )
-        text = (
-            result.content if isinstance(result.content, str)
-            else str(result.content)
-        )
+        text = result.content if isinstance(result.content, str) else str(result.content)
         return {"validated_json": text}
 
     # ── Graph ────────────────────────────────────────────────────────────

@@ -31,9 +31,7 @@ class TestGetModelPricing:
         assert out_price < 1e-3
 
     def test_alias_returns_same_pricing(self):
-        assert get_model_pricing("claude-sonnet-4") == get_model_pricing(
-            "claude-sonnet-4-6"
-        )
+        assert get_model_pricing("claude-sonnet-4") == get_model_pricing("claude-sonnet-4-6")
 
     @pytest.mark.parametrize("model", list_models())
     def test_every_canonical_model_has_pricing(self, model):

@@ -95,9 +95,7 @@ def run(
     logging.basicConfig(level=log_level, format="%(message)s")
 
     if from_langfuse:
-        if not os.environ.get("LANGFUSE_SECRET_KEY") or not os.environ.get(
-            "LANGFUSE_PUBLIC_KEY"
-        ):
+        if not os.environ.get("LANGFUSE_SECRET_KEY") or not os.environ.get("LANGFUSE_PUBLIC_KEY"):
             console.print(
                 "[red]Error:[/red] Langfuse credentials not found. "
                 "Set LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY "
@@ -160,8 +158,7 @@ def run(
             console.print(traceback.format_exc())
         else:
             console.print(
-                f"[red]Error:[/red] {exc}\n"
-                "Run with -v for full traceback.",
+                f"[red]Error:[/red] {exc}\nRun with -v for full traceback.",
             )
         sys.exit(1)
 
@@ -269,9 +266,7 @@ def analyze_cmd(
     log_level = logging.DEBUG if verbose else logging.WARNING
     logging.basicConfig(level=log_level, format="%(message)s")
 
-    if not os.environ.get("LANGFUSE_SECRET_KEY") or not os.environ.get(
-        "LANGFUSE_PUBLIC_KEY"
-    ):
+    if not os.environ.get("LANGFUSE_SECRET_KEY") or not os.environ.get("LANGFUSE_PUBLIC_KEY"):
         console.print(
             "[red]Error:[/red] Langfuse credentials not found. "
             "Set LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY "
@@ -345,8 +340,7 @@ def analyze_cmd(
             console.print(traceback.format_exc())
         else:
             console.print(
-                f"[red]Error:[/red] {exc}\n"
-                "Run with -v for full traceback.",
+                f"[red]Error:[/red] {exc}\nRun with -v for full traceback.",
             )
         sys.exit(1)
 
@@ -551,7 +545,10 @@ def validate_cmd(
 
         with console.status("[bold green]Running validation..."):
             result = run_validation(
-                workflow_path, budget=budget, small_n=small_n, large_n=large_n,
+                workflow_path,
+                budget=budget,
+                small_n=small_n,
+                large_n=large_n,
             )
 
         console.print(format_validate_report(result))
@@ -564,8 +561,7 @@ def validate_cmd(
             console.print(traceback.format_exc())
         else:
             console.print(
-                f"[red]Error:[/red] {exc}\n"
-                "Run with -v for full traceback.",
+                f"[red]Error:[/red] {exc}\nRun with -v for full traceback.",
             )
         sys.exit(1)
 

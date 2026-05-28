@@ -108,10 +108,18 @@ def _extract_stats(session: ProfilingSession) -> ProfilingStats | None:
 
     step_stats: dict[str, StepStats] = {}
     for name, ss in stats_dict.get("step_stats", {}).items():
+
         def _ps(d: dict) -> PercentileStats:
             return PercentileStats(
-                min=d["min"], max=d["max"], mean=d["mean"], std=d["std"],
-                p50=d["p50"], p75=d["p75"], p90=d["p90"], p95=d["p95"], p99=d["p99"],
+                min=d["min"],
+                max=d["max"],
+                mean=d["mean"],
+                std=d["std"],
+                p50=d["p50"],
+                p75=d["p75"],
+                p90=d["p90"],
+                p95=d["p95"],
+                p99=d["p99"],
             )
 
         step_stats[name] = StepStats(
@@ -132,15 +140,17 @@ def _extract_stats(session: ProfilingSession) -> ProfilingStats | None:
 
     run_stats_list: list[RunStats] = []
     for rs in stats_dict.get("run_stats", []):
-        run_stats_list.append(RunStats(
-            run_index=rs["run_index"],
-            total_cost=rs["total_cost"],
-            total_tokens=rs["total_tokens"],
-            total_input_tokens=rs["total_input_tokens"],
-            total_output_tokens=rs["total_output_tokens"],
-            step_count=rs["step_count"],
-            duration_ms=rs["duration_ms"],
-        ))
+        run_stats_list.append(
+            RunStats(
+                run_index=rs["run_index"],
+                total_cost=rs["total_cost"],
+                total_tokens=rs["total_tokens"],
+                total_input_tokens=rs["total_input_tokens"],
+                total_output_tokens=rs["total_output_tokens"],
+                step_count=rs["step_count"],
+                duration_ms=rs["duration_ms"],
+            )
+        )
 
     cpr_dict = stats_dict.get("cost_per_run")
     tpr_dict = stats_dict.get("tokens_per_run")
@@ -149,8 +159,15 @@ def _extract_stats(session: ProfilingSession) -> ProfilingStats | None:
         if d is None:
             return None
         return PercentileStats(
-            min=d["min"], max=d["max"], mean=d["mean"], std=d["std"],
-            p50=d["p50"], p75=d["p75"], p90=d["p90"], p95=d["p95"], p99=d["p99"],
+            min=d["min"],
+            max=d["max"],
+            mean=d["mean"],
+            std=d["std"],
+            p50=d["p50"],
+            p75=d["p75"],
+            p90=d["p90"],
+            p95=d["p95"],
+            p99=d["p99"],
         )
 
     return ProfilingStats(
@@ -183,7 +200,8 @@ def run_backtesting_suite(
 
         if real500_session is None:
             logger.warning(
-                "No ground truth (real500) for %r — skipping", cfg.name,
+                "No ground truth (real500) for %r — skipping",
+                cfg.name,
             )
             continue
 
@@ -205,7 +223,9 @@ def run_backtesting_suite(
             s100_stats = _extract_stats(synth100_session)
             if s100_stats is not None:
                 synth100_score = score_projection(
-                    s100_stats, gt_stats, traffic=traffic,
+                    s100_stats,
+                    gt_stats,
+                    traffic=traffic,
                 )
 
                 if synth20_session is not None:
@@ -217,21 +237,20 @@ def run_backtesting_suite(
                         and s100_stats.cost_per_run.p50 > 0
                     ):
                         convergence = (
-                            abs(
-                                s20_stats_conv.cost_per_run.p50
-                                - s100_stats.cost_per_run.p50
-                            )
+                            abs(s20_stats_conv.cost_per_run.p50 - s100_stats.cost_per_run.p50)
                             / s100_stats.cost_per_run.p50
                             * 100
                         )
 
-        results.append(BacktestResult(
-            config=cfg,
-            synth20_score=synth20_score,
-            synth100_score=synth100_score,
-            ground_truth_stats=gt_stats,
-            convergence_20_to_100=convergence,
-        ))
+        results.append(
+            BacktestResult(
+                config=cfg,
+                synth20_score=synth20_score,
+                synth100_score=synth100_score,
+                ground_truth_stats=gt_stats,
+                convergence_20_to_100=convergence,
+            )
+        )
 
     pass_count = sum(1 for r in results if r.synth20_score and r.synth20_score.verdict == "PASS")
     warn_count = sum(1 for r in results if r.synth20_score and r.synth20_score.verdict == "WARN")
@@ -257,9 +276,7 @@ def run_backtesting_suite(
 
 def format_suite_report(suite_result: BacktestSuiteResult) -> str:
     """Format a full backtesting suite report."""
-    synth20_scores = [
-        r.synth20_score for r in suite_result.results if r.synth20_score is not None
-    ]
+    synth20_scores = [r.synth20_score for r in suite_result.results if r.synth20_score is not None]
     lines: list[str] = []
 
     if synth20_scores:

@@ -24,27 +24,31 @@ def _make_mock_session(**kwargs):
     profiled_at = MagicMock()
     profiled_at.strftime.return_value = "2026-05-25 12:00"
     mock.profiled_at = profiled_at
-    mock.metadata = kwargs.get("metadata", {
-        "cost_summary": {
-            "per_step": {},
-            "run_totals": [],
-            "mean_cost_per_run": 0,
-            "min_cost_per_run": 0,
-            "max_cost_per_run": 0,
-            "p95_cost_per_run": 0,
-            "total_session_cost": 0,
-            "projection_100_day": 0,
-            "projection_1000_day": 0,
-            "projection_10000_day": 0,
+    mock.metadata = kwargs.get(
+        "metadata",
+        {
+            "cost_summary": {
+                "per_step": {},
+                "run_totals": [],
+                "mean_cost_per_run": 0,
+                "min_cost_per_run": 0,
+                "max_cost_per_run": 0,
+                "p95_cost_per_run": 0,
+                "total_session_cost": 0,
+                "projection_100_day": 0,
+                "projection_1000_day": 0,
+                "projection_10000_day": 0,
+            },
+            "saved_path": "/tmp/test.json",
         },
-        "saved_path": "/tmp/test.json",
-    })
+    )
     return mock
 
 
 # ---------------------------------------------------------------------------
 # Top-level
 # ---------------------------------------------------------------------------
+
 
 class TestTopLevel:
     def test_help(self):
@@ -61,6 +65,7 @@ class TestTopLevel:
 # profile group
 # ---------------------------------------------------------------------------
 
+
 class TestProfileGroup:
     def test_help(self):
         result = runner.invoke(cli, ["profile", "--help"])
@@ -71,6 +76,7 @@ class TestProfileGroup:
 # ---------------------------------------------------------------------------
 # profile run
 # ---------------------------------------------------------------------------
+
 
 class TestProfileRun:
     def test_help(self):
@@ -83,7 +89,8 @@ class TestProfileRun:
 
     def test_nonexistent_file(self):
         result = runner.invoke(
-            cli, ["profile", "run", "nonexistent.py"],
+            cli,
+            ["profile", "run", "nonexistent.py"],
         )
         assert result.exit_code != 0
 
@@ -93,13 +100,16 @@ class TestProfileRun:
 
         mock_session = _make_mock_session()
 
-        with patch(
-            "agentcost.runner.ProfileRunner.run_sync",
-            return_value=mock_session,
-        ) as mock_run, patch(
-            "agentcost.runner.ProfileRunner.__init__",
-            return_value=None,
-        ) as mock_init:
+        with (
+            patch(
+                "agentcost.runner.ProfileRunner.run_sync",
+                return_value=mock_session,
+            ) as mock_run,
+            patch(
+                "agentcost.runner.ProfileRunner.__init__",
+                return_value=None,
+            ) as mock_init,
+        ):
             result = runner.invoke(
                 cli,
                 ["profile", "run", str(wf), "--input", "hello"],
@@ -116,6 +126,7 @@ class TestProfileRun:
 # ---------------------------------------------------------------------------
 # report command
 # ---------------------------------------------------------------------------
+
 
 class TestReportCommand:
     def test_help(self):
@@ -145,15 +156,17 @@ class TestReportCommand:
             sample_size=3,
             input_mode="auto-generate",
             runs=[],
-            metadata={"cost_summary": {
-                "per_step": {},
-                "run_totals": [],
-                "mean_cost_per_run": 0,
-                "min_cost_per_run": 0,
-                "max_cost_per_run": 0,
-                "p95_cost_per_run": 0,
-                "total_session_cost": 0,
-            }},
+            metadata={
+                "cost_summary": {
+                    "per_step": {},
+                    "run_totals": [],
+                    "mean_cost_per_run": 0,
+                    "min_cost_per_run": 0,
+                    "max_cost_per_run": 0,
+                    "p95_cost_per_run": 0,
+                    "total_session_cost": 0,
+                }
+            },
         )
         profile_path = tmp_path / "test.json"
         profile_path.write_text(json.dumps(session.to_dict(), indent=2))
@@ -174,15 +187,17 @@ class TestReportCommand:
             sample_size=5,
             input_mode="single",
             runs=[],
-            metadata={"cost_summary": {
-                "per_step": {},
-                "run_totals": [],
-                "mean_cost_per_run": 0.01,
-                "min_cost_per_run": 0,
-                "max_cost_per_run": 0.02,
-                "p95_cost_per_run": 0.015,
-                "total_session_cost": 0.05,
-            }},
+            metadata={
+                "cost_summary": {
+                    "per_step": {},
+                    "run_totals": [],
+                    "mean_cost_per_run": 0.01,
+                    "min_cost_per_run": 0,
+                    "max_cost_per_run": 0.02,
+                    "p95_cost_per_run": 0.015,
+                    "total_session_cost": 0.05,
+                }
+            },
         )
         profile_path = tmp_path / "profile.json"
         profile_path.write_text(json.dumps(session.to_dict(), indent=2))
@@ -195,6 +210,7 @@ class TestReportCommand:
 # ---------------------------------------------------------------------------
 # analyze command
 # ---------------------------------------------------------------------------
+
 
 class TestAnalyzeCommand:
     def test_help(self):
@@ -266,9 +282,12 @@ class TestAnalyzeCommand:
             result = runner.invoke(
                 cli,
                 [
-                    "analyze", "--from-langfuse",
-                    "--last", "3",
-                    "--output-dir", str(tmp_path),
+                    "analyze",
+                    "--from-langfuse",
+                    "--last",
+                    "3",
+                    "--output-dir",
+                    str(tmp_path),
                 ],
             )
 
@@ -279,6 +298,7 @@ class TestAnalyzeCommand:
 # ---------------------------------------------------------------------------
 # baseline commands
 # ---------------------------------------------------------------------------
+
 
 class TestBaselineCommand:
     def test_help(self):
@@ -304,47 +324,111 @@ class TestBaselineCommand:
                     "total_runs": 10,
                     "total_steps": 20,
                     "cost_per_run": {
-                        "mean": 0.03, "p50": 0.028, "p75": 0.035,
-                        "p90": 0.042, "p95": 0.048, "p99": 0.06,
-                        "min": 0.015, "max": 0.08, "std": 0.012,
+                        "mean": 0.03,
+                        "p50": 0.028,
+                        "p75": 0.035,
+                        "p90": 0.042,
+                        "p95": 0.048,
+                        "p99": 0.06,
+                        "min": 0.015,
+                        "max": 0.08,
+                        "std": 0.012,
                     },
                     "tokens_per_run": {
-                        "mean": 2000.0, "p50": 1800.0, "p75": 2400.0,
-                        "p90": 2800.0, "p95": 3200.0, "p99": 3800.0,
-                        "min": 1000.0, "max": 4500.0, "std": 600.0,
+                        "mean": 2000.0,
+                        "p50": 1800.0,
+                        "p75": 2400.0,
+                        "p90": 2800.0,
+                        "p95": 3200.0,
+                        "p99": 3800.0,
+                        "min": 1000.0,
+                        "max": 4500.0,
+                        "std": 600.0,
                     },
                     "step_stats": {
                         "step_a": {
-                            "step_name": "step_a", "step_type": "llm",
-                            "model": "gpt-4o-mini", "call_count": 10,
+                            "step_name": "step_a",
+                            "step_type": "llm",
+                            "model": "gpt-4o-mini",
+                            "call_count": 10,
                             "runs_present": 10,
-                            "input_tokens": {"mean": 200.0, "p50": 180.0,
-                                             "p75": 220.0, "p90": 250.0,
-                                             "p95": 280.0, "p99": 300.0,
-                                             "min": 100.0, "max": 350.0, "std": 40.0},
-                            "output_tokens": {"mean": 60.0, "p50": 55.0,
-                                              "p75": 70.0, "p90": 80.0,
-                                              "p95": 85.0, "p99": 95.0,
-                                              "min": 30.0, "max": 110.0, "std": 12.0},
-                            "total_tokens": {"mean": 260.0, "p50": 235.0,
-                                             "p75": 290.0, "p90": 330.0,
-                                             "p95": 365.0, "p99": 395.0,
-                                             "min": 130.0, "max": 460.0, "std": 52.0},
-                            "cost": {"mean": 0.001, "p50": 0.0009, "p75": 0.0012,
-                                     "p90": 0.0014, "p95": 0.0016, "p99": 0.002,
-                                     "min": 0.0004, "max": 0.003, "std": 0.0003},
-                            "duration_ms": {"mean": 180.0, "p50": 160.0,
-                                            "p75": 200.0, "p90": 230.0,
-                                            "p95": 250.0, "p99": 280.0,
-                                            "min": 80.0, "max": 350.0, "std": 45.0},
-                            "context_size": {"mean": 200.0, "p50": 180.0,
-                                             "p75": 220.0, "p90": 250.0,
-                                             "p95": 280.0, "p99": 300.0,
-                                             "min": 100.0, "max": 350.0, "std": 40.0},
-                            "iterations_per_run": {"mean": 1.0, "p50": 1.0,
-                                                   "p75": 1.0, "p90": 1.0,
-                                                   "p95": 1.0, "p99": 1.0,
-                                                   "min": 1.0, "max": 1.0, "std": 0.0},
+                            "input_tokens": {
+                                "mean": 200.0,
+                                "p50": 180.0,
+                                "p75": 220.0,
+                                "p90": 250.0,
+                                "p95": 280.0,
+                                "p99": 300.0,
+                                "min": 100.0,
+                                "max": 350.0,
+                                "std": 40.0,
+                            },
+                            "output_tokens": {
+                                "mean": 60.0,
+                                "p50": 55.0,
+                                "p75": 70.0,
+                                "p90": 80.0,
+                                "p95": 85.0,
+                                "p99": 95.0,
+                                "min": 30.0,
+                                "max": 110.0,
+                                "std": 12.0,
+                            },
+                            "total_tokens": {
+                                "mean": 260.0,
+                                "p50": 235.0,
+                                "p75": 290.0,
+                                "p90": 330.0,
+                                "p95": 365.0,
+                                "p99": 395.0,
+                                "min": 130.0,
+                                "max": 460.0,
+                                "std": 52.0,
+                            },
+                            "cost": {
+                                "mean": 0.001,
+                                "p50": 0.0009,
+                                "p75": 0.0012,
+                                "p90": 0.0014,
+                                "p95": 0.0016,
+                                "p99": 0.002,
+                                "min": 0.0004,
+                                "max": 0.003,
+                                "std": 0.0003,
+                            },
+                            "duration_ms": {
+                                "mean": 180.0,
+                                "p50": 160.0,
+                                "p75": 200.0,
+                                "p90": 230.0,
+                                "p95": 250.0,
+                                "p99": 280.0,
+                                "min": 80.0,
+                                "max": 350.0,
+                                "std": 45.0,
+                            },
+                            "context_size": {
+                                "mean": 200.0,
+                                "p50": 180.0,
+                                "p75": 220.0,
+                                "p90": 250.0,
+                                "p95": 280.0,
+                                "p99": 300.0,
+                                "min": 100.0,
+                                "max": 350.0,
+                                "std": 40.0,
+                            },
+                            "iterations_per_run": {
+                                "mean": 1.0,
+                                "p50": 1.0,
+                                "p75": 1.0,
+                                "p90": 1.0,
+                                "p95": 1.0,
+                                "p99": 1.0,
+                                "min": 1.0,
+                                "max": 1.0,
+                                "std": 0.0,
+                            },
                             "mean_iterations": 1.0,
                         },
                     },
@@ -357,28 +441,51 @@ class TestBaselineCommand:
                     "projections": {
                         "1000": {
                             "daily_volume": 1000,
-                            "monthly_cost": {"p50": 840.0, "p75": 1050.0,
-                                             "p90": 1260.0, "p95": 1440.0,
-                                             "p99": 1800.0, "mean": 900.0},
-                            "daily_cost": {"p50": 28.0, "p75": 35.0,
-                                           "p90": 42.0, "p95": 48.0,
-                                           "p99": 60.0, "mean": 30.0},
-                            "cost_per_run": {"p50": 0.028, "p75": 0.035,
-                                             "p90": 0.042, "p95": 0.048,
-                                             "p99": 0.06, "mean": 0.03},
+                            "monthly_cost": {
+                                "p50": 840.0,
+                                "p75": 1050.0,
+                                "p90": 1260.0,
+                                "p95": 1440.0,
+                                "p99": 1800.0,
+                                "mean": 900.0,
+                            },
+                            "daily_cost": {
+                                "p50": 28.0,
+                                "p75": 35.0,
+                                "p90": 42.0,
+                                "p95": 48.0,
+                                "p99": 60.0,
+                                "mean": 30.0,
+                            },
+                            "cost_per_run": {
+                                "p50": 0.028,
+                                "p75": 0.035,
+                                "p90": 0.042,
+                                "p95": 0.048,
+                                "p99": 0.06,
+                                "mean": 0.03,
+                            },
                         },
                     },
-                    "confidence": {"score": 72, "tier": "MODERATE",
-                                   "display_range": "p50 – p95",
-                                   "language": "estimated",
-                                   "deductions": [], "bonuses": []},
+                    "confidence": {
+                        "score": 72,
+                        "tier": "MODERATE",
+                        "display_range": "p50 – p95",
+                        "language": "estimated",
+                        "deductions": [],
+                        "bonuses": [],
+                    },
                     "warnings": [],
                     "patterns_detected": [],
                 },
-                "confidence": {"score": 72, "tier": "MODERATE",
-                               "display_range": "p50 – p95",
-                               "language": "estimated",
-                               "deductions": [], "bonuses": []},
+                "confidence": {
+                    "score": 72,
+                    "tier": "MODERATE",
+                    "display_range": "p50 – p95",
+                    "language": "estimated",
+                    "deductions": [],
+                    "bonuses": [],
+                },
             },
         )
         profile_path = tmp_path / "test.json"
@@ -390,8 +497,7 @@ class TestBaselineCommand:
         ):
             result = runner.invoke(
                 cli,
-                ["baseline", "update", "latest",
-                 "--output-dir", str(tmp_path)],
+                ["baseline", "update", "latest", "--output-dir", str(tmp_path)],
             )
 
         assert result.exit_code == 0, result.output
@@ -403,6 +509,7 @@ class TestBaselineCommand:
 # diff command
 # ---------------------------------------------------------------------------
 
+
 class TestDiffCommand:
     def test_help(self):
         result = runner.invoke(cli, ["diff", "--help"])
@@ -410,7 +517,8 @@ class TestDiffCommand:
 
     def test_baseline_not_found(self):
         result = runner.invoke(
-            cli, ["diff", "nonexistent.json", "also_nonexistent.json"],
+            cli,
+            ["diff", "nonexistent.json", "also_nonexistent.json"],
         )
         assert result.exit_code == 1
         assert "not found" in result.output.lower() or "error" in result.output.lower()
@@ -419,6 +527,7 @@ class TestDiffCommand:
 # ---------------------------------------------------------------------------
 # validate command
 # ---------------------------------------------------------------------------
+
 
 class TestValidateCommand:
     def test_help(self):

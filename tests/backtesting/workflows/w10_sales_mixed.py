@@ -70,8 +70,7 @@ try:
             max_tokens=512,
         )
         profiles_text = "\n\n".join(
-            f"[{name}]: {profile}"
-            for name, profile in CANNED_COMPANY_PROFILES.items()
+            f"[{name}]: {profile}" for name, profile in CANNED_COMPANY_PROFILES.items()
         )
         result = llm.invoke(
             [
@@ -107,10 +106,7 @@ try:
         tone_feedback = state.get("tone_feedback", "")
         extra = ""
         if tone_feedback and state.get("iteration_count", 0) > 0:
-            extra = (
-                f"\n\nPrevious draft had tone issues. Apply this feedback:\n"
-                f"{tone_feedback}"
-            )
+            extra = f"\n\nPrevious draft had tone issues. Apply this feedback:\n{tone_feedback}"
         result = llm.invoke(
             [
                 {

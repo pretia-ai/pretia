@@ -62,9 +62,7 @@ class ProjectionResult:
             "warnings": list(self.warnings),
             "patterns_detected": [p.to_dict() for p in self.patterns_detected],
             "montecarlo_result": (
-                self.montecarlo_result.to_dict()
-                if self.montecarlo_result
-                else None
+                self.montecarlo_result.to_dict() if self.montecarlo_result else None
             ),
         }
 
@@ -159,7 +157,10 @@ def project(
         traffic = list(_DEFAULT_TRAFFIC)
 
     confidence = compute_confidence(
-        stats.total_runs, stats.step_stats, patterns, input_source,
+        stats.total_runs,
+        stats.step_stats,
+        patterns,
+        input_source,
     )
 
     has_danger = any(p.severity == "danger" for p in patterns)
@@ -180,22 +181,21 @@ def project(
                 if p.severity == "danger":
                     warnings.append(f"Monte Carlo triggered by: {p.description}")
             projections, mc_results = _montecarlo_project(
-                stats, patterns, traffic, runs,
+                stats,
+                patterns,
+                traffic,
+                runs,
             )
             first_volume = traffic[0] if traffic else None
             if first_volume is not None and first_volume in mc_results:
                 mc_result = mc_results[first_volume]
                 if not mc_result.convergence_check:
                     warnings.append(
-                        "Monte Carlo may not have converged. "
-                        "Consider increasing sample count."
+                        "Monte Carlo may not have converged. Consider increasing sample count."
                     )
     else:
         method = "linear"
-        warnings.append(
-            "Linear projection used. "
-            "No significant non-linear patterns detected."
-        )
+        warnings.append("Linear projection used. No significant non-linear patterns detected.")
         projections = _linear_project(stats, traffic)
 
     return ProjectionResult(

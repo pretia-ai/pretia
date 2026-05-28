@@ -53,7 +53,9 @@ def _parse_response(text: str, n: int) -> list[str]:
 
     if len(lines) < n:
         logger.warning(
-            "Requested %d inputs but LLM returned %d", n, len(lines),
+            "Requested %d inputs but LLM returned %d",
+            n,
+            len(lines),
         )
     return lines[:n]
 
@@ -221,10 +223,7 @@ async def generate_inputs(
 
     ctx_block = ""
     if additional_context:
-        ctx_block = (
-            f"\nAdditional context about the input format:\n"
-            f"{additional_context}\n"
-        )
+        ctx_block = f"\nAdditional context about the input format:\n{additional_context}\n"
 
     prompt = _GENERATION_PROMPT_TEMPLATE.format(
         system_prompt=system_prompt[:2000],

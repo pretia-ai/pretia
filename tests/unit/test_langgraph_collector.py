@@ -34,6 +34,7 @@ _USAGE_10_5 = {"token_usage": {"prompt_tokens": 10, "completion_tokens": 5}}
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 class _MockGeneration:
     def __init__(self, text="", generation_info=None):
         self.text = text
@@ -67,6 +68,7 @@ def _start_llm(handler, *, run_id, ser=None, messages=None):
 # LLM call lifecycle
 # ---------------------------------------------------------------------------
 
+
 class TestLLMCallLifecycle:
     def test_start_and_end_produces_step_record(self):
         handler = AgentCostCallbackHandler()
@@ -75,10 +77,12 @@ class TestLLMCallLifecycle:
 
         _start_llm(handler, run_id=rid, messages=messages)
         resp = _make_response(
-            llm_output={"token_usage": {
-                "prompt_tokens": 100,
-                "completion_tokens": 50,
-            }},
+            llm_output={
+                "token_usage": {
+                    "prompt_tokens": 100,
+                    "completion_tokens": 50,
+                }
+            },
         )
         handler.on_llm_end(resp, run_id=rid)
 
@@ -95,6 +99,7 @@ class TestLLMCallLifecycle:
 # Token extraction from multiple locations
 # ---------------------------------------------------------------------------
 
+
 class TestTokenExtraction:
     def test_tokens_from_llm_output(self):
         handler = AgentCostCallbackHandler()
@@ -102,10 +107,12 @@ class TestTokenExtraction:
 
         _start_llm(handler, run_id=rid)
         resp = _make_response(
-            llm_output={"token_usage": {
-                "prompt_tokens": 200,
-                "completion_tokens": 80,
-            }},
+            llm_output={
+                "token_usage": {
+                    "prompt_tokens": 200,
+                    "completion_tokens": 80,
+                }
+            },
         )
         handler.on_llm_end(resp, run_id=rid)
 
@@ -119,10 +126,12 @@ class TestTokenExtraction:
         _start_llm(handler, run_id=rid)
         resp = _make_response(
             llm_output={},
-            generation_info={"usage": {
-                "prompt_tokens": 300,
-                "completion_tokens": 120,
-            }},
+            generation_info={
+                "usage": {
+                    "prompt_tokens": 300,
+                    "completion_tokens": 120,
+                }
+            },
         )
         handler.on_llm_end(resp, run_id=rid)
 
@@ -146,15 +155,18 @@ class TestTokenExtraction:
 # System prompt extraction
 # ---------------------------------------------------------------------------
 
+
 class TestSystemPrompt:
     def test_system_prompt_hashed(self):
         handler = AgentCostCallbackHandler()
         rid = uuid4()
         prompt_text = "You are a support agent."
-        messages = [[
-            {"role": "system", "content": prompt_text},
-            {"role": "user", "content": "hi"},
-        ]]
+        messages = [
+            [
+                {"role": "system", "content": prompt_text},
+                {"role": "user", "content": "hi"},
+            ]
+        ]
 
         _start_llm(handler, run_id=rid, messages=messages)
         handler.on_llm_end(
@@ -171,6 +183,7 @@ class TestSystemPrompt:
 # ---------------------------------------------------------------------------
 # Output format detection
 # ---------------------------------------------------------------------------
+
 
 class TestOutputFormat:
     def _run_with_text(self, text):
@@ -199,13 +212,16 @@ class TestOutputFormat:
 # Tool call lifecycle
 # ---------------------------------------------------------------------------
 
+
 class TestToolCall:
     def test_tool_start_and_end_produces_record(self):
         handler = AgentCostCallbackHandler()
         rid = uuid4()
 
         handler.on_tool_start(
-            {"name": "search_db"}, "query string", run_id=rid,
+            {"name": "search_db"},
+            "query string",
+            run_id=rid,
         )
         handler.on_tool_end("result data", run_id=rid)
 
@@ -221,6 +237,7 @@ class TestToolCall:
 # ---------------------------------------------------------------------------
 # Iteration counting
 # ---------------------------------------------------------------------------
+
 
 class TestIterationCounting:
     def test_same_step_increments(self):
@@ -243,6 +260,7 @@ class TestIterationCounting:
 # Resilience
 # ---------------------------------------------------------------------------
 
+
 class TestResilience:
     def test_end_without_start_no_crash(self):
         handler = AgentCostCallbackHandler()
@@ -254,7 +272,9 @@ class TestResilience:
         rid = uuid4()
 
         handler.on_chat_model_start(
-            {}, [_USER_MSG], run_id=rid,
+            {},
+            [_USER_MSG],
+            run_id=rid,
         )
         handler.on_llm_end(
             _make_response(llm_output=_USAGE_10_5),
@@ -272,6 +292,7 @@ class TestResilience:
 # ---------------------------------------------------------------------------
 # Timing
 # ---------------------------------------------------------------------------
+
 
 class TestTiming:
     def test_duration_positive(self):
@@ -292,6 +313,7 @@ class TestTiming:
 # LangGraphCollector.collect()
 # ---------------------------------------------------------------------------
 
+
 class TestCollect:
     @pytest.mark.asyncio
     async def test_collect_invokes_workflow_per_input(self):
@@ -306,12 +328,14 @@ class TestCollect:
                 ser=_serialized(model_name="gpt-4o-mini"),
             )
             handler.on_llm_end(
-                _make_response(llm_output={
-                    "token_usage": {
-                        "prompt_tokens": 50,
-                        "completion_tokens": 20,
-                    },
-                }),
+                _make_response(
+                    llm_output={
+                        "token_usage": {
+                            "prompt_tokens": 50,
+                            "completion_tokens": 20,
+                        },
+                    }
+                ),
                 run_id=rid,
             )
 
@@ -346,27 +370,30 @@ class TestCollect:
 # Import guard
 # ---------------------------------------------------------------------------
 
+
 class TestImportGuard:
     def test_lazy_import_without_langchain(self):
         saved = {}
         for mod_name in list(sys.modules):
-            if (
-                mod_name == "langchain_core"
-                or mod_name.startswith("langchain_core.")
-            ):
+            if mod_name == "langchain_core" or mod_name.startswith("langchain_core."):
                 saved[mod_name] = sys.modules.pop(mod_name)
         saved_lg = sys.modules.pop(
-            "agentcost.collectors.langgraph", None,
+            "agentcost.collectors.langgraph",
+            None,
         )
 
         try:
-            with patch.dict(sys.modules, {
-                "langchain_core": None,
-                "langchain_core.callbacks": None,
-                "langchain_core.outputs": None,
-            }):
+            with patch.dict(
+                sys.modules,
+                {
+                    "langchain_core": None,
+                    "langchain_core.callbacks": None,
+                    "langchain_core.outputs": None,
+                },
+            ):
                 with pytest.raises(ImportError, match="langchain-core"):
                     import importlib
+
                     importlib.import_module(
                         "agentcost.collectors.langgraph",
                     )

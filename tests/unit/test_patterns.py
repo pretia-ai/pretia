@@ -46,6 +46,7 @@ def _simple_cost_fn(model: str, inp: int, out: int) -> float:
 # Context growth
 # ---------------------------------------------------------------------------
 
+
 class TestContextGrowth:
     def test_context_growth_detected(self):
         runs = []
@@ -113,14 +114,12 @@ class TestContextGrowth:
 # Loop count variance
 # ---------------------------------------------------------------------------
 
+
 class TestLoopCountVariance:
     def test_loop_count_variance_detected(self):
         runs = []
         for n_iters in [2, 3, 2, 12, 3]:
-            run = [
-                _make_record("review", iteration=i + 1)
-                for i in range(n_iters)
-            ]
+            run = [_make_record("review", iteration=i + 1) for i in range(n_iters)]
             runs.append(run)
 
         patterns = detect_patterns(runs, compute_stats(runs, _simple_cost_fn))
@@ -169,6 +168,7 @@ class TestLoopCountVariance:
 # High token variance
 # ---------------------------------------------------------------------------
 
+
 class TestHighTokenVariance:
     def test_high_token_variance_detected(self):
         runs = []
@@ -212,6 +212,7 @@ class TestHighTokenVariance:
 # Combined / edge cases
 # ---------------------------------------------------------------------------
 
+
 class TestCombined:
     def test_detect_patterns_combined(self):
         context_growth_run = [
@@ -224,9 +225,7 @@ class TestCombined:
 
         variable_loop_runs = []
         for n in [2, 3, 2, 12, 3]:
-            variable_loop_runs.append(
-                [_make_record("looper", iteration=i + 1) for i in range(n)]
-            )
+            variable_loop_runs.append([_make_record("looper", iteration=i + 1) for i in range(n)])
 
         heavy_tail_runs = []
         for i in range(20):
@@ -278,6 +277,7 @@ class TestCombined:
 # ---------------------------------------------------------------------------
 # Serialization
 # ---------------------------------------------------------------------------
+
 
 class TestPatternSerialization:
     def test_detected_pattern_to_dict(self):
