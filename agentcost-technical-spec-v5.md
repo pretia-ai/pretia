@@ -65,7 +65,7 @@ Total potential savings: −$14,100/mo ($11,700 → $3,200)
 
 ### What we build
 
-- **An open-source Python SDK** (`pip install agentcost`) that instruments LangGraph, OpenAI Agents SDK, and CrewAI workflows. Point it at your agent — it auto-generates diverse test inputs from your system prompt (~$0.02), profiles the workflow, and projects cost distributions. Two commands from install to first report:
+- **An open-source Python SDK** (`pip install agentcost`) that instruments LangGraph, OpenAI Agents SDK, Qwen-Agent, and CrewAI workflows. DeepSeek models work through existing collectors via their OpenAI-compatible API. Point it at your agent — it auto-generates diverse test inputs from your system prompt (~$0.02), profiles the workflow, and projects cost distributions. Two commands from install to first report:
   ```bash
   pip install agentcost
   agentcost profile run my_agent.py
@@ -98,12 +98,12 @@ No proxy (use LiteLLM). No routing (use Martian). No tracing (use Langfuse). No 
 
 | Phase | Weeks | Focus | ML Component |
 |-------|-------|-------|-------------|
-| **v1.0** | 1-20 | Core SDK + projection + backtesting + recommendations + verify loop + CI gate + HTML report + graph view + local web UI | None (stats + heuristics) |
+| **v1.0** | 1-20 | Core SDK (collectors for LangGraph, OAI Agents, Qwen-Agent; pricing for Anthropic/OpenAI/Google/DeepSeek/Qwen/Llama/Mistral) + projection + backtesting (12 workflows) + recommendations + verify loop + CI gate + HTML report + graph view + local web UI | None (stats + heuristics) |
 | **v1.5** | 21-24 | Task Complexity Classifier | Logistic regression on RouterBench |
 | **v2.0** | 25-34 | Live monitoring + Cost Prediction Model | XGBoost on profiling data |
 | **v3.0** | 35-48 | Spend Governance + Workflow Benchmarking | HDBSCAN clustering |
 
-The v1 ships in 20 weeks. The extra time (vs. a CLI-only 12-week version) buys the backtesting suite ($950 to validate predictions on 10 real-world archetypes), implementation prompts with verify loop, graph visualization, HTML report, and local web UI. Every one of these additions addresses a specific risk: backtesting prevents wrong predictions (product-killing), the verify loop creates stickiness, the graph view makes the product demo-ready. ML is layered on top starting at v1.5. This is deliberate: the v1 must stand on its own merits. ML amplifies the moat, it doesn't create it.
+The v1 ships in 20 weeks. The extra time (vs. a CLI-only 12-week version) buys the backtesting suite ($950 to validate predictions on 12 real-world archetypes), implementation prompts with verify loop, graph visualization, HTML report, and local web UI. Every one of these additions addresses a specific risk: backtesting prevents wrong predictions (product-killing), the verify loop creates stickiness, the graph view makes the product demo-ready. ML is layered on top starting at v1.5. This is deliberate: the v1 must stand on its own merits. ML amplifies the moat, it doesn't create it.
 
 ---
 
@@ -144,19 +144,23 @@ class CostHooks(RunHooks):
 
 **CrewAI** — LangChain callbacks under the hood (built on LangChain), but exposes agents and tasks as first-class abstractions. Same `CallbackHandler` pattern.
 
+**Qwen-Agent** — Generator-based execution model with NO callback/hooks system. Agents use `Agent.run(messages)` which yields response chunks. Token usage is captured by wrapping the agent's `BaseChatModel.chat()` method with an `_InstrumentedChatModel` proxy. For DashScope-based agents, usage data is extracted from `Message.extra['model_service_info']`.
+
+**DeepSeek** — Uses an OpenAI-compatible API endpoint (`https://api.deepseek.com`). DeepSeek models (V4 Flash, V4 Pro) work through `LangGraphCollector` (via `langchain_openai.ChatOpenAI` with custom `base_url`) and `OpenAIAgentsCollector` (via the `openai` SDK with custom `base_url`) with zero collector changes. Only pricing table and input generator updates were needed.
+
 ### 1.2 The Collector Abstraction
 
 ```
 ┌──────────────────────────────────────────────────┐
 │                 AgentCost SDK                     │
 │                                                   │
-│  ┌──────────┐  ┌───────────┐  ┌──────────────┐  │
-│  │ LangGraph│  │  OpenAI   │  │   Generic    │  │
-│  │ Collector│  │  Agents   │  │  Collector   │  │
-│  │          │  │ Collector │  │  (manual)    │  │
-│  └─────┬────┘  └─────┬─────┘  └──────┬───────┘  │
-│        │             │               │           │
-│        ▼             ▼               ▼           │
+│  ┌──────────┐  ┌───────────┐  ┌──────────┐  ┌──────────────┐  │
+│  │ LangGraph│  │  OpenAI   │  │Qwen-Agent│  │   Generic    │  │
+│  │ Collector│  │  Agents   │  │ Collector│  │  Collector   │  │
+│  │          │  │ Collector │  │          │  │  (manual)    │  │
+│  └─────┬────┘  └─────┬─────┘  └────┬─────┘  └──────┬───────┘  │
+│        │             │              │               │           │
+│        ▼             ▼              ▼               ▼           │
 │  ┌────────────────────────────────────────────┐  │
 │  │            Unified StepRecord              │  │
 │  │                                            │  │
@@ -183,6 +187,10 @@ class CostHooks(RunHooks):
 │  └────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────┘
 ```
+
+**QwenAgentCollector** wraps the agent's LLM client (`agent.llm`) with an `_InstrumentedChatModel` proxy. Since Qwen-Agent has no callback hooks, the collector intercepts `BaseChatModel.chat()` calls, capturing token usage from DashScope response metadata and timing from monotonic clocks. Handles streaming (buffers the generator, captures usage from the final chunk) and non-streaming modes. Installed via `pip install agentcost[qwen]` (lazy-imported to avoid requiring qwen-agent for core functionality).
+
+**DeepSeek models** require no dedicated collector. They use OpenAI-compatible APIs, so `LangGraphCollector` (via `ChatOpenAI(openai_api_base="https://api.deepseek.com")`) and `OpenAIAgentsCollector` capture tokens normally. The pricing table covers DeepSeek V4 Flash ($0.14/$0.28 per MTok) and V4 Pro ($0.435/$0.87 per MTok), with cache-miss rates used for conservative projections (cache-hit input is 50x cheaper at $0.0028/MTok).
 
 **Key design decision:** StepRecord captures `system_prompt_hash`, `system_prompt_tokens`, and `output_format` from day one. These fields aren't used in v1 (heuristics don't need them), but they're the features the Task Complexity Classifier needs in v1.5. Capturing them now means we don't have to re-instrument later. Cost of carrying extra fields: ~zero.
 
@@ -1320,7 +1328,7 @@ Every projection must satisfy three properties:
 
 A set of real agent workflows, each profiled at small sample sizes and validated against large-sample ground truth. Run before launch. Run again after any change to the projection engine.
 
-**10 test workflows across 5 archetypes, 2 complexity levels each:**
+**12 test workflows — 5 archetypes × 2 complexity levels, plus 2 multi-provider variants (Qwen, DeepSeek):**
 
 | # | Archetype | Complexity | Description | Models | Loops | Expected cost per run |
 |---|-----------|-----------|-------------|--------|-------|----------------------|
@@ -1334,6 +1342,8 @@ A set of real agent workflows, each profiled at small sample sizes and validated
 | W8 | Research agent | Complex | Multi-agent: searcher → fact-checker → synthesizer → editor with review loop | sonnet, opus | Yes (2-6 iter) | $0.50-3.00 |
 | W9 | Sales/outreach | Simple | Qualify lead → personalize template → draft email | haiku, sonnet | No | $0.02-0.08 |
 | W10 | Sales/outreach | Complex | Qualify → research company → personalize → draft → tone review → iterate | sonnet, opus | Yes (2-4 iter) | $0.10-0.60 |
+| W11 | Support agent (Qwen) | Simple | Same as W1 but Qwen-Agent framework: classify (Qwen-Turbo) → retrieve → respond (Qwen 3.6 Plus) | qwen-turbo, qwen3.6-plus | No | $0.001-0.01 |
+| W12 | Data extraction (DeepSeek) | Simple | Same as W5 but DeepSeek only: parse → extract → validate (all V4 Flash) | deepseek-v4-flash | No | $0.001-0.01 |
 
 **For each workflow, you also build 3 input datasets:**
 
@@ -1413,7 +1423,7 @@ def score_projection(projected, actual_distribution):
 | Top step correct | Yes | — | No |
 | Step ranking correlation | > 0.8 | 0.6 – 0.8 | < 0.6 |
 
-**The launch gate:** All 10 workflows must pass on the Synthetic-20 profile (the default user experience). If ANY workflow fails on p50 ratio or top step identification, the projection engine needs debugging before launch. Warns are acceptable in v1 if documented.
+**The launch gate:** All 12 workflows must pass on the Synthetic-20 profile (the default user experience). If ANY workflow fails on p50 ratio or top step identification, the projection engine needs debugging before launch. Warns are acceptable in v1 if documented.
 
 ### 4B.4 Expected failure modes and mitigations
 
@@ -1498,14 +1508,14 @@ After launch, every `agentcost verify` call produces a (predicted, actual) pair.
 
 | Item | Cost | When |
 |------|------|------|
-| Build 10 test workflows (development time) | ~$0 (your time) | Sprint 3 (weeks 5-6) |
+| Build 12 test workflows (development time) | ~$0 (your time) | Sprint 3 (weeks 5-6) |
 | Curate realistic input datasets (download public datasets + processing) | ~$0 (public data) | Sprint 3 (weeks 5-6) |
-| Generate synthetic inputs (20 + 100 per workflow × 10 workflows) | ~$5 | Sprint 3 |
-| Run ground truth profiles (500 runs × 10 workflows × ~$0.15 avg) | **~$750** | Sprint 3, after projection engine is built |
+| Generate synthetic inputs (20 + 100 per workflow × 12 workflows) | ~$5 | Sprint 3 |
+| Run ground truth profiles (500 runs × 12 workflows × ~$0.15 avg) | **~$750** | Sprint 3, after projection engine is built |
 | Re-run after projection engine fixes | ~$200 (partial re-runs) | Sprint 3 and Sprint 7 |
 | **Total validation budget** | **~$950** | Pre-launch |
 
-This is the most important $950 you'll spend. It's the difference between launching with confidence ("our projections pass calibration on 10 real-world archetypes") and launching with hope ("it seems to work on our 3 test workflows").
+This is the most important $950 you'll spend. It's the difference between launching with confidence ("our projections pass calibration on 12 real-world archetypes") and launching with hope ("it seems to work on our 3 test workflows").
 
 ### 4B.8 The `agentcost validate` command
 
@@ -1536,7 +1546,7 @@ This builds user trust — they can verify the engine's accuracy on their own da
 | Context compaction | We detect when it's needed. We don't do it. | Morph |
 | Quality evaluation | We do cost. Quality = Braintrust, DeepEval. | Braintrust |
 | A/B quality testing | v1 recommends swaps. v2 classifier adds confidence. v3 might auto-test. | — |
-| Pydantic AI / Mastra / Vercel AI SDK | Too many frameworks, too few hands. Cover 60-70% with LangGraph + OAI Agents. | — |
+| Pydantic AI / Mastra / Vercel AI SDK | Too many frameworks, too few hands. Cover 70-80% with LangGraph + OAI Agents + Qwen-Agent + DeepSeek (via OAI-compat). | — |
 | Dynamic pricing tables | Static lookup. User updates config if provider changes prices. | — |
 
 ---
@@ -1558,6 +1568,7 @@ This builds user trust — they can verify the engine's accuracy on their own da
   │   │   ├── base.py          # StepRecord + BaseCollector
   │   │   ├── langgraph.py     # LangGraphCollector
   │   │   ├── openai_agents.py # OpenAIAgentsCollector
+  │   │   ├── qwen_agent.py    # QwenAgentCollector (LLM client wrapping)
   │   │   └── generic.py       # GenericCollector (decorator/ctx manager)
   │   ├── projection/
   │   │   ├── stats.py         # Distribution calculations
@@ -1652,7 +1663,7 @@ This builds user trust — they can verify the engine's accuracy on their own da
 | Day | Task | Output |
 |-----|------|--------|
 | 1-3 | `OpenAIAgentsCollector`: hook via `RunHooks` (`on_agent_start/end`, `on_tool_start/end`). Use `context_wrapper.usage.request_usage_entries` for per-request breakdown. Map to StepRecords | OAI Agents instrumentation |
-| 4-5 | Pricing tables module: static lookup for all major models (OpenAI, Anthropic, Google, Mistral, DeepSeek). Token count × price = cost. Update mechanism: JSON config file user can override | Cost calculation |
+| 4-5 | Pricing tables module: static lookup for all major models (Anthropic, OpenAI, Google, DeepSeek, Qwen, Llama, Mistral). Covers DeepSeek V4 generation (Flash + Pro) with cache-miss pricing and Qwen 3.x family (Max, Plus, Turbo). Token count × price = cost. Update mechanism: JSON config file user can override | Cost calculation |
 | 6-7 | Stats module: per-step distributions (p50, p75, p90, p95, p99). Detect patterns: context growth (r² correlation), loop variance (coefficient of variation), high variance (p95/p50 > 3) | Statistical analysis |
 | 8-9 | **Langfuse trace importer**: `--from-langfuse --last N` pulls traces via Langfuse Python SDK (`langfuse.api.observations.get_many`). Extract per-step token data from existing traces WITHOUT re-executing. Also: `agentcost analyze --from-langfuse` mode for zero-cost analysis of production data | Trace import |
 | 10 | `agentcost report profile.json --traffic 1000/day` → markdown report with per-step breakdown, flags, totals. Auto-detect best input mode (Langfuse available? → suggest import. Otherwise → auto-generate) | Report generation + smart defaults |
@@ -1663,19 +1674,19 @@ This builds user trust — they can verify the engine's accuracy on their own da
 
 Sprint 3 is expanded to 4 weeks. Weeks 5-6 build the projection engine. Weeks 7-8 build the backtesting suite and run it. The projection engine does NOT ship without passing the backtesting suite. This is the kill/keep gate.
 
-**Goal:** Accurate cost projections with confidence intervals, validated against 10 real-world workflow archetypes.
+**Goal:** Accurate cost projections with confidence intervals, validated against 12 real-world workflow archetypes.
 
 | Day | Task | Output |
 |-----|------|--------|
 | 1-3 | Linear projector: `mean_cost × volume × 30` with distributional output (project each percentile). Works for stable workflows (no flags). Confidence tier system (HIGH/MODERATE/LOW/VERY LOW) based on sample size, variance, and detected patterns | Basic projection + confidence |
 | 4-7 | Monte Carlo projector: triggered when patterns detected. Sample per-step distributions, apply context growth curves (linear + logarithmic models), sample loop counts from observed distribution. 10K simulations → cost distribution. Input distribution warnings (low diversity, short inputs, single language) | Non-linear projection |
 | 8-10 | Baseline management: `agentcost baseline update` writes `.agentcost/baseline.json`. `agentcost diff baseline.json new_profile.json` computes per-step deltas. Explicit assumptions list auto-generated on every report | Baseline system + assumptions |
-| 11-13 | **Build 10 test workflows** (W1-W10) across 5 archetypes × 2 complexity levels (see Part 4B). Download public input datasets (Bitext, MS MARCO, GitHub PRs, CORD-19). Build realistic-500 JSONL files for each workflow | Test infrastructure |
+| 11-13 | **Build 12 test workflows** (W1-W12) across 5 archetypes × 2 complexity levels + 2 multi-provider variants (Qwen W11, DeepSeek W12) (see Part 4B). Download public input datasets (Bitext, MS MARCO, GitHub PRs, CORD-19). Build realistic-500 JSONL files for each workflow | Test infrastructure |
 | 14-16 | **Run backtesting protocol:** profile each workflow at 20/100/500 samples. Extract projections. Compute calibration scores (p50 ratio, p95 coverage, range ratio, directional accuracy, ranking correlation). **Budget: ~$950** | Calibration results |
-| 17-18 | **Fix failures.** If any workflow fails the pass criteria (p50 off by >2x, wrong top step), debug and fix the projection model. Re-run failed tests. Repeat until all 10 pass | Validated engine |
+| 17-18 | **Fix failures.** If any workflow fails the pass criteria (p50 off by >2x, wrong top step), debug and fix the projection model. Re-run failed tests. Repeat until all 12 pass | Validated engine |
 | 19-20 | `agentcost validate workflow.py` command: runs the 20-vs-100 comparison test on any workflow, reports whether 20 samples is sufficient | User-facing validation |
 
-**Deliverable:** Projection engine that passes calibration on 10 real-world archetypes. `agentcost validate` for users to check projection quality on their own workflows. Launch gate: PASSED.
+**Deliverable:** Projection engine that passes calibration on 12 real-world archetypes. `agentcost validate` for users to check projection quality on their own workflows. Launch gate: PASSED.
 
 #### Sprint 4: Recommendations + Verify Loop (Weeks 9-12)
 
@@ -1736,7 +1747,7 @@ Sprint 6 is extended to 4 weeks (from 2) to accommodate the graph visualization.
 
 | Day | Task | Output |
 |-----|------|--------|
-| 1-2 | CrewAI Collector (same LangChain callback pattern — should be quick) | Third framework |
+| 1-2 | CrewAI Collector (same LangChain callback pattern — should be quick). Qwen-Agent and DeepSeek compatibility already shipped (Sprint 2b/2c) | Additional frameworks |
 | 3-4 | End-to-end integration tests: profile → report → recommend → baseline → diff → CI comment → HTML report → UI | Full pipeline tested |
 | 5-6 | README: clear quickstart, architecture diagram, demo GIF (record both CLI and UI experiences). Screenshots of the HTML report for social sharing | Documentation |
 | 7-8 | One-page landing website (GitHub Pages). Screenshot gallery showing the report, the UI, the PR comment | Web presence |
@@ -1799,7 +1810,7 @@ Two parallel tracks: live monitoring + cost prediction model.
 
 | Milestone | When | Metric | Why it matters |
 |-----------|------|--------|---------------|
-| Backtesting suite passes (10/10 workflows) | Week 8 | All calibration metrics in "pass" range | Predictions are trustworthy |
+| Backtesting suite passes (12/12 workflows) | Week 8 | All calibration metrics in "pass" range | Predictions are trustworthy |
 | v1.0 shipped (with UI + graph) | Week 20 | Package on PyPI + Action on Marketplace + UI | Product exists |
 | First 10 design partners | Week 22 | 10 teams using the SDK regularly | Validation |
 | 100 GitHub stars | Week 22 | Community signal | Social proof for YC |

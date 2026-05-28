@@ -99,7 +99,7 @@ FastAPI over Streamlit/Gradio: smaller footprint, full UX control, reusable fron
 
 Data flows through a five-stage pipeline:
 
-1. **Collector** — Framework adapters (LangGraph, OpenAI Agents SDK, CrewAI, Generic) instrument agent workflows and emit unified StepRecords.
+1. **Collector** — Framework adapters (LangGraph, OpenAI Agents SDK, Qwen-Agent, CrewAI, Generic) instrument agent workflows and emit unified StepRecords. DeepSeek models work through existing collectors (LangGraph, OpenAI Agents SDK) via their OpenAI-compatible API — no dedicated collector needed.
 2. **StepRecord** — Normalized data structure capturing everything about one LLM call or tool invocation.
 3. **ProfileStore** — Persists profiling sessions as JSON (v1) or SQLite (v2). Each session = one workflow × N input runs.
 4. **Projection** — Distributional scaling (p50–p99) for stable workflows. Monte Carlo simulation for non-linear cases.
@@ -133,8 +133,11 @@ Design note: `system_prompt_hash`, `system_prompt_tokens`, and `output_format` a
 
 - `async collect(workflow, inputs) -> list[list[StepRecord]]` — Run the workflow on each input, return a list of runs, each run a list of StepRecords.
 - **LangGraphCollector**: Hooks into LangChain's callback system via `BaseCallbackHandler` (langchain-core 1.x). Maps `on_chat_model_start` (capture model, messages, system prompt), `on_llm_end` (capture output tokens from `LLMResult.llm_output` or `generation_info`), and `on_tool_start/end` (capture tool calls) to StepRecords. Verified compatible with langchain-core 1.4.0 and langgraph 1.2.2 (May 2026).
-- **OpenAIAgentsCollector** (planned, Sprint 5): Will hook into `RunHooks` lifecycle. The OpenAI Agents SDK is at 0.2.x and still pre-1.0 with frequent API changes — `RunHooks` and `context_wrapper.usage` need re-verification before implementation.
+- **OpenAIAgentsCollector**: Hooks into `RunHooks` lifecycle (`on_agent_start/end`, `on_llm_start/end`, `on_tool_start/end`, `on_handoff`). Includes a `_build_fallback_steps()` path for when hooks capture nothing but `raw_responses` has usage data.
+- **QwenAgentCollector**: Wraps the agent's `BaseChatModel.chat()` method with an `_InstrumentedChatModel` proxy that captures per-call token usage, timing, and output format. Handles both streaming (generator) and non-streaming modes. Extracts DashScope usage from `Message.extra['model_service_info']`. Installed via `pip install agentcost[qwen]`.
 - **GenericCollector**: User-facing `@collector.step()` decorator and `async with collector.step() as s` context manager. Auto-extracts tokens from OpenAI/Anthropic response objects.
+
+**DeepSeek compatibility:** DeepSeek models use an OpenAI-compatible API endpoint (`https://api.deepseek.com`). The existing `LangGraphCollector` and `OpenAIAgentsCollector` capture tokens from DeepSeek calls with zero changes — the response format is standard OpenAI. Only the pricing table and input generator needed updates.
 
 ### Baseline Format
 
@@ -197,7 +200,7 @@ All prompts end with `agentcost profile run {file_path}` to verify the change. T
 
 ### Framework-Specific Helpers
 
-Each supported framework (LangGraph, OpenAI Agents SDK, CrewAI) has helper templates that generate syntactically correct code snippets for that framework's API. The generic collector falls back to prose instructions.
+Each supported framework (LangGraph, OpenAI Agents SDK, Qwen-Agent, CrewAI) has helper templates that generate syntactically correct code snippets for that framework's API. The generic collector falls back to prose instructions.
 
 ## Projection Engine
 
@@ -222,13 +225,15 @@ The goal is to be usefully right within stated bounds, not exactly right. Three 
 
 ### Test Workflows
 
-10 test workflows across 5 archetypes × 2 complexity levels:
+12 test workflows across 5 archetypes × 2 complexity levels, plus 2 multi-provider variants:
 
 - **Support agent** — simple (no loops) and complex (with loops)
 - **Code review** — simple and complex
 - **Data extraction** — simple and complex
 - **Research agent** — simple and complex
 - **Sales/outreach** — simple and complex
+- **Support agent (Qwen)** — W11: same structure as W1 but using Qwen-Agent framework with Qwen-Turbo + Qwen 3.6 Plus. Direct cost comparison with W1.
+- **Data extraction (DeepSeek)** — W12: same structure as W5 but using DeepSeek V4 Flash exclusively via LangGraph. Direct cost comparison with W5.
 
 Each workflow is profiled at three sample sizes: 20, 100, and 500 runs. The 500-run profile serves as ground truth.
 
@@ -244,7 +249,7 @@ Each workflow is profiled at three sample sizes: 20, 100, and 500 runs. The 500-
 
 ### Launch Gate
 
-All 10 workflows must pass on Synthetic-20 (the default user experience). If p50 ratio or top step correctness fails for any workflow, the projection engine is debugged and re-tested before launch.
+All 12 workflows must pass on Synthetic-20 (the default user experience). If p50 ratio or top step correctness fails for any workflow, the projection engine is debugged and re-tested before launch.
 
 ### `agentcost validate` Command
 
@@ -295,7 +300,7 @@ Configurable threshold: block merge if cost increase exceeds X%. Config lives in
 
 ## Key Design Decisions
 
-1. **Collector pattern.** Each framework gets an adapter mapping its callbacks/hooks to StepRecords. Adding a framework = one new file implementing BaseCollector.
+1. **Collector pattern.** Each framework gets an adapter mapping its callbacks/hooks to StepRecords. Adding a framework = one new file implementing BaseCollector. Providers with OpenAI-compatible APIs (DeepSeek, etc.) work through existing collectors with no additional code.
 2. **Input generation as default.** Auto-generate from system prompt via cheap LLM (~$0.02). Zero config. Even mediocre synthetic inputs capture step structure, model usage, loop behavior, context growth.
 3. **Distributional projection.** p50–p99, not averages. Costs follow a log-normal distribution. Monte Carlo only when non-linear patterns are detected.
 4. **Heuristics first, ML later.** v1 is pure rules. v1.5 adds ML. Heuristics remain as fallback when classifier confidence < 0.85. Product works without ML.
@@ -304,7 +309,7 @@ Configurable threshold: block merge if cost increase exceeds X%. Config lives in
 
 ## Roadmap
 
-- **v1.0** (weeks 1-20): Core SDK. Collectors (LangGraph, OpenAI Agents SDK, CrewAI, Generic), auto input generation, projection engine with confidence tiers, backtesting suite, heuristic recommendations with implementation prompts, verify loop, GitHub Action, HTML report with graph view, local web UI (FastAPI + React), polish + PyPI publish. No ML.
+- **v1.0** (weeks 1-20): Core SDK. Collectors (LangGraph, OpenAI Agents SDK, Qwen-Agent, CrewAI, Generic), pricing for Anthropic/OpenAI/Google/DeepSeek/Qwen/Llama/Mistral, auto input generation (with DashScope and DeepSeek as provider options), projection engine with confidence tiers, backtesting suite, heuristic recommendations with implementation prompts, verify loop, GitHub Action, HTML report with graph view, local web UI (FastAPI + React), polish + PyPI publish. No ML.
 - **v1.5** (weeks 21-24): Task Complexity Classifier. Logistic regression on 800K+ RouterBench/LLMRouterBench examples + 1K synthetic agent prompts. MiniLM embeddings (384d) + 9 numerical features = 393 features. Trains in <30s on CPU. Ships as ~2MB .pkl. ML-powered model swap recommendations.
 - **v2.0** (weeks 25-34): Live monitoring (`agentcost monitor` daemon) + Cost Prediction Model. XGBoost on 20 workflow-level features. Predicts cost from code structure alone. `agentcost estimate` becomes ML-powered.
 - **v3.0** (weeks 35-48): Spend Governance (budget circuit breakers, intelligent degradation) + Workflow Benchmarking. HDBSCAN clustering on accumulated workflow data. "Your support agent costs 2.3x the median for similar workflows." Requires ~500 workflows minimum.
@@ -316,7 +321,9 @@ Configurable threshold: block merge if cost increase exceeds X%. Config lives in
 | 0 | 0 | Project skeleton, CLAUDE.md, PLANNING.md | ✅ Complete |
 | 1 | 1-2 | Collectors (LangGraph + Generic) + input generator + CLI `profile run` | ✅ Complete |
 | 2 | 3-4 | OpenAI Agents SDK collector + stats module + pattern detection + Langfuse import + CLI `report` + `analyze` | ✅ Complete |
-| 3 | 5-8 | Projection engine (linear + Monte Carlo + confidence tiers) + baseline management + backtesting suite (10 workflows, calibration scoring) + `validate` command | 🔜 Next |
+| 2b | — | Qwen-Agent collector + Qwen pricing + DashScope input generation + W11 backtesting workflow | ✅ Complete |
+| 2c | — | DeepSeek V4 pricing + DeepSeek input generation + W12 backtesting workflow | ✅ Complete |
+| 3 | 5-8 | Projection engine (linear + Monte Carlo + confidence tiers) + baseline management + backtesting suite (12 workflows, calibration scoring) + `validate` command | 🔜 Next |
 | 4 | 9-12 | Recommendation engine (model swap + architecture + workflow heuristics) + implementation prompts (3 tiers) + verify loop + `recommend` + `verify` commands | Planned |
 | 5 | 13-14 | GitHub Action (static/auto-generate/sample/import modes) + PR comment formatting | Planned |
 | 6 | 15-18 | HTML report (Jinja2 + inline SVG + graph view) + local web UI (FastAPI + React + WebSocket) | Planned |

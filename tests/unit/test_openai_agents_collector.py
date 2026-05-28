@@ -5,8 +5,7 @@ from __future__ import annotations
 import hashlib
 import sys
 import time
-from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -42,7 +41,6 @@ from agentcost.collectors.openai_agents import (  # noqa: E402
     _extract_model_name,
     _extract_tool_name,
 )
-
 
 # ---------------------------------------------------------------------------
 # Mock helpers

@@ -5,8 +5,6 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 
-import pytest
-
 from agentcost.collectors.base import StepRecord
 from agentcost.projection.patterns import DetectedPattern, detect_patterns
 from agentcost.projection.stats import compute_stats

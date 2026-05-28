@@ -7,7 +7,6 @@ from unittest.mock import patch
 
 from agentcost.collectors.base import StepRecord
 from agentcost.validation.validate_cmd import (
-    ValidateResult,
     format_validate_report,
     run_validation,
 )

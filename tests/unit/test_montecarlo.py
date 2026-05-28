@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 import pytest
 
 from agentcost.collectors.base import StepRecord
-from agentcost.projection.montecarlo import PercentileProjection, _sample_step_cost, simulate
+from agentcost.projection.montecarlo import _sample_step_cost, simulate
 from agentcost.projection.patterns import DetectedPattern
 from agentcost.projection.stats import compute_stats
 
@@ -55,7 +55,7 @@ def _high_variance_runs(n: int = 20) -> list[list[StepRecord]]:
     import random
     rng = random.Random(456)
     runs = []
-    for i in range(n):
+    for _i in range(n):
         if rng.random() < 0.15:
             runs.append([_make_record("classify", "gpt-4o-mini", 1000, 500)])
         else:

@@ -58,6 +58,10 @@ def _parse_response(text: str, n: int) -> list[str]:
     return lines[:n]
 
 
+_DASHSCOPE_DEFAULT_BASE_URL = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+_DEEPSEEK_DEFAULT_BASE_URL = "https://api.deepseek.com"
+
+
 def _resolve_provider(
     model: str,
     api_key: str | None,
@@ -69,21 +73,34 @@ def _resolve_provider(
     """
     want_openai = model.startswith(("gpt-", "o1", "o3", "o4"))
     want_anthropic = model.startswith("claude-")
+    want_qwen = model.startswith("qwen")
+    want_deepseek = model.startswith("deepseek")
 
     anthropic_mod = _try_import("anthropic")
     openai_mod = _try_import("openai")
 
     anthropic_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
     openai_key = api_key or os.environ.get("OPENAI_API_KEY")
+    dashscope_key = api_key or os.environ.get("DASHSCOPE_API_KEY")
+    deepseek_key = api_key or os.environ.get("DEEPSEEK_API_KEY")
+
+    if want_qwen and openai_mod and dashscope_key:
+        return "dashscope", dashscope_key, openai_mod
+    if want_deepseek and openai_mod and deepseek_key:
+        return "deepseek", deepseek_key, openai_mod
 
     if want_openai and openai_mod and openai_key:
         return "openai", openai_key, openai_mod
     if want_anthropic and anthropic_mod and anthropic_key:
         return "anthropic", anthropic_key, anthropic_mod
 
-    if not want_openai and not want_anthropic:
+    if not want_openai and not want_anthropic and not want_qwen and not want_deepseek:
         if anthropic_mod and anthropic_key:
             return "anthropic", anthropic_key, anthropic_mod
+        if dashscope_key and openai_mod:
+            return "dashscope", dashscope_key, openai_mod
+        if deepseek_key and openai_mod:
+            return "deepseek", deepseek_key, openai_mod
         if openai_mod and openai_key:
             return "openai", openai_key, openai_mod
 
@@ -94,10 +111,10 @@ def _resolve_provider(
             " (or) pip install openai"
         )
 
-    if not anthropic_key and not openai_key:
+    if not anthropic_key and not openai_key and not dashscope_key and not deepseek_key:
         raise ValueError(
-            "No API key found. Set ANTHROPIC_API_KEY or OPENAI_API_KEY, "
-            "or pass api_key directly."
+            "No API key found. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, "
+            "DASHSCOPE_API_KEY, or DEEPSEEK_API_KEY, or pass api_key directly."
         )
 
     if anthropic_mod and anthropic_key:
@@ -106,8 +123,8 @@ def _resolve_provider(
         return "openai", openai_key, openai_mod
 
     raise ValueError(
-        "No API key found. Set ANTHROPIC_API_KEY or OPENAI_API_KEY, "
-        "or pass api_key directly."
+        "No API key found. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, "
+        "DASHSCOPE_API_KEY, or DEEPSEEK_API_KEY, or pass api_key directly."
     )
 
 
@@ -140,6 +157,38 @@ async def _call_openai(
     prompt: str,
 ) -> str:
     client = sdk.AsyncOpenAI(api_key=api_key)
+    response = await client.chat.completions.create(
+        model=model,
+        max_tokens=2048,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return response.choices[0].message.content
+
+
+async def _call_dashscope(
+    sdk: Any,
+    api_key: str,
+    model: str,
+    prompt: str,
+) -> str:
+    base_url = os.environ.get("DASHSCOPE_BASE_URL", _DASHSCOPE_DEFAULT_BASE_URL)
+    client = sdk.AsyncOpenAI(api_key=api_key, base_url=base_url)
+    response = await client.chat.completions.create(
+        model=model,
+        max_tokens=2048,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return response.choices[0].message.content
+
+
+async def _call_deepseek(
+    sdk: Any,
+    api_key: str,
+    model: str,
+    prompt: str,
+) -> str:
+    base_url = os.environ.get("DEEPSEEK_BASE_URL", _DEEPSEEK_DEFAULT_BASE_URL)
+    client = sdk.AsyncOpenAI(api_key=api_key, base_url=base_url)
     response = await client.chat.completions.create(
         model=model,
         max_tokens=2048,
@@ -185,6 +234,14 @@ async def generate_inputs(
 
     if provider == "anthropic":
         text = await _call_anthropic(sdk, resolved_key, model, prompt)
+    elif provider == "dashscope":
+        if not model.startswith("qwen"):
+            model = "qwen-turbo"
+        text = await _call_dashscope(sdk, resolved_key, model, prompt)
+    elif provider == "deepseek":
+        if not model.startswith("deepseek"):
+            model = "deepseek-v4-flash"
+        text = await _call_deepseek(sdk, resolved_key, model, prompt)
     else:
         if model.startswith("claude-"):
             model = "gpt-4o-mini"

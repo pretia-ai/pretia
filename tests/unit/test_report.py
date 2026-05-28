@@ -210,6 +210,7 @@ def _make_stats_metadata():
 
 def _render_to_string(renderables):
     from io import StringIO
+
     from rich.console import Console as TestConsole
     buf = StringIO()
     c = TestConsole(file=buf, width=120, force_terminal=True)

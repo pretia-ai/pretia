@@ -220,6 +220,11 @@ class ProfileRunner:
 
             return OpenAIAgentsCollector()
 
+        if self.collector_name == "qwen":
+            from agentcost.collectors.qwen_agent import QwenAgentCollector
+
+            return QwenAgentCollector()
+
         has_ainvoke = hasattr(workflow, "ainvoke")
         has_nodes = hasattr(workflow, "nodes")
         if has_ainvoke and has_nodes:
@@ -231,6 +236,15 @@ class ProfileRunner:
             from agentcost.collectors.openai_agents import OpenAIAgentsCollector
 
             return OpenAIAgentsCollector()
+
+        if (
+            hasattr(workflow, "run")
+            and hasattr(workflow, "llm")
+            and hasattr(workflow, "system_message")
+        ):
+            from agentcost.collectors.qwen_agent import QwenAgentCollector
+
+            return QwenAgentCollector()
 
         logger.info(
             "Using GenericCollector. Instrument your code with "

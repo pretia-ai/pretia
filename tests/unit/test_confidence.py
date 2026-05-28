@@ -6,7 +6,7 @@ import json
 
 from agentcost.projection.patterns import DetectedPattern
 from agentcost.projection.stats import PercentileStats, StepStats
-from agentcost.validation.confidence import ConfidenceResult, compute_confidence
+from agentcost.validation.confidence import compute_confidence
 
 
 def _make_step_stats(

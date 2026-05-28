@@ -5,9 +5,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 
-import pytest
-
-from agentcost.ci.baseline import Baseline, BaselineStep, create_baseline
+from agentcost.ci.baseline import Baseline, BaselineStep
 from agentcost.ci.diff import diff_baseline, format_diff_report
 from agentcost.store import ProfilingSession
 

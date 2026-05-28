@@ -143,6 +143,49 @@ class TestStructuralInvariants:
         assert "deepseek" in models
 
 
+class TestDeepSeekPricing:
+    def test_deepseek_v4_flash_in_pricing_table(self):
+        in_per_m, out_per_m = MODEL_PRICING["deepseek-v4-flash"]
+        assert in_per_m == 0.14
+        assert out_per_m == 0.28
+
+    def test_deepseek_v4_pro_in_pricing_table(self):
+        in_per_m, out_per_m = MODEL_PRICING["deepseek-v4-pro"]
+        assert in_per_m == 0.435
+        assert out_per_m == 0.87
+
+    def test_deepseek_alias_resolution(self):
+        assert resolve_model("deepseek") == "deepseek-v4-flash"
+        assert resolve_model("deepseek-v4") == "deepseek-v4-flash"
+        assert resolve_model("deepseek-flash") == "deepseek-v4-flash"
+        assert resolve_model("deepseek-pro") == "deepseek-v4-pro"
+
+    def test_deepseek_legacy_aliases(self):
+        assert resolve_model("deepseek-chat") in MODEL_PRICING
+        assert resolve_model("deepseek-reasoner") in MODEL_PRICING
+
+    def test_deepseek_model_tier(self):
+        assert model_tier("deepseek-v4-pro") == "frontier"
+        assert model_tier("deepseek-v4-flash") == "mid"
+        assert model_tier("deepseek-chat") == "mid"
+        assert model_tier("deepseek-reasoner") == "mid"
+
+    def test_calculate_cost_deepseek_v4_flash(self):
+        cost = calculate_cost("deepseek-v4-flash", 1_000_000, 500_000)
+        expected = 1_000_000 * 0.14 / 1e6 + 500_000 * 0.28 / 1e6
+        assert cost == pytest.approx(expected, abs=1e-6)
+
+    def test_calculate_cost_deepseek_v4_pro(self):
+        cost = calculate_cost("deepseek-v4-pro", 1_000_000, 500_000)
+        expected = 1_000_000 * 0.435 / 1e6 + 500_000 * 0.87 / 1e6
+        assert cost == pytest.approx(expected, abs=1e-6)
+
+    def test_deepseek_extreme_budget_comparison(self):
+        ds_cost = calculate_cost("deepseek-v4-flash", 100_000, 50_000)
+        opus_cost = calculate_cost("claude-opus-4-7", 100_000, 50_000)
+        assert ds_cost < opus_cost * 0.05
+
+
 class TestStepRecordIntegration:
     def test_calculate_cost_from_step_record(self, sample_record):
         record = dataclasses.replace(sample_record, model="gpt-4o-mini")

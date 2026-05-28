@@ -169,6 +169,8 @@ class TestProviderDetection:
     async def test_no_api_key_raises_value_error(self, monkeypatch):
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
+        monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
         sdk = _mock_anthropic_sdk()
 
         with patch(
@@ -177,6 +179,47 @@ class TestProviderDetection:
         ):
             with pytest.raises(ValueError, match="No API key"):
                 await generate_inputs("You are a bot.", n=2)
+
+    @pytest.mark.asyncio
+    async def test_deepseek_provider_detection(self, monkeypatch):
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-ds-test")
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
+        openai_sdk = _mock_openai_sdk()
+
+        with patch(
+            "agentcost.inputs.generator._try_import",
+            side_effect=lambda n: openai_sdk if n == "openai" else None,
+        ):
+            result = await generate_inputs(
+                "You are a bot.", n=2, model="deepseek-v4-flash",
+            )
+
+        openai_sdk.AsyncOpenAI.assert_called_once()
+        call_kwargs = openai_sdk.AsyncOpenAI.call_args
+        assert "api.deepseek.com" in str(call_kwargs)
+        assert len(result) == 2
+
+    @pytest.mark.asyncio
+    async def test_deepseek_provider_priority(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-ds-test")
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
+        anthropic_sdk = _mock_anthropic_sdk()
+        openai_sdk = _mock_openai_sdk()
+
+        with patch(
+            "agentcost.inputs.generator._try_import",
+            side_effect=lambda n: (
+                anthropic_sdk if n == "anthropic" else openai_sdk
+            ),
+        ):
+            await generate_inputs("You are a bot.", n=2)
+
+        anthropic_sdk.AsyncAnthropic.assert_called_once()
+        openai_sdk.AsyncOpenAI.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

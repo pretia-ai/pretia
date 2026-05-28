@@ -9,7 +9,6 @@ import pytest
 
 from agentcost.collectors.base import StepRecord
 from agentcost.projection.stats import (
-    ProfilingStats,
     compute_percentile_stats,
     compute_stats,
 )

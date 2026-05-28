@@ -34,8 +34,24 @@ MODEL_PRICING: dict[str, tuple[float, float]] = {
     "mistral-large-latest": (2.00, 6.00),
     "mistral-small-latest": (0.10, 0.30),
     # DeepSeek — https://api-docs.deepseek.com/quick_start/pricing
+    # DeepSeek cache-hit pricing is dramatically cheaper ($0.0028/MTok for V4 Flash).
+    # v1 uses cache-miss rates for conservative projections. Actual costs will be
+    # lower for workflows with stable system prompts that hit cache.
+    "deepseek-v4-flash": (0.14, 0.28),
+    "deepseek-v4-pro": (0.435, 0.87),
+    # Legacy DeepSeek — deprecated 2026-07-24, mapped to V4 Flash pricing.
     "deepseek-chat": (0.14, 0.28),
-    "deepseek-reasoner": (0.55, 2.19),
+    "deepseek-reasoner": (0.14, 0.28),
+    # Qwen (Alibaba Cloud) — https://help.aliyun.com/zh/model-studio/billing
+    # DashScope charges more for requests > 200K input tokens; v1 uses the standard tier.
+    "qwen3.7-max": (2.50, 7.50),
+    "qwen3.7-plus": (0.50, 1.50),
+    "qwen3.6-plus": (0.325, 1.95),
+    "qwen3.6-max": (1.20, 4.80),
+    "qwen3.5-plus": (0.26, 0.78),
+    "qwen3.5-omni": (0.26, 0.78),
+    "qwen-turbo": (0.033, 0.10),
+    "qwen-long": (0.033, 0.10),
 }
 
 MODEL_ALIASES: dict[str, str] = {
@@ -49,7 +65,20 @@ MODEL_ALIASES: dict[str, str] = {
     "o3-mini": "o4-mini",
     "mistral-large": "mistral-large-latest",
     "mistral-small": "mistral-small-latest",
-    "deepseek": "deepseek-chat",
+    "deepseek": "deepseek-v4-flash",
+    "deepseek-v4": "deepseek-v4-flash",
+    "deepseek-flash": "deepseek-v4-flash",
+    "deepseek-pro": "deepseek-v4-pro",
+    "qwen-3.7-max": "qwen3.7-max",
+    "qwen-3.7-plus": "qwen3.7-plus",
+    "qwen-3.6-plus": "qwen3.6-plus",
+    "qwen-3.6-max": "qwen3.6-max",
+    "qwen3-max": "qwen3.7-max",
+    "qwen3-plus": "qwen3.7-plus",
+    "qwen-max": "qwen3.7-max",
+    "qwen-plus": "qwen3.7-plus",
+    "qwen-max-latest": "qwen3.7-max",
+    "qwen-plus-latest": "qwen3.7-plus",
 }
 
 # Capability tier, not price. Stored separately because hosted llama/mistral
@@ -62,12 +91,14 @@ MODEL_TIERS: dict[str, str] = {
     "o3": "frontier",
     "gemini-2.5-pro": "frontier",
     "mistral-large-latest": "frontier",
+    "deepseek-v4-pro": "frontier",
     "claude-sonnet-4-6": "mid",
     "claude-sonnet-4-20250514": "mid",
     "gpt-4.1": "mid",
     "gpt-4o": "mid",
     "o4-mini": "mid",
     "llama-4-maverick": "mid",
+    "deepseek-v4-flash": "mid",
     "deepseek-reasoner": "mid",
     "claude-haiku-4-5": "fast",
     "gpt-4.1-mini": "fast",
@@ -76,7 +107,15 @@ MODEL_TIERS: dict[str, str] = {
     "gemini-2.5-flash": "fast",
     "llama-4-scout": "fast",
     "mistral-small-latest": "fast",
-    "deepseek-chat": "fast",
+    "deepseek-chat": "mid",
+    "qwen3.7-max": "frontier",
+    "qwen3.6-max": "frontier",
+    "qwen3.7-plus": "mid",
+    "qwen3.6-plus": "mid",
+    "qwen3.5-plus": "mid",
+    "qwen3.5-omni": "mid",
+    "qwen-turbo": "fast",
+    "qwen-long": "fast",
 }
 
 _PER_MILLION = 1_000_000

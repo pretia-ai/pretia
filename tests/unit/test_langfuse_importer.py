@@ -32,7 +32,6 @@ from agentcost.inputs.importer import (  # noqa: E402
     traces_to_step_records,
 )
 
-
 # ---------------------------------------------------------------------------
 # Mock helpers
 # ---------------------------------------------------------------------------
@@ -169,9 +168,11 @@ class TestCreateClient:
         monkeypatch.setenv("LANGFUSE_HOST", "https://my-langfuse.com")
 
         mock_api_class = MagicMock()
-        with patch.dict(sys.modules, {"langfuse.api.client": MagicMock(LangfuseAPI=mock_api_class)}):
-            from agentcost.inputs import importer
+        mock_client = MagicMock(LangfuseAPI=mock_api_class)
+        with patch.dict(sys.modules, {"langfuse.api.client": mock_client}):
             import importlib
+
+            from agentcost.inputs import importer
             importlib.reload(importer)
 
             mock_api_class.reset_mock()
@@ -322,7 +323,9 @@ class TestFetchTraces:
 
 class TestTracesToStepRecords:
     def test_basic_conversion(self):
-        obs1 = _make_observation(name="classify", model="gpt-4o", input_tokens=100, output_tokens=50)
+        obs1 = _make_observation(
+            name="classify", model="gpt-4o", input_tokens=100, output_tokens=50
+        )
         obs2 = _make_observation(
             observation_id="obs-2", name="respond", model="gpt-4o-mini",
             input_tokens=200, output_tokens=100,

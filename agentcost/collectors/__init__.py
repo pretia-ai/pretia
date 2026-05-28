@@ -10,6 +10,7 @@ __all__ = [
     "GenericCollector",
     "LangGraphCollector",
     "OpenAIAgentsCollector",
+    "QwenAgentCollector",
     "StepRecord",
 ]
 
@@ -23,4 +24,8 @@ def __getattr__(name: str) -> type:
         from agentcost.collectors.openai_agents import OpenAIAgentsCollector
 
         return OpenAIAgentsCollector
+    if name == "QwenAgentCollector":
+        from agentcost.collectors.qwen_agent import QwenAgentCollector
+
+        return QwenAgentCollector
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

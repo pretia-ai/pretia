@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 AgentCost is a Python SDK for pre-deployment cost analysis of AI agent workflows. It profiles agent workflows, projects costs at scale using distributional statistics (p50-p99, not averages), detects cost time-bombs (context growth, stuck loops), and produces dollar-denominated optimization recommendations.
 
-Status: early development (v0.1.0). Core pipeline is functional: collectors (Generic, LangGraph, OpenAI Agents), input generation/selection/Langfuse import, projection with pattern detection, and CLI report rendering are implemented. The `recommend/` module is a stub — `heuristics.py`, `classifier.py`, and `rules.py` exist but have no implementation. Baseline diffing (`ci/baseline.py`, `ci/diff.py`) is also stubbed.
+Status: early development (v0.1.0). Core pipeline is functional: collectors (Generic, LangGraph, OpenAI Agents, Qwen-Agent), input generation/selection/Langfuse import, projection with pattern detection and confidence scoring, validation/backtesting suite, and CLI report rendering are implemented. The `recommend/` module is partially stubbed — `prompts.py` and `verify.py` have implementations, but `heuristics.py`, `classifier.py`, and `rules.py` are stubs. Baseline diffing (`ci/baseline.py`, `ci/diff.py`) is also stubbed.
 
 ## Dev Commands
 
@@ -54,20 +54,31 @@ Five-stage pipeline: **Collector → StepRecord → ProfileStore → Projection 
 - `GenericCollector` — manual instrumentation via `collector.step("name")` returning a `StepTracker` (decorator + async context manager). `_try_extract()` auto-extracts usage from OpenAI/Anthropic response objects.
 - `LangGraphCollector` — auto-instruments via `AgentCostCallbackHandler` (LangChain `BaseCallbackHandler`). Tracks inflight calls by UUID, extracts tokens from `llm_output["token_usage"]`.
 - `OpenAIAgentsCollector` — auto-instruments via `AgentCostRunHooks` (subclass of `RunHooksBase`). Tracks inflight LLM/tool calls, handles handoffs, includes a `_build_fallback_steps()` path for when hooks capture nothing but `raw_responses` has usage data.
+- `QwenAgentCollector` — instruments via `_InstrumentedChatModel`, a transparent proxy that wraps the agent's `.llm` client, intercepts `chat()` calls, and extracts token usage from both OpenAI-format `response.usage` and DashScope `Message.extra["model_service_info"]`. Restores the original LLM client after each run. Falls back to character-count estimation (`len(text) // 4`) when the framework returns no usage metadata.
 
-Optional-dep collectors (`langgraph`, `openai`) use lazy imports via `__getattr__` in `collectors/__init__.py` to avoid import errors when the framework isn't installed.
+Optional-dep collectors (`langgraph`, `openai`, `qwen`) use lazy imports via `__getattr__` in `collectors/__init__.py` to avoid import errors when the framework isn't installed.
 
 **Input Resolution** (`agentcost/inputs/`): `select_input_mode()` auto-detects the best input source (explicit → file → single → langfuse → auto-generate → estimate). `generate_inputs()` uses a cheap LLM call to create N diverse synthetic inputs from the workflow's system prompt, targeting 60% typical / 20% edge / 20% adversarial distribution.
 
 **Langfuse Import** (`agentcost/inputs/importer.py`): `create_langfuse_client()` reads credentials from env vars (`LANGFUSE_SECRET_KEY`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_HOST`). `fetch_traces()` retrieves recent traces, `extract_inputs()` pulls input strings, and `traces_to_step_records()` converts traces into `list[list[StepRecord]]` for direct analysis without workflow re-execution. Used by both `ProfileRunner.analyze_langfuse()` and the `agentcost analyze` CLI command.
 
-**Projection** (`agentcost/projection/`): Fully implemented. `compute_stats()` produces `ProfilingStats` containing per-step `StepStats` (each with `PercentileStats` for tokens, cost, duration, context, iterations) and per-run `RunStats`. `detect_patterns()` runs three detectors: context growth (Pearson r² > 0.7 with positive slope), loop count variance (CV > 0.5), and high token variance (p95/p50 > 3). Each returns `DetectedPattern` with severity (`danger`/`warning`) and structured evidence. Monte Carlo simulation (`montecarlo.py`) is stubbed.
+**Projection** (`agentcost/projection/`): `stats.py` computes `ProfilingStats` containing per-step `StepStats` (each with `PercentileStats` for tokens, cost, duration, context, iterations) and per-run `RunStats`. `patterns.py` runs three detectors: context growth (Pearson r² > 0.7 with positive slope), loop count variance (CV > 0.5), and high token variance (p95/p50 > 3). Each returns `DetectedPattern` with severity (`danger`/`warning`) and structured evidence. `projector.py` is the unified entry point — computes `TrafficProjection` for default volumes (100/1K/10K daily), delegates to linear or Monte Carlo based on detected non-linearity, and attaches `ConfidenceResult` from validation. `montecarlo.py` provides `simulate()` and `PercentileProjection`.
+
+**Validation** (`agentcost/validation/`): `confidence.py` computes projection confidence tiers (HIGH/MODERATE/LOW/VERY LOW) from sample size, variance, and detected patterns — deductions for high variance, bonuses for large sample size. `scoring.py` scores projections against actual costs via `CalibrationScore`. `suite.py` runs a full backtesting suite across `BacktestConfig` workflow archetypes, producing `BacktestSuiteResult`. `validate_cmd.py` implements the `agentcost validate` CLI subcommand.
+
+**Backtesting** (`tests/backtesting/`): 10 workflow archetypes (simple/complex support agents, RAG, code generation, etc.) defined as `BacktestConfig` in `configs.py`. Each config specifies expected models, cost ranges, and loop behavior. `run_backtesting.py` executes the full suite. This is a launch gate for v1.
+
+**Graph** (`agentcost/graph/`): Workflow graph extraction (`extractor.py` — DAG structure from LangGraph, OpenAI Agents SDK, CrewAI), layout computation (`layout.py`), color coding (`colorizer.py`), and graph transformation (`transform.py`). Used for visual report output.
+
+**Report** (`agentcost/report/`): HTML report generation. `renderer.py` produces self-contained HTML via Jinja2 + inline SVG. `charts.py` generates chart data. `graph.py` renders workflow graph visualizations.
 
 **ProfileStore** (`agentcost/store.py`) persists `ProfilingSession` objects as JSON files in `.agentcost/`. Files named `{workflow}_{YYYYMMDD_HHMMSS}.json`.
 
 **Pricing** (`agentcost/pricing/tables.py`): Three lookup dicts that must stay in sync: `MODEL_PRICING` (canonical → (input, output) per-million rates), `MODEL_ALIASES` (short names → canonical), `MODEL_TIERS` (canonical → `frontier`/`mid`/`fast`). Structural invariant tests enforce sync.
 
 **CI Report** (`agentcost/ci/report.py`): `format_cli_report()` produces rich-formatted output — header panel, step breakdown table (tier-colored model names), run summary, monthly projections at 100/1K/10K daily calls, and flags for detected issues (loops with max_iteration > 3, high variance where p95 > 3× mean).
+
+**Recommendations** (`agentcost/recommend/`): `prompts.py` generates framework-specific implementation prompts for recommendations. `verify.py` compares old/new profiles to verify which recommendations were applied. `heuristics.py`, `classifier.py`, and `rules.py` are stubs awaiting implementation.
 
 ## Public API
 
@@ -76,7 +87,7 @@ Optional-dep collectors (`langgraph`, `openai`) use lazy imports via `__getattr_
 ## Key Design Decisions
 
 - HTML report is Jinja2 + inline SVG — no JS framework dependency at render time. Local web UI is FastAPI + pre-built React bundle. The React source lives in `ui-frontend/` and is compiled to a static bundle shipped inside the pip package. Users never need Node.js or npm.
-- Optional framework deps are extras: `pip install agentcost[langgraph]`, `agentcost[openai]`, `agentcost[ui]`, `agentcost[validation]`. Core package depends only on `click`, `rich`, `jinja2`.
+- Optional framework deps are extras: `pip install agentcost[langgraph]`, `agentcost[openai]`, `agentcost[qwen]`, `agentcost[ui]`, `agentcost[validation]`. Core package depends only on `click`, `rich`, `jinja2`.
 - Backtesting is a launch gate, not a nice-to-have. The projection engine is validated against 10 real-world workflow archetypes before v1 ships. If calibration fails, the engine is debugged until it passes. Every projection includes a confidence tier (HIGH/MODERATE/LOW/VERY LOW) derived from sample size, variance, and detected patterns.
 - Implementation prompts are tiered by complexity. Model swaps are mechanical (Tier 1). Iteration caps need framework-specific patterns (Tier 2). Architecture changes like compaction insertion need full graph context (Tier 3). All prompts close the optimization loop with a re-profile command.
 
