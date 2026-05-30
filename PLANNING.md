@@ -207,9 +207,33 @@ Each supported framework (LangGraph, OpenAI Agents SDK, Qwen-Agent, CrewAI) has 
 Distributional scaling, not averages. For each target traffic volume:
 
 - Collect per-step stats: p50, p75, p90, p95, p99 of tokens and cost.
-- Detect non-linear patterns: context growth (context_size correlated with iteration, r² > 0.7), loop count variance (coefficient of variation), high variance (p95/p50 ratio > 3).
+- Detect non-linear patterns via five detectors:
+  - **Context growth** — dual Pearson+Spearman with p-value gate. Pearson r² > 0.7 catches linear growth; Spearman ρ² > 0.7 (but Pearson < 0.7) catches non-linear monotonic growth (logarithmic, exponential). Minimum 5 data points (up from 3). p < 0.05 required for both. The gap between Spearman ρ and Pearson r is diagnostic of non-linearity.
+  - **Loop count variance** — coefficient of variation > 0.5.
+  - **High token variance** — p95/p50 > 3 at n ≥ 30; p90/p50 > 4 at n < 30 for stability.
+  - **Step count variance** (NEW) — counts active (non-zero-cost) steps per run; CV > 0.3 = WARNING, CV > 0.6 or max > 2× min = DANGER. Catches conditional routing workflows. Triggers whole-run sampling in Monte Carlo.
+  - **Cost bimodality** (NEW) — Hartigan's dip test (p < 0.05) or 2-component GMM (BIC delta > 6). Reports per-mode statistics instead of global percentiles when detected. WARNING severity (Monte Carlo handles it via whole-run resampling).
 - Stable case: `monthly_cost = mean_cost_per_run × daily_volume × 30` with distributional output.
-- Non-linear case: Monte Carlo — simulate 10,000 runs by sampling per-step distributions, apply context growth curves, sample loop counts. Triggered ONLY when heuristics detect non-linearity. ~5 seconds runtime.
+- Non-linear case: Monte Carlo — simulate 10,000 runs by sampling per-step distributions, apply context growth curves (capped at observed max iteration), sample loop counts. Triggered ONLY when heuristics detect non-linearity. ~5 seconds runtime.
+
+### Monte Carlo Fixes (from adversarial review)
+
+- **CLT variance correction:** Sample K run costs (K = min(N, 1000)), compute sample mean and variance, project monthly as N × μ̂ + z × √(N × σ̂²). Fixes N²×σ² variance inflation that produced absurdly wide ranges at high volume.
+- **Bootstrap tail inflation:** At n < 30, multiply Monte Carlo p95 by (1 + 2/√n) — derived from O(1/√n) convergence rate of bootstrap percentile estimates (Hall 1988), deliberately conservative. Factor calibrated empirically from synthetic distribution testing (500+ shapes). v1.1 upgrades to log-normal KDE smoothed bootstrap with Silverman bandwidth.
+- **Step correlation preservation:** Non-pattern steps are sampled from whole observed runs. Only flagged steps (context growth, loop variance) use pattern-specific models. Prevents impossible combinations from independent step sampling.
+- **Context growth cap:** Extrapolation capped at observed maximum iteration count. Warns when >10% of simulations sample beyond the observed range.
+- **Small-sample p95 suppression:** At n < 10, suppress p95 and report only p50 with a range multiplier ("actual costs could be 0.5×–3× this estimate").
+
+### Visibility and Warning Systems
+
+The projection engine includes input quality and staleness warnings:
+
+- **Input distribution stats:** Report input token p50, p95, max, and CV alongside every projection.
+- **Uniform input flags:** Warn when all runs show identical iteration counts or input token CV < 0.1.
+- **Zero-execution step detection:** Flag steps that appear in the workflow but never triggered during profiling.
+- **Stale profile warnings:** Age > 30 days, step list hash mismatch, or system prompt hash mismatch trigger warnings. Age > 90 days degrades confidence tier by one level.
+- **Pricing staleness:** Warn if pricing table is older than 30 days.
+- **Sample coverage statement:** "With N profiling runs, events occurring less than ~X% of the time may not be represented."
 
 ## Prediction Quality Assurance
 
@@ -225,39 +249,54 @@ The goal is to be usefully right within stated bounds, not exactly right. Three 
 
 ### Test Workflows
 
-12 test workflows across 5 archetypes × 2 complexity levels, plus 2 multi-provider variants:
+10 test workflows (pruned from the original 12 — W3, W6, W7 cut as redundant), plus W13 (conditional routing) to cover a critical structural gap:
 
-- **Support agent** — simple (no loops) and complex (with loops)
-- **Code review** — simple and complex
-- **Data extraction** — simple and complex
-- **Research agent** — simple and complex
-- **Sales/outreach** — simple and complex
-- **Support agent (Qwen)** — W11: same structure as W1 but using Qwen-Agent framework with Qwen-Turbo + Qwen 3.6 Plus. Direct cost comparison with W1.
-- **Data extraction (DeepSeek)** — W12: same structure as W5 but using DeepSeek V4 Flash exclusively via LangGraph. Direct cost comparison with W5.
+- **W1** Support agent (simple, no loops) — Anthropic
+- **W2** Support agent (complex, loops) — Anthropic
+- **W4** Code review (complex, loops) — Anthropic
+- **W5** Data extraction (simple) — Anthropic
+- **W8** Research agent (complex, loops) — Anthropic
+- **W9** Sales/outreach (simple) — OpenAI
+- **W10** Sales/outreach (complex, loops, mixed providers)
+- **W11** Support agent (Qwen) — same structure as W1, Qwen-Agent framework with Qwen-Turbo + Qwen 3.6 Plus
+- **W12** Data extraction (DeepSeek) — same structure as W5, DeepSeek V4 Flash via LangGraph
+- **W13** Routing agent (NEW) — classifier routes to 3 paths (70% cheap / 20% moderate / 10% expensive). Tests zero-inflated step distributions, bimodal run costs, and Monte Carlo on rare expensive paths.
 
-Each workflow is profiled at three sample sizes: 20, 100, and 500 runs. The 500-run profile serves as ground truth.
+Ground truth runs: 200 for simple workflows, 300 for complex. 20-sample projections are validated against ground truth. The 100-run intermediate tier is dropped — subsample from ground truth data instead.
+
+Input distribution: 35% easy / 30% medium / 20% hard / 10% edge / 5% adversarial (reduced from 10% adversarial). For W2 and W8, a skewed variant (80/15/5 easy/medium/hard) tests production-realistic distributions.
 
 ### Calibration Metrics
 
 | Metric | Definition | Pass Threshold |
 |--------|-----------|----------------|
-| p50 ratio | projected p50 / actual p50 | 0.5–2.0x |
-| p95 coverage | % of actual runs below projected p95 | ≥80% |
-| Range ratio | projected p95 / projected p50 | <5x |
-| Top step correct | most expensive step matches ground truth | yes |
-| Step ranking correlation | Spearman r between projected and actual step cost ranks | >0.8 |
+| p50 ratio | projected p50 / actual p50 | 0.7–2.0× (underestimates are more harmful for budgeting) |
+| p95 coverage | % of actual runs below projected p95 | ≥85% simple / ≥75% complex (accounts for ground truth noise) |
+| Range ratio | projected p95 / projected p50 | <3× simple / <8× complex |
+| Top step correct | most expensive step matches ground truth | yes (30% co-dominant threshold — steps within 30% at n=20 are statistically indistinguishable) |
+| Step ranking correlation | Spearman r between projected and actual step cost ranks | >0.7 for 4+ steps; dropped for ≤3 steps (only perfect ranking passes at r>0.8 with 3 steps) |
+
+Ground truth percentiles are computed with bootstrap 90% CIs (1,000 bootstrap samples) to prevent spurious failures from ground truth noise. A directional bias meta-check across all workflows detects systematic over/underestimation.
 
 ### Launch Gate
 
-All 12 workflows must pass on Synthetic-20 (the default user experience). If p50 ratio or top step correctness fails for any workflow, the projection engine is debugged and re-tested before launch.
+All 10 workflows must pass p50 ratio AND top step correct (hard gates — core value propositions). At least 80% of workflows must pass each remaining metric. Tail metrics (p95 coverage, range ratio, ranking correlation) are diagnostic but don't individually block launch.
 
 ### `agentcost validate` Command
 
 Runs a 20-vs-100 comparison test on any user workflow: profiles at 20 samples, then at 100, compares the projections, and reports whether 20 samples is sufficient for that specific workflow. Users can run this on their own workflows to check projection quality.
 
+### Three-Layer Validation Strategy
+
+1. **Layer 1 — Synthetic distribution testing** (zero API cost): Generate 500+ synthetic "workflows" with known distributions (log-normal, bimodal, Pareto-tailed, zero-inflated, uniform) at n = 20/50/100/300. Feed directly into the projection engine. Validates Monte Carlo math, tail inflation, pattern detection, and confidence tier calibration across far more distribution shapes than real workflows. Run BEFORE spending API dollars. Empirically calibrates the tail inflation factor.
+
+2. **Layer 2 — SWE-bench trajectory analysis** (zero API cost): Download per-instance execution trajectories with token usage from SWE-bench experiments. Group by repository for workflow-like cost distributions. Provides real-world heavy-tailed distribution shapes without API cost.
+
+3. **Layer 3 — Real workflow profiling** (~$850): The 10 workflows at 200–300 runs each. The only layer that validates the complete pipeline including collector correctness, API response parsing, and pricing accuracy. Confirms results already validated synthetically.
+
 ### Budget
 
-~$950 for ground truth profiling across all 10 workflows at 500 samples each. This is the most important pre-launch investment — a projection engine that gives wrong numbers is worse than no projection engine.
+~$827 for ground truth profiling across 10 workflows (200–300 runs each), plus ~$120 contingency for skewed-distribution variants and pricing validation. Total ~$950. Synthetic testing (Layer 1) and SWE-bench analysis (Layer 2) add zero API cost — they are engineering time investments (2–3 days combined) that dramatically increase validation coverage.
 
 ## Confidence System
 
@@ -274,16 +313,26 @@ Every projection includes a confidence tier derived from sample size, variance, 
 
 ### Scoring
 
-Base score: 100.
+Base score: 100. Uses **effective sample size** (n_eff) instead of raw n to prevent gaming via uniform/LLM-generated inputs. n_eff = n × (H / H_max) where H is the entropy of the per-run cost distribution. If all runs cost the same, n_eff = 0 regardless of raw n.
 
 **Deductions:**
-- Small sample size: -10 (n<50), -20 (n<20), -30 (n<10), -40 (n<5)
+- Small effective sample size: -10 (n_eff < 100), -20 (n_eff < 30), -30 (n_eff < 10), -40 (n_eff < 5)
 - High step CV: -8 per step (CV 0.5–1.0), -15 per step (CV >1.0)
-- Detected non-linear patterns: -10 each (context growth, loop variance, high token variance)
+- Detected non-linear patterns: -10 each (context growth, loop variance, high token variance, step count variance, bimodality)
 
 **Bonuses:**
 - Langfuse import source: +15 (real production data is higher quality than synthetic)
-- Large sample size ≥200: +10
+- Large effective sample size ≥200: +10
+
+### Tiered Profiling Recommendations
+
+| Tier | Sample size | p50 accuracy | Rare event coverage | Confidence cap | Use case |
+|------|------------|-------------|-------------------|---------------|----------|
+| **Quick scan** | n=20 | ±20–30% | Events >14% captured | MODERATE max | Order-of-magnitude screening |
+| **Standard** (default) | n=50 | ±15% | Events >6% captured | HIGH eligible | Pre-deployment budgeting |
+| **Budget grade** | n=100+ | ±10% | Events >3% captured | HIGH eligible | CI regression detection, formal budgeting |
+
+At n < 20, suppress p95 entirely. At n < 50, label projections as "estimate" regardless of other confidence factors. The engine works identically at all sample sizes — this is a presentation and documentation change.
 
 ## GitHub Action
 
@@ -323,11 +372,23 @@ Configurable threshold: block merge if cost increase exceeds X%. Config lives in
 | 2 | 3-4 | OpenAI Agents SDK collector + stats module + pattern detection + Langfuse import + CLI `report` + `analyze` | ✅ Complete |
 | 2b | — | Qwen-Agent collector + Qwen pricing + DashScope input generation + W11 backtesting workflow | ✅ Complete |
 | 2c | — | DeepSeek V4 pricing + DeepSeek input generation + W12 backtesting workflow | ✅ Complete |
-| 3 | 5-8 | Projection engine (linear + Monte Carlo + confidence tiers) + baseline management + backtesting suite (12 workflows, calibration scoring) + `validate` command | 🔜 Next |
+| 3 | 5-8 | Projection engine (linear + CLT-corrected Monte Carlo + 5 pattern detectors + effective sample size gate + tiered profiling + visibility warnings) + baseline management with significance testing + three-layer validation (synthetic distributions + SWE-bench + 10 real workflows incl. W13 routing agent) + `validate` command | 🔜 Next |
 | 4 | 9-12 | Recommendation engine (model swap + architecture + workflow heuristics) + implementation prompts (3 tiers) + verify loop + `recommend` + `verify` commands | Planned |
 | 5 | 13-14 | GitHub Action (static/auto-generate/sample/import modes) + PR comment formatting | Planned |
 | 6 | 15-18 | HTML report (Jinja2 + inline SVG + graph view) + local web UI (FastAPI + React + WebSocket) | Planned |
 | 7 | 19-20 | CrewAI collector + integration tests + README + landing page + PyPI publish + launch | Planned |
+
+## Known Limitations (Document Prominently)
+
+These are fundamental to the "profile a sample, project to production" methodology, not engine bugs:
+
+1. **Session context accumulation.** Single-turn profiling underestimates multi-turn conversational agent costs by 2–3×. Recommend profiling with mid-session context or use `--session-depth` correction (v2).
+2. **Input distribution mismatch.** Projections are conditioned on the profiling input distribution. Input distribution stats (token p50/p95/CV) make this assumption visible.
+3. **Tool response size mismatch.** Test stubs or toy databases may produce 10–100× smaller tool responses than production, understating context for downstream steps.
+4. **Provider-side caching.** Rapid profiling may hit prompt caches. DeepSeek cache-hit is 50× cheaper than cache-miss. Use `--cache-mode cold` for conservative estimates; parse `prompt_cache_hit_tokens` when available.
+5. **Tiered pricing boundaries.** v1 uses standard-tier pricing. Qwen requests >200K input tokens and Gemini requests >200K context may be underpriced. Warn when context exceeds 150K tokens.
+6. **Model drift.** Providers update models within version lines. Profiles older than 30 days may not reflect current behavior.
+7. **Batch vs. real-time pricing.** v1 uses real-time API pricing. Batch API users (OpenAI Batch, Anthropic Message Batches) will see ~50% lower actual costs.
 
 ## What We Don't Build
 

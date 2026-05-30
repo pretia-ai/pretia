@@ -98,12 +98,12 @@ No proxy (use LiteLLM). No routing (use Martian). No tracing (use Langfuse). No 
 
 | Phase | Weeks | Focus | ML Component |
 |-------|-------|-------|-------------|
-| **v1.0** | 1-20 | Core SDK (collectors for LangGraph, OAI Agents, Qwen-Agent; pricing for Anthropic/OpenAI/Google/DeepSeek/Qwen/Llama/Mistral) + projection + backtesting (12 workflows) + recommendations + verify loop + CI gate + HTML report + graph view + local web UI | None (stats + heuristics) |
+| **v1.0** | 1-20 | Core SDK (collectors for LangGraph, OAI Agents, Qwen-Agent; pricing for 7 providers) + CLT-corrected projection with 5 pattern detectors + n_eff confidence gating + three-layer validation (500+ synthetic distributions + SWE-bench + 10 real workflows incl. W13 routing) + recommendations + verify loop + CI gate + HTML report + graph view + local web UI | None (stats + heuristics) |
 | **v1.5** | 21-24 | Task Complexity Classifier | Logistic regression on RouterBench |
 | **v2.0** | 25-34 | Live monitoring + Cost Prediction Model | XGBoost on profiling data |
 | **v3.0** | 35-48 | Spend Governance + Workflow Benchmarking | HDBSCAN clustering |
 
-The v1 ships in 20 weeks. The extra time (vs. a CLI-only 12-week version) buys the backtesting suite ($950 to validate predictions on 12 real-world archetypes), implementation prompts with verify loop, graph visualization, HTML report, and local web UI. Every one of these additions addresses a specific risk: backtesting prevents wrong predictions (product-killing), the verify loop creates stickiness, the graph view makes the product demo-ready. ML is layered on top starting at v1.5. This is deliberate: the v1 must stand on its own merits. ML amplifies the moat, it doesn't create it.
+The v1 ships in 20 weeks. The extra time (vs. a CLI-only 12-week version) buys the backtesting suite ($950 to validate predictions on 10 real-world archetypes), implementation prompts with verify loop, graph visualization, HTML report, and local web UI. Every one of these additions addresses a specific risk: backtesting prevents wrong predictions (product-killing), the verify loop creates stickiness, the graph view makes the product demo-ready. ML is layered on top starting at v1.5. This is deliberate: the v1 must stand on its own merits. ML amplifies the moat, it doesn't create it.
 
 ---
 
@@ -413,16 +413,26 @@ Step "review":    mean=12400tok, p50=9000, p95=34000, model=opus
                   ↑ high variance = context growth detected
 ```
 
-Step 2 — Detect non-linear patterns:
-- **Context growth:** if `context_size` correlates with `iteration` (r² > 0.7) → extrapolate the curve, not the mean
-- **Loop count variance:** if iteration count varies 3-12 → model the loop count distribution and sample
-- **Token explosion:** if p95/p50 ratio > 3 → flag as "high variance", give dual projections
+Step 2 — Detect non-linear patterns (five detectors):
+- **Context growth (dual correlation):** Run both Pearson and Spearman on context_size vs iteration (minimum 5 data points, p < 0.05 required). Pearson r² > 0.7 → linear growth, use linear+logarithmic model average. Spearman ρ² > 0.7 but Pearson r² < 0.7 → non-linear monotonic growth, fit power-law model (α via log-log regression; sub-linear if α < 1, super-linear if α > 1). The gap between Spearman ρ and Pearson r is diagnostic of non-linearity. Extrapolation capped at observed max iteration.
+- **Loop count variance:** if iteration count varies 3-12 (CV > 0.5) → sample iteration count K from distribution, sample K per-iteration costs from flat pool, sum. Composes with context growth when both detected on same step.
+- **Token explosion:** if p95/p50 ratio > 3 at n ≥ 30 (or p90/p50 > 4 at n < 30 for stability) → flag as "high variance", give dual projections
+- **Step count variance (NEW):** Count active (non-zero-cost) steps per run. CV > 0.3 = WARNING, CV > 0.6 or max > 2× min = DANGER. Catches conditional routing workflows. Triggers whole-run sampling in Monte Carlo (no independent step sampling).
+- **Cost bimodality (NEW):** Hartigan's dip test (p < 0.05) or 2-component GMM (BIC delta > 6). When detected, report per-mode statistics: "Mode A (70% of runs): $0.02/run. Mode B (30% of runs): $0.40/run." WARNING severity — Monte Carlo handles it via whole-run resampling.
 
 Step 3 — Project:
 - Stable case: `monthly_cost = mean_cost_per_run × daily_volume × 30`
-- Non-linear case: Monte Carlo — simulate 10,000 runs by sampling per-step distributions, apply context growth curves, produce resulting cost distribution. ~5 seconds runtime, triggered ONLY when heuristics detect non-linearity.
+- Non-linear case: CLT-corrected Monte Carlo — sample K run costs (K = min(N, 1000)), compute sample mean μ̂ and variance σ̂², project monthly as N × μ̂ + z × √(N × σ̂²). Fixes a variance inflation bug where the old approach (multiply single sample by N) produced N²×σ² variance instead of N×σ². Non-pattern steps sampled from whole observed runs to preserve inter-step correlation; only flagged steps use pattern-specific models. At n < 30, p95 inflated by (1 + 2/√n) — derived from O(1/√n) convergence rate (Hall 1988), calibrated empirically from synthetic distribution testing (500+ shapes). At n < 20, suppress p95 entirely — report only p50 with range multiplier. ~5 seconds runtime, triggered ONLY when heuristics detect non-linearity. v1.1 upgrades to log-normal KDE smoothed bootstrap with Silverman bandwidth.
 
-**Not in v1:** rate limit modeling (too many variables), cache hit rate modeling (impossible to estimate offline), latency projection (we do cost, not perf).
+**Visibility warnings shipped with every projection:**
+- Input distribution stats (token p50/p95/max/CV) — makes "garbage in" assumption visible
+- Uniform input flags (all identical iteration counts, or input token CV < 0.1)
+- Zero-execution step detection (workflow step never triggered during profiling)
+- Stale profile warnings (age > 30 days, step list hash or prompt hash mismatch; >90 days degrades confidence tier)
+- Pricing staleness check (>30 days since pricing table update)
+- Sample coverage statement ("events occurring less than ~X% of the time may not be represented")
+
+**Not in v1:** rate limit modeling (too many variables), cache hit rate modeling (impossible to estimate offline — but DeepSeek cache-busting is available via `--cache-mode cold`), latency projection (we do cost, not perf).
 
 ### 1.5 Recommendation Engine (v1: heuristics only)
 
@@ -1328,30 +1338,33 @@ Every projection must satisfy three properties:
 
 A set of real agent workflows, each profiled at small sample sizes and validated against large-sample ground truth. Run before launch. Run again after any change to the projection engine.
 
-**12 test workflows — 5 archetypes × 2 complexity levels, plus 2 multi-provider variants (Qwen, DeepSeek):**
+**10 test workflows (W3, W6, W7 cut as redundant; W13 routing agent added):**
 
-| # | Archetype | Complexity | Description | Models | Loops | Expected cost per run |
-|---|-----------|-----------|-------------|--------|-------|----------------------|
-| W1 | Support agent | Simple | Classify intent → retrieve FAQ → generate answer | haiku, sonnet | No | $0.01-0.05 |
-| W2 | Support agent | Complex | Classify → retrieve → generate → review loop → escalation routing | haiku, sonnet, opus | Yes (3-12 iter) | $0.20-1.50 |
-| W3 | Code review | Simple | Read diff → analyze → comment | sonnet | No | $0.05-0.15 |
-| W4 | Code review | Complex | Read diff → analyze → suggest fix → iterate with user → apply | sonnet, opus | Yes (2-8 iter) | $0.30-2.00 |
-| W5 | Data extraction | Simple | Parse document → extract fields → validate → format JSON | haiku, sonnet | No | $0.02-0.10 |
-| W6 | Data extraction | Complex | Parse → extract → cross-reference with DB → resolve conflicts → human review loop | sonnet, opus | Yes (1-5 iter) | $0.15-0.80 |
-| W7 | Research agent | Simple | Search web → summarize results → format report | haiku, sonnet | No | $0.05-0.20 |
-| W8 | Research agent | Complex | Multi-agent: searcher → fact-checker → synthesizer → editor with review loop | sonnet, opus | Yes (2-6 iter) | $0.50-3.00 |
-| W9 | Sales/outreach | Simple | Qualify lead → personalize template → draft email | haiku, sonnet | No | $0.02-0.08 |
-| W10 | Sales/outreach | Complex | Qualify → research company → personalize → draft → tone review → iterate | sonnet, opus | Yes (2-4 iter) | $0.10-0.60 |
-| W11 | Support agent (Qwen) | Simple | Same as W1 but Qwen-Agent framework: classify (Qwen-Turbo) → retrieve → respond (Qwen 3.6 Plus) | qwen-turbo, qwen3.6-plus | No | $0.001-0.01 |
-| W12 | Data extraction (DeepSeek) | Simple | Same as W5 but DeepSeek only: parse → extract → validate (all V4 Flash) | deepseek-v4-flash | No | $0.001-0.01 |
+Revised suite: 10 workflows (W3, W6, W7 cut as redundant within their complexity tiers). W13 added to cover conditional routing — the most important structural gap.
 
-**For each workflow, you also build 3 input datasets:**
+| # | Archetype | Complexity | Ground truth runs | Est. cost | Description |
+|---|-----------|-----------|-------------------|-----------|-------------|
+| W1 | Support agent | Simple | 200 | $4 | Classify → retrieve → generate (haiku, sonnet) |
+| W2 | Support agent | Complex | 300 | $109 | Classify → retrieve → generate → review loop → escalation (haiku, sonnet, opus) |
+| W4 | Code review | Complex | 300 | $218 | Read diff → analyze → suggest → iterate → apply (sonnet, opus) |
+| W5 | Data extraction | Simple | 200 | $5 | Parse → extract → validate (haiku, sonnet) |
+| W8 | Research agent | Complex | 300 | $330 | Searcher → fact-checker → synthesizer → editor with review loop (sonnet, opus) |
+| W9 | Sales/outreach | Simple | 200 | $4 | Qualify → personalize → draft (OpenAI nano, standard) |
+| W10 | Sales/outreach | Complex | 300 | $128 | Qualify → research → draft → review loop → finalize (mixed providers) |
+| W11 | Support (Qwen) | Simple | 200 | $1 | Same as W1 but Qwen-Agent: classify (Qwen-Turbo) → respond (Qwen 3.6 Plus) |
+| W12 | Extraction (DeepSeek) | Simple | 200 | $1 | Same as W5 but DeepSeek V4 Flash only via LangGraph |
+| W13 | Routing agent | Conditional | 300 | $22 | Classifier routes to 3 paths (70% cheap / 20% moderate / 10% expensive). Tests zero-inflated step distributions, bimodal run costs, Monte Carlo on rare expensive paths |
+
+Run 10 exploratory runs of W8 first (~$10) to validate cost estimates before committing full budget.
+
+**For each workflow, build 2 input datasets** (100-run intermediate tier dropped — subsample from ground truth instead):
 
 | Dataset | Size | Source | Purpose |
 |---------|------|--------|---------|
 | Synthetic-20 | 20 inputs | Auto-generated by AgentCost (the default experience) | Tests the actual user experience |
-| Synthetic-100 | 100 inputs | Auto-generated, with explicit diversity prompt ("include edge cases, long inputs, multilingual, adversarial") | Tests whether more samples tightens the range |
-| Realistic-500 | 500 inputs | Manually curated or sourced from public datasets matching the archetype (see below) | Ground truth for calibration |
+| Ground-truth | 200–300 inputs | Manually curated or sourced from public datasets matching the archetype (see below) | Ground truth for calibration |
+
+**Input distribution:** 35% easy / 30% medium / 20% hard / 10% edge / 5% adversarial. For W2 and W8, a second skewed variant (80/15/5 easy/medium/hard) tests production-realistic distributions.
 
 **Where to get realistic inputs for each archetype:**
 
@@ -1413,21 +1426,29 @@ def score_projection(projected, actual_distribution):
     return results
 ```
 
-**Phase E — Pass/fail criteria:**
+**Phase D+ — Bootstrap ground truth CIs:**
+Compute bootstrap 90% CIs on all calibration-relevant percentiles (1,000 bootstrap samples from ground truth data). Use the CI as the comparison target, not point estimates. This makes calibration statistically honest and prevents spurious failures from ground truth noise.
+
+**Phase D++ — Directional bias meta-check:**
+Track whether projected p95 is above or below ground truth p95 across all workflows. If 8+ out of 10 show the same direction, the engine has a systematic bias that individual workflow calibration wouldn't catch.
+
+**Phase E — Pass/fail criteria (revised per adversarial review):**
 
 | Metric | Pass | Warn | Fail |
 |--------|------|------|------|
-| p50 ratio (projected/actual) | 0.5 – 2.0x | 2.0 – 3.0x | >3.0x or <0.33x |
-| p95 coverage | ≥ 80% | 60-80% | < 60% |
-| Range ratio (p95/p50) | < 5x | 5-10x | > 10x (useless) |
-| Top step correct | Yes | — | No |
-| Step ranking correlation | > 0.8 | 0.6 – 0.8 | < 0.6 |
+| p50 ratio (projected/actual) | 0.7 – 2.0× | 2.0 – 3.0× | >3.0× or <0.5× |
+| p95 coverage | ≥85% simple / ≥75% complex | 60-75% | <60% |
+| Range ratio (p95/p50) | <3× simple / <8× complex | 8-10× | >10× (useless) |
+| Top step correct | Yes (30% co-dominant threshold) | — | No |
+| Step ranking correlation | >0.7 for 4+ steps; dropped for ≤3 steps | 0.5–0.7 | <0.5 |
 
-**The launch gate:** All 12 workflows must pass on the Synthetic-20 profile (the default user experience). If ANY workflow fails on p50 ratio or top step identification, the projection engine needs debugging before launch. Warns are acceptable in v1 if documented.
+Rationale for changes: p50 underestimates are more harmful than overestimates for a budgeting tool (0.7 floor vs 0.5). Complex workflows genuinely have wider distributions (split thresholds). At n=20, steps within 30% of each other are statistically indistinguishable (wider co-dominant band). With 3 steps, only perfect ranking passes r>0.8 — tests noise, not engine quality.
+
+**The launch gate:** All 10 workflows must pass p50 ratio AND top step correct (hard gates — core value propositions). At least 80% of workflows must pass each remaining metric. Tail metrics (p95 coverage, range ratio, ranking correlation) are diagnostic — they inform engine quality but don't individually block launch given the multiple-testing problem (50+ metric-workflow pairs).
 
 ### 4B.4 Expected failure modes and mitigations
 
-**Failure: p50 underestimate on loop-heavy workflows (W2, W4, W6, W8, W10).**
+**Failure: p50 underestimate on loop-heavy workflows (W2, W4, W8, W10).**
 Root cause: 20 synthetic inputs don't trigger enough high-iteration runs to capture the tail. The average looks fine but the p95 is way off.
 Mitigation: When the projection engine detects a loop step with high variance (CV > 0.5), it should automatically widen the confidence interval and add a warning: "Loop step detected with high variance. Projection may underestimate tail costs. Consider profiling with 50+ samples."
 
@@ -1451,35 +1472,40 @@ Every report shows a confidence tier derived from the profiling conditions:
 def compute_confidence(profile, patterns):
     score = 100  # Start at max confidence
     
-    # Deductions for small sample size
-    if profile.sample_size < 10:
+    # Use effective sample size (anti-gaming gate)
+    # n_eff = n × (H / H_max) where H = entropy of per-run cost distribution
+    # If all 200 runs cost the same, n_eff = 0 regardless of raw n
+    n_eff = compute_effective_sample_size(profile.run_costs)
+    
+    # Deductions for small effective sample size
+    if n_eff < 5:
         score -= 40
-    elif profile.sample_size < 30:
+    elif n_eff < 10:
+        score -= 30
+    elif n_eff < 30:
         score -= 20
-    elif profile.sample_size < 100:
+    elif n_eff < 100:
         score -= 10
     
     # Deductions for high variance
     for step in profile.steps:
-        if step.cv > 1.0:  # Coefficient of variation
+        if step.cv > 1.0:
             score -= 15
         elif step.cv > 0.5:
             score -= 8
     
     # Deductions for detected non-linear patterns
-    if "context_growth" in patterns:
-        score -= 10
-    if "stuck_loops" in patterns:
-        score -= 10
-    if "high_iteration_variance" in patterns:
-        score -= 10
+    for pattern in ["context_growth", "stuck_loops", "high_iteration_variance",
+                     "step_count_variance", "bimodality"]:
+        if pattern in patterns:
+            score -= 10
     
     # Bonus for real production data
     if profile.source == "langfuse_import":
         score += 15
     
-    # Bonus for large sample size
-    if profile.sample_size >= 200:
+    # Bonus for large effective sample size
+    if n_eff >= 200:
         score += 10
     
     # Map to tier
@@ -1495,6 +1521,31 @@ def compute_confidence(profile, patterns):
 
 The confidence tier determines which percentile range is shown as the primary projection, and the language used ("projected" vs "estimated" vs "ballpark").
 
+### 4B.5b Tiered profiling recommendations
+
+| Tier | Sample size | p50 accuracy | Rare event coverage | Confidence cap | Use case |
+|------|------------|-------------|-------------------|---------------|----------|
+| **Quick scan** | n=20 | ±20–30% | Events >14% captured | MODERATE max | Order-of-magnitude screening |
+| **Standard** (default) | n=50 | ±15% | Events >6% captured | HIGH eligible | Pre-deployment budgeting |
+| **Budget grade** | n=100+ | ±10% | Events >3% captured | HIGH eligible | CI regression detection, formal budgeting |
+
+At n < 20, suppress p95 entirely. At n < 50, label projections as "estimate" regardless of other confidence factors. The engine works identically at all sample sizes — this is presentation and documentation.
+
+### 4B.5c Three-layer validation strategy
+
+1. **Layer 1 — Synthetic distribution testing** (zero API cost, 1–2 days): Generate 500+ synthetic "workflows" with known distributions (log-normal varying σ, bimodal varying separation/mixing, Pareto-tailed varying shape, zero-inflated varying trigger probability, uniform). Sample at n = 20/50/100/300. Feed into projection engine. Validates Monte Carlo math, tail inflation, pattern detection, and confidence calibration. Empirically calibrates the (1 + 2/√n) tail inflation factor. Run BEFORE spending API dollars.
+
+2. **Layer 2 — SWE-bench trajectory analysis** (zero API cost, half day): Download per-instance execution trajectories with token usage from SWE-bench experiments. Group by repository for workflow-like cost distributions. Real-world heavy-tailed shapes without API cost. Limitation: different tasks, not repeated runs of one workflow.
+
+3. **Layer 3 — Real workflow profiling** (~$850): The 10 workflows at 200–300 runs. Only layer validating complete pipeline including collector correctness, API response parsing, and pricing accuracy.
+
+| Aspect | Layer 1 | Layer 2 | Layer 3 |
+|--------|---------|---------|---------|
+| Monte Carlo math | Primary | ✓ | ✓ |
+| Distribution shape coverage | 500+ shapes | Real shapes | 10 workflows |
+| Data collection / pricing | — | — | Primary |
+| End-to-end pipeline | — | — | Primary |
+
 ### 4B.6 Post-launch calibration tracking
 
 After launch, every `agentcost verify` call produces a (predicted, actual) pair. These accumulate and are used to:
@@ -1508,14 +1559,17 @@ After launch, every `agentcost verify` call produces a (predicted, actual) pair.
 
 | Item | Cost | When |
 |------|------|------|
-| Build 12 test workflows (development time) | ~$0 (your time) | Sprint 3 (weeks 5-6) |
+| Build 10 test workflows (W1-W2, W4-W5, W8-W13) | ~$0 (your time) | Sprint 3 (weeks 5-6) |
 | Curate realistic input datasets (download public datasets + processing) | ~$0 (public data) | Sprint 3 (weeks 5-6) |
-| Generate synthetic inputs (20 + 100 per workflow × 12 workflows) | ~$5 | Sprint 3 |
-| Run ground truth profiles (500 runs × 12 workflows × ~$0.15 avg) | **~$750** | Sprint 3, after projection engine is built |
-| Re-run after projection engine fixes | ~$200 (partial re-runs) | Sprint 3 and Sprint 7 |
+| Generate synthetic inputs (20 per workflow × 10 workflows) | ~$2 | Sprint 3 |
+| Ground truth profiles (200-300 runs × 10 workflows) | **~$827** | Sprint 3, after projection engine is built |
+| Pricing validation (~15 requests, manual cross-check vs billing dashboards) | ~$5 | Before backtesting |
+| Contingency / skewed-distribution variants for W2, W8 | ~$120 | During backtesting |
 | **Total validation budget** | **~$950** | Pre-launch |
 
-This is the most important $950 you'll spend. It's the difference between launching with confidence ("our projections pass calibration on 12 real-world archetypes") and launching with hope ("it seems to work on our 3 test workflows").
+Run 10 exploratory runs of W8 first (~$10) to validate cost estimates before committing full budget. If W8 comes in at the high end of its range, reduce ground truth from 300 to 200 and reallocate.
+
+This is the most important $950 you'll spend. It's the difference between launching with confidence ("our projections pass calibration on 10 real-world archetypes") and launching with hope ("it seems to work on our 3 test workflows").
 
 ### 4B.8 The `agentcost validate` command
 
@@ -1548,6 +1602,38 @@ This builds user trust — they can verify the engine's accuracy on their own da
 | A/B quality testing | v1 recommends swaps. v2 classifier adds confidence. v3 might auto-test. | — |
 | Pydantic AI / Mastra / Vercel AI SDK | Too many frameworks, too few hands. Cover 70-80% with LangGraph + OAI Agents + Qwen-Agent + DeepSeek (via OAI-compat). | — |
 | Dynamic pricing tables | Static lookup. User updates config if provider changes prices. | — |
+
+### Known Limitations (Document Prominently)
+
+These are fundamental to the "profile a sample, project to production" methodology. They are not engine bugs. Document them prominently, not buried in footnotes.
+
+1. **Session context accumulation.** Single-turn profiling underestimates multi-turn conversational agent costs by 2–3× for an 8-turn average session. Recommend profiling with mid-session context or use `--session-depth` correction (v2).
+2. **Input distribution mismatch.** Projections are conditioned on the input distribution used during profiling. Input distribution statistics (token p50/p95/CV) make this assumption visible.
+3. **Tool response size mismatch.** Test stubs or toy databases may produce 10–100× smaller tool responses than production. Every step downstream of a tool call will have understated context size.
+4. **Provider-side caching.** Rapid profiling may benefit from prompt cache hits that production doesn't. DeepSeek cache-hit is 50× cheaper ($0.0028/MTok vs $0.14/MTok). Use `--cache-mode cold` for conservative estimates; parse `prompt_cache_hit_tokens` when available.
+5. **Tiered pricing boundaries.** v1 uses standard-tier pricing. Qwen requests exceeding 200K input tokens and Gemini requests exceeding 200K context may be underpriced. Warn when observed context exceeds 150K tokens.
+6. **Model drift.** Providers update models within version lines. Token counts and costs may shift 5–25% between updates. Profiles older than 30 days may not reflect current behavior.
+7. **Batch vs. real-time pricing.** v1 uses real-time API pricing. Users deploying via batch APIs (OpenAI Batch, Anthropic Message Batches) will see ~50% lower actual costs than projected.
+
+### Pre-Backtesting Engineering Checklist (7–9 days)
+
+From adversarial review — fix before running the $827 backtesting suite:
+
+1. Fix CLT variance inflation in Monte Carlo (§1.1 — half day)
+2. Write mock response unit tests for all collectors including DeepSeek cache fields and Qwen DashScope format (§4.1 — half day)
+3. Validate pricing table against billing dashboards — one request per model (§4.2 — 2-3 hrs, ~$5)
+4. Build W13 routing workflow (§5.1 — 1-2 days)
+5. Implement dual Pearson+Spearman context growth detection with p-value gating (§2.1 — 2 hrs)
+6. Implement step count variance detector (§2.4 — 1-2 hrs)
+7. Implement cost bimodality detector (§2.5 — 2-3 hrs)
+8. Implement effective sample size gate / n_eff (§3.5 — 1 hr)
+9. Implement revised calibration metric thresholds (§3.1-3.2 — 2-3 hrs)
+10. **Build synthetic distribution testing framework** (§5B Layer 1 — 1-2 days)
+11. Prepare skewed-distribution input sets for W2, W8 (§5.2 — 2-3 hrs)
+12. Implement DeepSeek cache-busting for profiling (§4.3 — half day)
+13. Add conservative tail inflation for n < 30 (§1.2 — 30 min)
+14. Cap context growth extrapolation at observed max (§1.4 — 1 hour)
+15. Download and parse SWE-bench trajectory data (§5B Layer 2 — half day)
 
 ---
 
@@ -1674,19 +1760,19 @@ This builds user trust — they can verify the engine's accuracy on their own da
 
 Sprint 3 is expanded to 4 weeks. Weeks 5-6 build the projection engine. Weeks 7-8 build the backtesting suite and run it. The projection engine does NOT ship without passing the backtesting suite. This is the kill/keep gate.
 
-**Goal:** Accurate cost projections with confidence intervals, validated against 12 real-world workflow archetypes.
+**Goal:** Accurate cost projections with confidence intervals, validated via three-layer strategy (synthetic distributions + SWE-bench + 10 real workflows). 7–9 days of pre-backtesting engineering (15 items — see checklist in §4B) must pass before running the $827 backtesting suite.
 
 | Day | Task | Output |
 |-----|------|--------|
-| 1-3 | Linear projector: `mean_cost × volume × 30` with distributional output (project each percentile). Works for stable workflows (no flags). Confidence tier system (HIGH/MODERATE/LOW/VERY LOW) based on sample size, variance, and detected patterns | Basic projection + confidence |
-| 4-7 | Monte Carlo projector: triggered when patterns detected. Sample per-step distributions, apply context growth curves (linear + logarithmic models), sample loop counts from observed distribution. 10K simulations → cost distribution. Input distribution warnings (low diversity, short inputs, single language) | Non-linear projection |
-| 8-10 | Baseline management: `agentcost baseline update` writes `.agentcost/baseline.json`. `agentcost diff baseline.json new_profile.json` computes per-step deltas. Explicit assumptions list auto-generated on every report | Baseline system + assumptions |
-| 11-13 | **Build 12 test workflows** (W1-W12) across 5 archetypes × 2 complexity levels + 2 multi-provider variants (Qwen W11, DeepSeek W12) (see Part 4B). Download public input datasets (Bitext, MS MARCO, GitHub PRs, CORD-19). Build realistic-500 JSONL files for each workflow | Test infrastructure |
-| 14-16 | **Run backtesting protocol:** profile each workflow at 20/100/500 samples. Extract projections. Compute calibration scores (p50 ratio, p95 coverage, range ratio, directional accuracy, ranking correlation). **Budget: ~$950** | Calibration results |
-| 17-18 | **Fix failures.** If any workflow fails the pass criteria (p50 off by >2x, wrong top step), debug and fix the projection model. Re-run failed tests. Repeat until all 12 pass | Validated engine |
-| 19-20 | `agentcost validate workflow.py` command: runs the 20-vs-100 comparison test on any workflow, reports whether 20 samples is sufficient | User-facing validation |
+| 1-3 | Linear projector with distributional output. Confidence tier system using effective sample size (n_eff via cost entropy). **Engine fixes:** CLT-corrected Monte Carlo, dual Pearson+Spearman context growth detection with p-value gate, tail inflation factor (1 + 2/√n), context growth cap at observed max, p90/p50 threshold at n < 30 | Basic projection + fixes |
+| 4-7 | Monte Carlo projector with CLT correction + 5 pattern detectors (context growth, loop variance, token variance, step count variance, cost bimodality). Non-pattern steps sampled from whole runs. Visibility warnings: input distribution stats, uniform-input flags, zero-execution step detection, stale profile warnings, sample coverage statement, p95 suppression at n < 20. Tiered profiling recommendations (n=20/50/100+) | Non-linear projection + detectors + warnings |
+| 8-10 | Baseline management with Mann-Whitney U significance testing + bootstrap 95% CI on cost change. **Synthetic distribution testing framework** (Layer 1): 500+ synthetic workflows across log-normal/bimodal/Pareto/zero-inflated shapes, validate engine at n=20/50/100/300. Calibrate tail inflation factor empirically. **SWE-bench trajectory analysis** (Layer 2): download, parse, integrate as additional test distributions | Baseline + synthetic validation |
+| 11-13 | **Build 10 test workflows** (W1-W2, W4-W5, W8-W13). W13 routing agent: classifier routes to 3 cost paths. Mock response unit tests for all collectors (OpenAI standard+reasoning, Anthropic standard+thinking+cached, DeepSeek cache hit/miss, Qwen DashScope+OAI-compat). Validate pricing table vs billing dashboards (~$5). DeepSeek cache-busting | Test infrastructure + data validation |
+| 14-16 | **Run real backtesting** (Layer 3): 20-sample projections against 200-300 run ground truth. Bootstrap CIs on ground truth percentiles. Revised metrics (0.7-2.0× p50, split simple/complex thresholds, 30% co-dominant). Directional bias meta-check. Skewed variant for W2, W8 if budget allows. **Budget: ~$827 + $120 contingency** | Calibration results |
+| 17-18 | **Fix failures.** Hard gates: p50 ratio AND top step correct for all 10 workflows. 80% pass rate for remaining metrics. Re-run failed tests | Validated engine |
+| 19-20 | `agentcost validate workflow.py` command: 20-vs-100 comparison test. Zero-token step validation. Unrecognized model error handling. Tiered profiling in CLI output | User-facing validation |
 
-**Deliverable:** Projection engine that passes calibration on 12 real-world archetypes. `agentcost validate` for users to check projection quality on their own workflows. Launch gate: PASSED.
+**Deliverable:** Projection engine validated across 500+ synthetic distributions + 10 real-world archetypes with CLT-corrected Monte Carlo, 5 pattern detectors, effective sample size gating, and comprehensive visibility warnings. `agentcost validate` for user-side quality checks. Launch gate: PASSED.
 
 #### Sprint 4: Recommendations + Verify Loop (Weeks 9-12)
 
@@ -1810,7 +1896,7 @@ Two parallel tracks: live monitoring + cost prediction model.
 
 | Milestone | When | Metric | Why it matters |
 |-----------|------|--------|---------------|
-| Backtesting suite passes (12/12 workflows) | Week 8 | All calibration metrics in "pass" range | Predictions are trustworthy |
+| Backtesting suite passes (10/10 workflows) | Week 8 | p50 ratio + top step correct for all; 80% pass rate on remaining metrics | Predictions are trustworthy |
 | v1.0 shipped (with UI + graph) | Week 20 | Package on PyPI + Action on Marketplace + UI | Product exists |
 | First 10 design partners | Week 22 | 10 teams using the SDK regularly | Validation |
 | 100 GitHub stars | Week 22 | Community signal | Social proof for YC |
@@ -1830,8 +1916,9 @@ Two parallel tracks: live monitoring + cost prediction model.
 |------|------|------|
 | Domain + hosting (GitHub Pages) | ~$12/year | Week 0 |
 | Test workflow execution (ongoing) | ~$50/month | Ongoing |
-| **Backtesting suite: ground truth profiling (10 workflows × 500 runs)** | **~$750** | Week 7-8 |
-| Backtesting suite: re-runs after fixes | ~$200 | Week 7-8 |
+| Synthetic distribution testing (500+ shapes) + SWE-bench trajectory analysis | $0 (engineering time) | Week 7 |
+| **Backtesting suite: ground truth profiling (10 workflows × 200-300 runs)** | **~$827** | Week 7-8 |
+| Backtesting: pricing validation + contingency / skewed variants | ~$125 | Week 7-8 |
 | Synthetic data for ML classifier | ~$150 | Week 21 |
 | Synthetic workflows for cost model | ~$200 | Week 25 |
 | **Total pre-revenue investment** | **~$1,550** | Weeks 0-25 |
