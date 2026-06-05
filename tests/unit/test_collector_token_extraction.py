@@ -299,14 +299,14 @@ class TestParallelCallsNotDropped:
             mock = types.SimpleNamespace(
                 model="gpt-4o",
                 usage=types.SimpleNamespace(
-                    prompt_tokens=100, completion_tokens=50,
+                    prompt_tokens=100,
+                    completion_tokens=50,
                 ),
             )
             _try_extract(tracker, mock)
             if tracker._recorded:
                 totals.append(
-                    tracker._recorded["input_tokens"]
-                    + tracker._recorded["output_tokens"]
+                    tracker._recorded["input_tokens"] + tracker._recorded["output_tokens"]
                 )
         assert sum(totals) == 450
 
@@ -321,14 +321,20 @@ class TestParallelCallsCorrectAttribution:
         t2._iteration = 1
         t2._start_ns = 0
 
-        _try_extract(t1, types.SimpleNamespace(
-            model="gpt-4o",
-            usage=types.SimpleNamespace(prompt_tokens=100, completion_tokens=50),
-        ))
-        _try_extract(t2, types.SimpleNamespace(
-            model="gpt-4o",
-            usage=types.SimpleNamespace(prompt_tokens=200, completion_tokens=80),
-        ))
+        _try_extract(
+            t1,
+            types.SimpleNamespace(
+                model="gpt-4o",
+                usage=types.SimpleNamespace(prompt_tokens=100, completion_tokens=50),
+            ),
+        )
+        _try_extract(
+            t2,
+            types.SimpleNamespace(
+                model="gpt-4o",
+                usage=types.SimpleNamespace(prompt_tokens=200, completion_tokens=80),
+            ),
+        )
 
         assert t1._recorded["input_tokens"] == 100
         assert t2._recorded["input_tokens"] == 200
@@ -343,12 +349,16 @@ class TestVariableParallelCount:
                 tracker = collector.step("step_x")
                 tracker._iteration = 1
                 tracker._start_ns = 0
-                _try_extract(tracker, types.SimpleNamespace(
-                    model="gpt-4o",
-                    usage=types.SimpleNamespace(
-                        prompt_tokens=100, completion_tokens=50,
+                _try_extract(
+                    tracker,
+                    types.SimpleNamespace(
+                        model="gpt-4o",
+                        usage=types.SimpleNamespace(
+                            prompt_tokens=100,
+                            completion_tokens=50,
+                        ),
                     ),
-                ))
+                )
                 if tracker._recorded:
                     totals.append(tracker._recorded["input_tokens"])
             assert len(totals) == count

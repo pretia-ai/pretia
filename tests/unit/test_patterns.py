@@ -760,6 +760,7 @@ class TestGmmParametersStored:
 
         runs = []
         import random as _rng
+
         r = _rng.Random(42)
         for _ in range(20):
             cost = 150 + r.randint(-10, 10)

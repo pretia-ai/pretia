@@ -808,8 +808,12 @@ class TestGmmMcSamplingBimodal:
         )
         per_run_costs: list[float] = []
         simulate(
-            stats, [pattern], daily_volume=100, runs=runs,
-            n_simulations=1000, _debug_run_costs=per_run_costs,
+            stats,
+            [pattern],
+            daily_volume=100,
+            runs=runs,
+            n_simulations=1000,
+            _debug_run_costs=per_run_costs,
         )
         cheap = sum(1 for c in per_run_costs if c < 0.10)
         expensive = sum(1 for c in per_run_costs if c > 0.20)
@@ -837,6 +841,10 @@ class TestGmmMcFallsBackWithoutParams:
             bimodal_bic_delta=20.0,
         )
         mc = simulate(
-            stats, [pattern], daily_volume=100, runs=runs, n_simulations=100,
+            stats,
+            [pattern],
+            daily_volume=100,
+            runs=runs,
+            n_simulations=100,
         )
         assert mc.monthly_projection.mean > 0

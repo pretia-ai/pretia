@@ -469,8 +469,10 @@ class TestBcaVsPercentileSkewed:
     def test_bca_asymmetric_for_skewed(self):
         import math
         import random
+
         rng = random.Random(42)
         costs = [math.exp(rng.gauss(0, 1.0)) for _ in range(30)]
+
         def median_fn(c):
             return sorted(c)[len(c) // 2]
 
@@ -495,6 +497,7 @@ class TestBcaReproducible:
 class TestCvarBasic:
     def test_cvar_known_values(self):
         from agentcost.projection.montecarlo import compute_cvar
+
         costs = list(range(1, 101))
         cvar = compute_cvar([float(x) for x in costs], alpha=0.05)
         assert cvar == pytest.approx(98.0, rel=0.01)

@@ -4,9 +4,15 @@ from __future__ import annotations
 
 import uuid
 
-_CACHE_BUSTING_PREFIXES = frozenset({
-    "deepseek", "claude", "haiku", "sonnet", "opus",
-})
+_CACHE_BUSTING_PREFIXES = frozenset(
+    {
+        "deepseek",
+        "claude",
+        "haiku",
+        "sonnet",
+        "opus",
+    }
+)
 
 
 def needs_cache_busting(model: str) -> bool:

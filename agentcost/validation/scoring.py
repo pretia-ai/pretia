@@ -42,8 +42,7 @@ def _normal_cdf(x: float) -> float:
     t = 1.0 / (1.0 + 0.2316419 * abs(x))
     d = 0.3989422804014327
     poly = t * (
-        0.319381530
-        + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429)))
+        0.319381530 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429)))
     )
     p = d * math.exp(-x * x / 2.0) * poly
     return 1.0 - p if x > 0 else p
@@ -164,10 +163,12 @@ def bootstrap_bca_ci(
         return 0.0, 0.0, 0.0
 
     if stat_fn is None and percentile is not None:
+
         def stat_fn(c: list[float]) -> float:
             return _percentile(sorted(c), percentile)
 
     if stat_fn is None:
+
         def stat_fn(c: list[float]) -> float:
             return sum(c) / len(c) if c else 0.0
 
@@ -225,8 +226,11 @@ def bootstrap_percentile_ci(
 ) -> tuple[float, float, float]:
     """Backward-compatible wrapper. Delegates to BCa bootstrap."""
     return bootstrap_bca_ci(
-        costs, percentile=percentile, n_bootstrap=n_bootstrap,
-        ci_level=ci_level, seed=seed,
+        costs,
+        percentile=percentile,
+        n_bootstrap=n_bootstrap,
+        ci_level=ci_level,
+        seed=seed,
     )
 
 

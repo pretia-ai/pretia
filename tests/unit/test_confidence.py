@@ -20,24 +20,52 @@ def _make_step_stats(
     cost_std: float = 0.002,
 ) -> StepStats:
     ps = PercentileStats(
-        min=cost_mean * 0.5, max=cost_mean * 2.0, mean=cost_mean, std=cost_std,
-        p50=cost_mean, p75=cost_mean * 1.3, p90=cost_mean * 1.6,
-        p95=cost_mean * 1.8, p99=cost_mean * 2.0,
+        min=cost_mean * 0.5,
+        max=cost_mean * 2.0,
+        mean=cost_mean,
+        std=cost_std,
+        p50=cost_mean,
+        p75=cost_mean * 1.3,
+        p90=cost_mean * 1.6,
+        p95=cost_mean * 1.8,
+        p99=cost_mean * 2.0,
     )
     tok_ps = PercentileStats(
-        min=100, max=500, mean=300, std=80,
-        p50=280, p75=350, p90=400, p95=450, p99=490,
+        min=100,
+        max=500,
+        mean=300,
+        std=80,
+        p50=280,
+        p75=350,
+        p90=400,
+        p95=450,
+        p99=490,
     )
     iter_ps = PercentileStats(
-        min=1, max=1, mean=1, std=0,
-        p50=1, p75=1, p90=1, p95=1, p99=1,
+        min=1,
+        max=1,
+        mean=1,
+        std=0,
+        p50=1,
+        p75=1,
+        p90=1,
+        p95=1,
+        p99=1,
     )
     return StepStats(
-        step_name=name, step_type="llm", model="gpt-4o-mini",
-        call_count=20, runs_present=20,
-        input_tokens=tok_ps, output_tokens=tok_ps, total_tokens=tok_ps,
-        cost=ps, duration_ms=tok_ps, context_size=tok_ps,
-        iterations_per_run=iter_ps, mean_iterations=1.0,
+        step_name=name,
+        step_type="llm",
+        model="gpt-4o-mini",
+        call_count=20,
+        runs_present=20,
+        input_tokens=tok_ps,
+        output_tokens=tok_ps,
+        total_tokens=tok_ps,
+        cost=ps,
+        duration_ms=tok_ps,
+        context_size=tok_ps,
+        iterations_per_run=iter_ps,
+        mean_iterations=1.0,
     )
 
 
@@ -47,8 +75,11 @@ def _make_pattern(
     severity: str = "danger",
 ) -> DetectedPattern:
     return DetectedPattern(
-        pattern_type=pattern_type, step_name=step_name, severity=severity,
-        evidence={}, description=f"Test: {pattern_type} on {step_name}",
+        pattern_type=pattern_type,
+        step_name=step_name,
+        severity=severity,
+        evidence={},
+        description=f"Test: {pattern_type} on {step_name}",
     )
 
 
@@ -60,6 +91,7 @@ def _make_pattern(
 class TestConformalIntervalCoverage:
     def test_coverage_over_synthetic_workflows(self):
         import random
+
         rng = random.Random(42)
         true_mean = 0.05
         sigma = 0.5
@@ -77,6 +109,7 @@ class TestConformalIntervalCoverage:
 class TestConformalIntervalWidthDecreases:
     def test_width_decreases_with_n(self):
         import random
+
         avg_widths = []
         for n in [10, 50, 200]:
             trial_widths = []
@@ -92,6 +125,7 @@ class TestConformalIntervalWidthDecreases:
 class TestConformalMonthlyPropagation:
     def test_sqrt_n_scaling(self):
         import random
+
         rng = random.Random(42)
         costs = [0.03 + rng.gauss(0, 0.005) for _ in range(50)]
         mu, lo, hi = compute_conformal_interval(costs, alpha=0.10)
@@ -113,6 +147,7 @@ class TestConformalMonthlyPropagation:
 class TestConfidenceTierFromWidth:
     def test_tiers(self):
         from agentcost.validation.confidence import _tier_from_relative_width
+
         assert _tier_from_relative_width(1.5) == "HIGH"
         assert _tier_from_relative_width(3.0) == "MODERATE"
         assert _tier_from_relative_width(7.0) == "LOW"
@@ -189,14 +224,25 @@ class TestTailInflationRemoved:
         from agentcost.projection.stats import compute_stats
 
         runs = [
-            [StepRecord(
-                step_name="s", step_type="llm", model="gpt-4o-mini",
-                input_tokens=100, output_tokens=50, context_size=100,
-                tool_definitions_tokens=0, system_prompt_hash="a",
-                system_prompt_tokens=50, output_format="text",
-                is_retry=False, iteration=1, parent_step=None,
-                duration_ms=100, timestamp=datetime(2026, 1, 1, tzinfo=UTC),
-            )]
+            [
+                StepRecord(
+                    step_name="s",
+                    step_type="llm",
+                    model="gpt-4o-mini",
+                    input_tokens=100,
+                    output_tokens=50,
+                    context_size=100,
+                    tool_definitions_tokens=0,
+                    system_prompt_hash="a",
+                    system_prompt_tokens=50,
+                    output_format="text",
+                    is_retry=False,
+                    iteration=1,
+                    parent_step=None,
+                    duration_ms=100,
+                    timestamp=datetime(2026, 1, 1, tzinfo=UTC),
+                )
+            ]
             for _ in range(20)
         ]
         stats = compute_stats(runs)
