@@ -471,7 +471,9 @@ class TestBcaVsPercentileSkewed:
         import random
         rng = random.Random(42)
         costs = [math.exp(rng.gauss(0, 1.0)) for _ in range(30)]
-        median_fn = lambda c: sorted(c)[len(c) // 2]
+        def median_fn(c):
+            return sorted(c)[len(c) // 2]
+
         _, bca_lo, bca_hi = bootstrap_bca_ci(costs, stat_fn=median_fn, seed=42)
         # BCa should produce a valid interval
         assert bca_lo < bca_hi
@@ -501,11 +503,13 @@ class TestCvarBasic:
 class TestCvarSubadditivity:
     def test_subadditive(self):
         import random
+
         from agentcost.projection.montecarlo import compute_cvar
+
         rng = random.Random(42)
         a = [rng.gauss(10, 3) for _ in range(1000)]
         b = [rng.gauss(20, 5) for _ in range(1000)]
-        ab = [x + y for x, y in zip(a, b)]
+        ab = [x + y for x, y in zip(a, b, strict=True)]
         assert compute_cvar(ab) <= compute_cvar(a) + compute_cvar(b) + 0.01
 
 

@@ -5,12 +5,9 @@ from __future__ import annotations
 import json
 import math
 
-import pytest
-
 from agentcost.projection.patterns import DetectedPattern
 from agentcost.projection.stats import PercentileStats, StepStats
 from agentcost.validation.confidence import (
-    ConfidenceResult,
     compute_confidence,
     compute_conformal_interval,
     compute_effective_sample_size,
@@ -186,6 +183,7 @@ class TestEffectiveSampleSize:
 class TestTailInflationRemoved:
     def test_no_tail_inflation_in_mc(self):
         from datetime import UTC, datetime
+
         from agentcost.collectors.base import StepRecord
         from agentcost.projection.montecarlo import simulate
         from agentcost.projection.stats import compute_stats
