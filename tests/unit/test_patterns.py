@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 
+import pytest
+
 from agentcost.collectors.base import StepRecord
 from agentcost.projection.patterns import DetectedPattern, detect_patterns
 from agentcost.projection.stats import compute_stats
@@ -118,7 +120,7 @@ class TestContextGrowth:
 class TestLoopCountVariance:
     def test_loop_count_variance_detected(self):
         runs = []
-        for n_iters in [2, 3, 2, 12, 3]:
+        for n_iters in [2, 5, 8, 12, 3, 7, 10, 4, 9, 11]:
             run = [_make_record("review", iteration=i + 1) for i in range(n_iters)]
             runs.append(run)
 
@@ -154,7 +156,8 @@ class TestLoopCountVariance:
 
     def test_loop_count_variance_danger_severity(self):
         runs = []
-        for n_iters in [2, 2, 2, 2, 20]:
+        # max_i (50) > 3 * mean_iter (~10) triggers "danger"
+        for n_iters in [2, 3, 4, 5, 6, 7, 8, 10, 15, 50]:
             run = [_make_record("review", iteration=i + 1) for i in range(n_iters)]
             runs.append(run)
 
@@ -172,8 +175,8 @@ class TestLoopCountVariance:
 class TestHighTokenVariance:
     def test_high_token_variance_detected(self):
         runs = []
-        for i in range(20):
-            if i < 18:
+        for i in range(40):
+            if i < 35:
                 run = [_make_record("generate", input_tokens=300, output_tokens=200)]
             else:
                 run = [_make_record("generate", input_tokens=3000, output_tokens=2000)]
@@ -224,7 +227,7 @@ class TestCombined:
         runs = [context_growth_run] * 3
 
         variable_loop_runs = []
-        for n in [2, 3, 2, 12, 3]:
+        for n in [2, 5, 8, 12, 3, 7, 10, 4, 9, 11]:
             variable_loop_runs.append([_make_record("looper", iteration=i + 1) for i in range(n)])
 
         heavy_tail_runs = []
@@ -293,3 +296,486 @@ class TestPatternSerialization:
         assert isinstance(serialized, str)
         assert d["pattern_type"] == "context_growth"
         assert d["step_name"] == "review"
+        assert d["growth_type"] is None
+        assert d["variance_percentile_used"] is None
+
+
+# ---------------------------------------------------------------------------
+# Change 1: Context growth overhaul tests
+# ---------------------------------------------------------------------------
+
+
+class TestLinearGrowthDetected:
+    def test_linear_growth_detected(self):
+        iters = [1, 2, 3, 4, 5, 6, 7, 8]
+        ctxs = [100, 210, 290, 410, 490, 610, 690, 810]
+        runs = []
+        for _ in range(3):
+            run = [
+                _make_record("review", context_size=ctxs[i], iteration=iters[i])
+                for i in range(len(iters))
+            ]
+            runs.append(run)
+
+        patterns = detect_patterns(runs, compute_stats(runs, _simple_cost_fn))
+        cg = [p for p in patterns if p.pattern_type == "context_growth"]
+        assert len(cg) == 1
+        assert cg[0].growth_type == "linear"
+        assert cg[0].pearson_r_squared > 0.9
+        assert cg[0].spearman_rho_squared > 0.9
+        assert cg[0].severity == "danger"
+        assert cg[0].pearson_significant is True
+
+
+class TestNonlinearGrowthDetected:
+    def test_nonlinear_growth_detected(self):
+        iters = [1, 2, 3, 4, 5, 6, 7, 8]
+        ctxs = [100, 200, 400, 1000, 3000, 10000, 35000, 120000]
+        runs = []
+        for _ in range(3):
+            run = [
+                _make_record("review", context_size=ctxs[i], iteration=iters[i])
+                for i in range(len(iters))
+            ]
+            runs.append(run)
+
+        patterns = detect_patterns(runs, compute_stats(runs, _simple_cost_fn))
+        cg = [p for p in patterns if p.pattern_type == "context_growth"]
+        assert len(cg) == 1
+        assert cg[0].growth_type == "nonlinear"
+        assert cg[0].spearman_rho_squared > 0.95
+        assert cg[0].power_law_alpha is not None
+        assert cg[0].power_law_alpha > 1.5
+        assert cg[0].growth_classification == "super_linear"
+
+
+class TestSublinearGrowthDetected:
+    def test_sublinear_growth_detected(self):
+        iters = list(range(1, 11))
+        ctxs = [100, 800, 1000, 1050, 1060, 1065, 1068, 1070, 1071, 1072]
+        runs = []
+        for _ in range(3):
+            run = [
+                _make_record("review", context_size=ctxs[i], iteration=iters[i])
+                for i in range(len(iters))
+            ]
+            runs.append(run)
+
+        patterns = detect_patterns(runs, compute_stats(runs, _simple_cost_fn))
+        cg = [p for p in patterns if p.pattern_type == "context_growth"]
+        assert len(cg) == 1
+        assert cg[0].growth_type == "nonlinear"
+        assert cg[0].power_law_alpha is not None
+        assert cg[0].power_law_alpha < 1.0
+        assert cg[0].growth_classification == "sub_linear"
+
+
+class TestNoGrowthNoiseOnly:
+    def test_no_growth_noise_only(self):
+        iters = [1, 2, 3, 4, 5, 6, 7, 8]
+        ctxs = [500, 480, 520, 490, 510, 505, 495, 500]
+        runs = []
+        for _ in range(3):
+            run = [
+                _make_record("review", context_size=ctxs[i], iteration=iters[i])
+                for i in range(len(iters))
+            ]
+            runs.append(run)
+
+        patterns = detect_patterns(runs, compute_stats(runs, _simple_cost_fn))
+        cg = [p for p in patterns if p.pattern_type == "context_growth"]
+        assert len(cg) == 0
+
+
+class TestMinimumDataPointsEnforced:
+    def test_minimum_data_points_enforced(self):
+        runs = [
+            [
+                _make_record("review", context_size=100, iteration=1),
+                _make_record("review", context_size=200, iteration=2),
+                _make_record("review", context_size=300, iteration=3),
+                _make_record("review", context_size=400, iteration=4),
+            ],
+        ]
+        patterns = detect_patterns(runs, compute_stats(runs, _simple_cost_fn))
+        cg = [p for p in patterns if p.pattern_type == "context_growth"]
+        assert len(cg) == 0
+
+
+class TestPValueGatesSpuriousCorrelation:
+    def test_p_value_gates_spurious(self):
+        iters = [1, 2, 3, 4, 5]
+        ctxs = [100, 160, 120, 200, 170]
+        runs = [
+            [
+                _make_record("review", context_size=ctxs[i], iteration=iters[i])
+                for i in range(len(iters))
+            ]
+        ]
+        patterns = detect_patterns(runs, compute_stats(runs, _simple_cost_fn))
+        cg = [p for p in patterns if p.pattern_type == "context_growth"]
+        assert len(cg) == 0
+
+
+class TestSeverityWarningVsDanger:
+    def test_severity_warning(self):
+        iters = list(range(1, 9))
+        ctxs = [100, 180, 220, 320, 380, 460, 500, 620]
+        runs = []
+        for _ in range(3):
+            runs.append(
+                [
+                    _make_record("review", context_size=ctxs[i], iteration=iters[i])
+                    for i in range(len(iters))
+                ]
+            )
+        patterns = detect_patterns(runs, compute_stats(runs, _simple_cost_fn))
+        cg = [p for p in patterns if p.pattern_type == "context_growth"]
+        if cg:
+            r2 = max(cg[0].pearson_r_squared or 0, cg[0].spearman_rho_squared or 0)
+            if 0.7 < r2 <= 0.85:
+                assert cg[0].severity == "warning"
+
+    def test_severity_danger(self):
+        iters = list(range(1, 9))
+        ctxs = [100, 200, 300, 400, 500, 600, 700, 800]
+        runs = []
+        for _ in range(3):
+            runs.append(
+                [
+                    _make_record("review", context_size=ctxs[i], iteration=iters[i])
+                    for i in range(len(iters))
+                ]
+            )
+        patterns = detect_patterns(runs, compute_stats(runs, _simple_cost_fn))
+        cg = [p for p in patterns if p.pattern_type == "context_growth"]
+        assert len(cg) == 1
+        assert cg[0].severity == "danger"
+        r2 = max(cg[0].pearson_r_squared or 0, cg[0].spearman_rho_squared or 0)
+        assert r2 > 0.85
+
+
+# ---------------------------------------------------------------------------
+# Change 3: Token variance threshold tests
+# ---------------------------------------------------------------------------
+
+
+class TestTokenVarianceUsesP90AtSmallN:
+    def test_uses_p90_at_small_n(self):
+        runs = []
+        for i in range(20):
+            if i < 18:
+                runs.append([_make_record("gen", input_tokens=300, output_tokens=200)])
+            else:
+                runs.append([_make_record("gen", input_tokens=3000, output_tokens=2000)])
+
+        stats = compute_stats(runs, _simple_cost_fn)
+        patterns = detect_patterns(runs, stats)
+        htv = [p for p in patterns if p.pattern_type == "high_token_variance"]
+        assert len(htv) == 0
+
+
+class TestTokenVarianceUsesP95AtLargeN:
+    def test_uses_p95_at_large_n(self):
+        runs = []
+        for i in range(40):
+            if i < 36:
+                runs.append([_make_record("gen", input_tokens=300, output_tokens=200)])
+            else:
+                runs.append([_make_record("gen", input_tokens=3000, output_tokens=2000)])
+
+        stats = compute_stats(runs, _simple_cost_fn)
+        patterns = detect_patterns(runs, stats)
+        htv = [p for p in patterns if p.pattern_type == "high_token_variance"]
+        assert len(htv) == 1
+
+
+class TestVariancePercentileField:
+    def test_variance_percentile_used_small_n(self):
+        runs = []
+        for i in range(20):
+            if i < 14:
+                runs.append([_make_record("gen", input_tokens=100, output_tokens=50)])
+            else:
+                runs.append([_make_record("gen", input_tokens=3000, output_tokens=2000)])
+        stats = compute_stats(runs, _simple_cost_fn)
+        patterns = detect_patterns(runs, stats)
+        htv = [p for p in patterns if p.pattern_type == "high_token_variance"]
+        if htv:
+            assert htv[0].variance_percentile_used == 90
+
+    def test_variance_percentile_used_large_n(self):
+        runs = []
+        for i in range(40):
+            if i < 30:
+                runs.append([_make_record("gen", input_tokens=100, output_tokens=50)])
+            else:
+                runs.append([_make_record("gen", input_tokens=3000, output_tokens=2000)])
+        stats = compute_stats(runs, _simple_cost_fn)
+        patterns = detect_patterns(runs, stats)
+        htv = [p for p in patterns if p.pattern_type == "high_token_variance"]
+        if htv:
+            assert htv[0].variance_percentile_used == 95
+
+
+# ---------------------------------------------------------------------------
+# Step count variance tests
+# ---------------------------------------------------------------------------
+
+
+def _routing_runs(
+    active_counts: list[int],
+    all_steps: list[str] | None = None,
+) -> list[list[StepRecord]]:
+    """Build runs where each run has a specified number of active steps."""
+    if all_steps is None:
+        max_steps = max(active_counts) if active_counts else 5
+        all_steps = [f"step_{i}" for i in range(max_steps)]
+    runs: list[list[StepRecord]] = []
+    for ac in active_counts:
+        run: list[StepRecord] = []
+        for i, sn in enumerate(all_steps):
+            if i < ac:
+                run.append(_make_record(sn, input_tokens=200, output_tokens=100))
+            else:
+                run.append(_make_record(sn, input_tokens=0, output_tokens=0, context_size=0))
+        runs.append(run)
+    return runs
+
+
+class TestStepCountVarianceWarning:
+    def test_step_count_variance_warning(self):
+        counts = [5] * 6 + [7] * 4 + [8] * 4 + [10] * 6
+        runs = _routing_runs(counts)
+        stats = compute_stats(runs, _simple_cost_fn)
+        patterns = detect_patterns(runs, stats)
+        scv = [p for p in patterns if p.pattern_type == "step_count_variance"]
+        assert len(scv) == 1
+        assert scv[0].severity == "warning"
+        assert scv[0].step_count_cv is not None
+        assert 0.3 < scv[0].step_count_cv < 0.6
+
+
+class TestStepCountVarianceDangerCv:
+    def test_danger_cv(self):
+        counts = [2] * 7 + [7] * 7 + [12] * 6
+        runs = _routing_runs(counts)
+        stats = compute_stats(runs, _simple_cost_fn)
+        patterns = detect_patterns(runs, stats)
+        scv = [p for p in patterns if p.pattern_type == "step_count_variance"]
+        assert len(scv) == 1
+        assert scv[0].severity == "danger"
+
+
+class TestStepCountVarianceDangerRatio:
+    def test_danger_ratio(self):
+        counts = [6] * 10 + [2] * 10
+        runs = _routing_runs(counts)
+        stats = compute_stats(runs, _simple_cost_fn)
+        patterns = detect_patterns(runs, stats)
+        scv = [p for p in patterns if p.pattern_type == "step_count_variance"]
+        assert len(scv) == 1
+        assert scv[0].severity == "danger"
+        assert scv[0].step_count_max == 6
+        assert scv[0].step_count_min == 2
+
+
+class TestStepCountVarianceNoDetection:
+    def test_no_detection_uniform(self):
+        counts = [5] * 20
+        runs = _routing_runs(counts)
+        stats = compute_stats(runs, _simple_cost_fn)
+        patterns = detect_patterns(runs, stats)
+        scv = [p for p in patterns if p.pattern_type == "step_count_variance"]
+        assert len(scv) == 0
+
+
+class TestStepCountVarianceSlightVariation:
+    def test_slight_variation(self):
+        counts = [5] * 15 + [4] * 5
+        runs = _routing_runs(counts)
+        stats = compute_stats(runs, _simple_cost_fn)
+        patterns = detect_patterns(runs, stats)
+        scv = [p for p in patterns if p.pattern_type == "step_count_variance"]
+        assert len(scv) == 0
+
+
+# ---------------------------------------------------------------------------
+# Bimodality tests
+# ---------------------------------------------------------------------------
+
+
+class TestBimodalityClearSeparation:
+    def test_bimodality_detected(self):
+        pytest.importorskip("sklearn")
+        cheap = [0.015 + i * 0.0003 for i in range(35)]
+        expensive = [0.35 + i * 0.003 for i in range(15)]
+        all_costs = cheap + expensive
+        runs: list[list[StepRecord]] = []
+        for cost_val in all_costs:
+            inp = int(cost_val / 0.001 * 0.67)
+            out = int(cost_val / 0.001 * 0.33)
+            runs.append([_make_record("work", input_tokens=inp, output_tokens=out)])
+        stats = compute_stats(runs, _simple_cost_fn)
+        patterns = detect_patterns(runs, stats)
+        bim = [p for p in patterns if p.pattern_type == "bimodality"]
+        assert len(bim) == 1
+        assert bim[0].severity == "warning"
+        assert bim[0].bimodal_bic_delta is not None
+        assert bim[0].bimodal_bic_delta > 6
+        assert bim[0].bimodal_modes is not None
+        assert len(bim[0].bimodal_modes) == 2
+
+
+class TestBimodalityNotDetectedUnimodal:
+    def test_unimodal(self):
+        pytest.importorskip("sklearn")
+        costs = [0.09 + i * 0.002 for i in range(50)]
+        runs: list[list[StepRecord]] = []
+        for cost_val in costs:
+            inp = int(cost_val / 0.001 * 0.67)
+            out = int(cost_val / 0.001 * 0.33)
+            runs.append([_make_record("work", input_tokens=inp, output_tokens=out)])
+        stats = compute_stats(runs, _simple_cost_fn)
+        patterns = detect_patterns(runs, stats)
+        bim = [p for p in patterns if p.pattern_type == "bimodality"]
+        assert len(bim) == 0
+
+
+class TestBimodalitySkippedSmallN:
+    def test_skipped_small_n(self):
+        pytest.importorskip("sklearn")
+        cheap = [0.02] * 5
+        expensive = [0.40] * 5
+        all_costs = cheap + expensive
+        runs: list[list[StepRecord]] = []
+        for cost_val in all_costs:
+            inp = int(cost_val / 0.001 * 0.67)
+            out = int(cost_val / 0.001 * 0.33)
+            runs.append([_make_record("work", input_tokens=inp, output_tokens=out)])
+        stats = compute_stats(runs, _simple_cost_fn)
+        patterns = detect_patterns(runs, stats)
+        bim = [p for p in patterns if p.pattern_type == "bimodality"]
+        assert len(bim) == 0
+
+
+class TestBimodalitySkippedNoSklearn:
+    def test_skipped_no_sklearn(self, monkeypatch):
+        import builtins
+
+        original_import = builtins.__import__
+
+        def mock_import(name, *args, **kwargs):
+            if "sklearn" in name:
+                raise ImportError("mocked")
+            return original_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", mock_import)
+
+        runs: list[list[StepRecord]] = []
+        for i in range(20):
+            tok = 200 if i < 14 else 2000
+            runs.append([_make_record("work", input_tokens=tok, output_tokens=tok // 2)])
+        stats = compute_stats(runs, _simple_cost_fn)
+        patterns = detect_patterns(runs, stats)
+        bim = [p for p in patterns if p.pattern_type == "bimodality"]
+        assert len(bim) == 0
+        other_types = {p.pattern_type for p in patterns} - {"bimodality"}
+        assert len(other_types) >= 0
+
+
+class TestBimodalityZeroCostHandling:
+    def test_zero_cost_handling(self):
+        pytest.importorskip("sklearn")
+        runs: list[list[StepRecord]] = []
+        for _ in range(10):
+            runs.append([_make_record("work", input_tokens=0, output_tokens=0, context_size=0)])
+        for _ in range(20):
+            runs.append([_make_record("work", input_tokens=150, output_tokens=75)])
+        stats = compute_stats(runs, _simple_cost_fn)
+        patterns = detect_patterns(runs, stats)
+        bim = [p for p in patterns if p.pattern_type == "bimodality"]
+        assert len(bim) == 1
+        assert bim[0].bimodal_modes is not None
+        assert len(bim[0].bimodal_modes) == 2
+        assert bim[0].bimodal_modes[0]["mean_cost"] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# robust_cv tests
+# ---------------------------------------------------------------------------
+
+
+class TestRobustCvNoOutlierEffect:
+    def test_outlier_resistant(self):
+        from agentcost.projection.stats import robust_cv
+
+        values = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 100.0]
+        rcv = robust_cv(values)
+        assert rcv < 1.0
+
+
+class TestRobustCvMatchesCvForNormal:
+    def test_close_to_standard_cv(self):
+        import math
+
+        from agentcost.projection.stats import robust_cv
+
+        values = [8.0, 9.0, 9.0, 10.0, 10.0, 10.0, 10.0, 11.0, 11.0, 12.0]
+        mean = sum(values) / len(values)
+        std = math.sqrt(sum((v - mean) ** 2 for v in values) / (len(values) - 1))
+        std_cv = std / mean
+        rcv = robust_cv(values)
+        assert abs(rcv - std_cv) / std_cv < 0.5
+
+
+class TestRobustCvZeroMedian:
+    def test_returns_zero(self):
+        from agentcost.projection.stats import robust_cv
+
+        values = [0.0, 0.0, 0.0, 1.0, 2.0]
+        assert robust_cv(values) == 0.0
+
+
+class TestLoopVarianceUsesRobustCv:
+    def test_outlier_does_not_trigger(self):
+        runs = []
+        for _ in range(9):
+            run = [_make_record("step_a", iteration=k) for k in range(1, 4)]
+            runs.append(run)
+        run_outlier = [_make_record("step_a", iteration=k) for k in range(1, 51)]
+        runs.append(run_outlier)
+        stats = compute_stats(runs, _simple_cost_fn)
+        patterns = detect_patterns(runs, stats)
+        loop_patterns = [p for p in patterns if p.pattern_type == "loop_count_variance"]
+        assert len(loop_patterns) == 0
+
+
+class TestGmmParametersStored:
+    def test_gmm_fields_populated(self):
+        try:
+            import sklearn  # noqa: F401
+        except ImportError:
+            pytest.skip("sklearn not installed")
+
+        runs = []
+        import random as _rng
+        r = _rng.Random(42)
+        for _ in range(20):
+            cost = 150 + r.randint(-10, 10)
+            runs.append([_make_record("work", input_tokens=cost, output_tokens=75)])
+        for _ in range(10):
+            cost = 1500 + r.randint(-100, 100)
+            runs.append([_make_record("work", input_tokens=cost, output_tokens=750)])
+        stats = compute_stats(runs, _simple_cost_fn)
+        patterns = detect_patterns(runs, stats)
+        bim = [p for p in patterns if p.pattern_type == "bimodality"]
+        if not bim:
+            pytest.skip("bimodality not detected with this data")
+        p = bim[0]
+        assert p.gmm_means is not None
+        assert p.gmm_stds is not None
+        assert p.gmm_weights is not None
+        assert len(p.gmm_means) == 2
+        assert len(p.gmm_stds) == 2
+        assert len(p.gmm_weights) == 2

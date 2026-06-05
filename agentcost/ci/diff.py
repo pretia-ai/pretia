@@ -2,12 +2,72 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
 from agentcost.ci.baseline import Baseline, create_baseline, parse_traffic
 from agentcost.ci.report import format_cost
 from agentcost.store import ProfilingSession
+
+
+def _normal_cdf(z: float) -> float:
+    """Approximate CDF of standard normal (Abramowitz & Stegun 26.2.17)."""
+    if z < 0:
+        return 1 - _normal_cdf(-z)
+    t = 1 / (1 + 0.2316419 * z)
+    poly = t * (
+        0.319381530 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429)))
+    )
+    return 1 - poly * math.exp(-z * z / 2) / math.sqrt(2 * math.pi)
+
+
+def _rank_values(values: list[float]) -> list[float]:
+    """Assign 1-based ranks with tie averaging."""
+    n = len(values)
+    indexed = sorted(range(n), key=lambda i: values[i])
+    ranks = [0.0] * n
+    i = 0
+    while i < n:
+        j = i
+        while j < n - 1 and values[indexed[j + 1]] == values[indexed[j]]:
+            j += 1
+        avg_rank = sum(range(i + 1, j + 2)) / (j - i + 1)
+        for k in range(i, j + 1):
+            ranks[indexed[k]] = avg_rank
+        i = j + 1
+    return ranks
+
+
+def mann_whitney_u(x: list[float], y: list[float]) -> float:
+    """Compute Mann-Whitney U test p-value (two-tailed, normal approximation)."""
+    n1 = len(x)
+    n2 = len(y)
+    if n1 < 2 or n2 < 2:
+        return 1.0
+
+    combined = x + y
+    ranks = _rank_values(combined)
+    r1 = sum(ranks[i] for i in range(n1))
+    u1 = r1 - n1 * (n1 + 1) / 2
+    u = min(u1, n1 * n2 - u1)
+
+    mu_u = n1 * n2 / 2
+    sigma_u = math.sqrt(n1 * n2 * (n1 + n2 + 1) / 12)
+    if sigma_u == 0:
+        return 1.0
+
+    z = (u - mu_u) / sigma_u
+    return 2 * (1 - _normal_cdf(abs(z)))
+
+
+def significance_label(p_value: float) -> str:
+    """Map p-value to human-readable significance label."""
+    if p_value < 0.05:
+        return "significant"
+    if p_value < 0.10:
+        return "possibly significant"
+    return "not significant"
 
 
 @dataclass(frozen=True, slots=True)

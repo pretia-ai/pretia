@@ -156,18 +156,22 @@ def project(
     if traffic is None:
         traffic = list(_DEFAULT_TRAFFIC)
 
+    run_costs = [rs.total_cost for rs in stats.run_stats] if stats.run_stats else None
+    default_traffic = traffic[0] if traffic else 1000
     confidence = compute_confidence(
         stats.total_runs,
         stats.step_stats,
         patterns,
         input_source,
+        run_costs=run_costs,
+        traffic=default_traffic,
     )
 
-    has_danger = any(p.severity == "danger" for p in patterns)
+    use_montecarlo = len(patterns) > 0
     warnings: list[str] = []
     mc_result: MonteCarloResult | None = None
 
-    if has_danger:
+    if use_montecarlo:
         if runs is None:
             warnings.append(
                 "Monte Carlo requested but raw run data not available. "

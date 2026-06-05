@@ -37,7 +37,7 @@ def profile() -> None:
     "--auto-generate",
     type=int,
     default=None,
-    help="Generate N synthetic test inputs. Default if no other input mode: 20.",
+    help="Generate N synthetic test inputs. Default if no other input mode: 50.",
 )
 @click.option(
     "--input",
@@ -79,6 +79,12 @@ def profile() -> None:
     default=False,
     help="Verbose output with debug logging.",
 )
+@click.option(
+    "--allow-cache",
+    is_flag=True,
+    default=False,
+    help="Allow server-side prompt caching (default: bust cache for cold-start costs).",
+)
 def run(
     workflow_path: str,
     collector: str,
@@ -89,6 +95,7 @@ def run(
     langfuse_last_n: int,
     output_dir: str,
     verbose: bool,
+    allow_cache: bool,
 ) -> None:
     """Profile a workflow and generate a cost report."""
     log_level = logging.DEBUG if verbose else logging.WARNING
@@ -118,6 +125,7 @@ def run(
         from_langfuse=from_langfuse,
         langfuse_last_n=langfuse_last_n,
         output_dir=output_dir,
+        cache_mode="warm" if allow_cache else "cold",
     )
 
     try:
@@ -564,6 +572,16 @@ def validate_cmd(
                 f"[red]Error:[/red] {exc}\nRun with -v for full traceback.",
             )
         sys.exit(1)
+
+
+@cli.command("update-pricing")
+def update_pricing_cmd() -> None:
+    """Update model pricing data."""
+    console.print(
+        "Pricing update is not yet automated.\n"
+        "To update prices manually, edit agentcost/pricing/tables.py.\n"
+        "See scripts/pricing_sources.md for current pricing page URLs."
+    )
 
 
 if __name__ == "__main__":

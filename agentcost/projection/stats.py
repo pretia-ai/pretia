@@ -28,6 +28,24 @@ def _percentile(sorted_data: list[float], p: float) -> float:
     return sorted_data[f] + (k - f) * (sorted_data[c] - sorted_data[f])
 
 
+def robust_cv(values: list[float]) -> float:
+    """Compute MAD-based coefficient of variation. Resistant to outliers.
+
+    The constant 1.4826 makes MAD consistent with standard deviation
+    for normal distributions.
+    """
+    n = len(values)
+    if n < 2:
+        return 0.0
+    s = sorted(values)
+    median = s[n // 2]
+    if median == 0:
+        return 0.0
+    deviations = sorted(abs(v - median) for v in values)
+    mad = deviations[n // 2]
+    return 1.4826 * mad / median
+
+
 @dataclass(frozen=True, slots=True)
 class PercentileStats:
     """Standard set of percentiles for a single metric."""

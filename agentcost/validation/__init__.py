@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from agentcost.validation.confidence import ConfidenceResult, compute_confidence
+from agentcost.validation.confidence import (
+    ConfidenceResult,
+    compute_confidence,
+    compute_conformal_interval,
+)
 from agentcost.validation.scoring import (
     CalibrationScore,
     format_calibration_report,
@@ -29,6 +33,7 @@ __all__ = [
     "ConfidenceResult",
     "ValidateResult",
     "compute_confidence",
+    "compute_conformal_interval",
     "format_calibration_report",
     "format_suite_report",
     "format_validate_report",

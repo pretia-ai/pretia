@@ -46,15 +46,20 @@ def _profile_exists(workflow_name: str, profile_key: str) -> bool:
     return _result_path(workflow_name, profile_key).exists()
 
 
-def _load_inputs(workflow_name: str, n: int) -> list[str]:
+def _load_inputs(workflow_name: str, n: int, variant: str = "realistic") -> list[str]:
     """Load the first n inputs from the workflow's JSONL file."""
     prefix = workflow_name.split("-")[0].lower()
     idx = prefix.replace("w", "")
-    fname = f"w{idx.zfill(2)}_realistic.jsonl"
+    fname = f"w{idx.zfill(2)}_{variant}.jsonl"
     path = INPUTS_DIR / fname
     if not path.exists():
-        click.echo(f"  Input file not found: {path}", err=True)
-        return []
+        # Try alternate naming (e.g., w13_inputs.jsonl)
+        alt = INPUTS_DIR / f"w{idx.zfill(2)}_inputs.jsonl"
+        if alt.exists():
+            path = alt
+        else:
+            click.echo(f"  Input file not found: {path}", err=True)
+            return []
     inputs: list[str] = []
     with open(path) as f:
         for i, line in enumerate(f):

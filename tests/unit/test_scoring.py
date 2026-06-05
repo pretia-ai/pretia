@@ -15,6 +15,8 @@ from agentcost.projection.stats import (
 from agentcost.validation.scoring import (
     CalibrationScore,
     _spearman_rank_correlation,
+    bootstrap_bca_ci,
+    bootstrap_percentile_ci,
     format_calibration_report,
     score_projection,
 )
@@ -328,3 +330,210 @@ class TestFormatCalibrationReport:
         assert "WARN" in report
         assert "FAIL" in report
         assert "LAUNCH GATE" in report
+
+
+# ---------------------------------------------------------------------------
+# Revised metric threshold tests
+# ---------------------------------------------------------------------------
+
+
+class TestP50RatioLowerBoundTightened:
+    def test_p50_lower_bound(self):
+        proj = _make_stats(cost_p50=0.017)
+        gt_costs = [0.028] * 500
+        gt = _make_stats(cost_p50=0.028, total_runs=500, run_costs=gt_costs)
+        sc = score_projection(proj, gt)
+        assert sc.p50_ratio == pytest.approx(0.017 / 0.028, rel=0.01)
+        assert any("p50" in w for w in sc.warnings)
+
+
+class TestP95CoverageSimpleVsComplex:
+    def test_simple_vs_complex(self):
+        proj = _make_stats(cost_p95=0.040)
+        gt_costs = [0.020 + i * 0.001 for i in range(50)]
+        gt = _make_stats(cost_p50=0.028, cost_p95=0.060, total_runs=50, run_costs=gt_costs)
+        sc_simple = score_projection(proj, gt, workflow_complexity="simple")
+        sc_complex = score_projection(proj, gt, workflow_complexity="complex")
+        if sc_simple.p95_coverage < 0.85 and sc_simple.p95_coverage >= 0.75:
+            assert any("p95" in w for w in sc_simple.warnings)
+            assert not any("p95" in w for w in sc_complex.warnings)
+
+
+class TestRangeRatioSimpleVsComplex:
+    def test_range_ratio(self):
+        proj = _make_stats(cost_p50=0.010, cost_p95=0.040)
+        gt_costs = [0.010] * 500
+        gt = _make_stats(cost_p50=0.010, total_runs=500, run_costs=gt_costs)
+        sc_simple = score_projection(proj, gt, workflow_complexity="simple")
+        sc_complex = score_projection(proj, gt, workflow_complexity="complex")
+        assert sc_simple.range_ratio == pytest.approx(4.0, rel=0.01)
+        assert any("Wide" in w for w in sc_simple.warnings)
+        assert not any("Wide" in w for w in sc_complex.warnings)
+
+
+class TestStepRankingSkippedFor3Steps:
+    def test_auto_pass_3_steps(self):
+        steps = {
+            "a": _step("a", 0.030),
+            "b": _step("b", 0.020),
+            "c": _step("c", 0.010),
+        }
+        gt_steps = {
+            "a": _step("a", 0.010),
+            "b": _step("b", 0.020),
+            "c": _step("c", 0.030),
+        }
+        proj = _make_stats(steps=steps)
+        gt = _make_stats(steps=gt_steps, total_runs=500, run_costs=[0.03] * 500)
+        sc = score_projection(proj, gt)
+        assert sc.ranking_correlation == 1.0
+        assert not any("ranking" in f.lower() for f in sc.failures)
+
+
+class TestStepRankingAppliedFor4Steps:
+    def test_fail_4_steps(self):
+        steps = {
+            "a": _step("a", 0.040),
+            "b": _step("b", 0.030),
+            "c": _step("c", 0.020),
+            "d": _step("d", 0.010),
+        }
+        gt_steps = {
+            "a": _step("a", 0.010),
+            "b": _step("b", 0.020),
+            "c": _step("c", 0.030),
+            "d": _step("d", 0.040),
+        }
+        proj = _make_stats(steps=steps)
+        gt = _make_stats(steps=gt_steps, total_runs=500, run_costs=[0.03] * 500)
+        sc = score_projection(proj, gt)
+        assert sc.ranking_correlation < 0.0
+        assert any("ranking" in f.lower() for f in sc.failures)
+
+
+class TestTopStepCodominantWidened:
+    def test_codominant_widened(self):
+        proj_steps = {
+            "step_a": _step("step_a", 0.028),
+            "step_b": _step("step_b", 0.035),
+        }
+        gt_steps = {
+            "step_a": _step("step_a", 0.035),
+            "step_b": _step("step_b", 0.028),
+        }
+        proj = _make_stats(steps=proj_steps)
+        gt = _make_stats(steps=gt_steps, total_runs=500, run_costs=[0.03] * 500)
+        sc = score_projection(proj, gt)
+        assert sc.top_step_correct is True
+
+
+# ---------------------------------------------------------------------------
+# Bootstrap CI tests
+# ---------------------------------------------------------------------------
+
+
+class TestBootstrapCIKnownDistribution:
+    def test_bootstrap_ci(self):
+        costs = [0.5 + i * 0.01 for i in range(300)]
+        point, ci_lo, ci_hi = bootstrap_percentile_ci(costs, 50)
+        true_median = 2.0
+        assert ci_lo < point < ci_hi
+        assert ci_lo <= true_median <= ci_hi
+        assert ci_hi - ci_lo > 0
+        assert ci_hi - ci_lo < max(costs) - min(costs)
+
+
+class TestBootstrapCIReproducible:
+    def test_reproducible(self):
+        costs = [float(i) for i in range(1, 51)]
+        r1 = bootstrap_percentile_ci(costs, 50, seed=99)
+        r2 = bootstrap_percentile_ci(costs, 50, seed=99)
+        assert r1 == r2
+
+
+class TestBootstrapCINarrowAtLargeN:
+    def test_narrow_at_large_n(self):
+        costs_300 = [0.5 + i * 0.01 for i in range(300)]
+        costs_50 = costs_300[::6]
+        _, lo_50, hi_50 = bootstrap_percentile_ci(costs_50, 50)
+        _, lo_300, hi_300 = bootstrap_percentile_ci(costs_300, 50)
+        assert (hi_300 - lo_300) < (hi_50 - lo_50)
+
+
+# ---------------------------------------------------------------------------
+# BCa bootstrap
+# ---------------------------------------------------------------------------
+
+
+class TestBcaVsPercentileSkewed:
+    def test_bca_asymmetric_for_skewed(self):
+        import math
+        import random
+        rng = random.Random(42)
+        costs = [math.exp(rng.gauss(0, 1.0)) for _ in range(30)]
+        median_fn = lambda c: sorted(c)[len(c) // 2]
+        _, bca_lo, bca_hi = bootstrap_bca_ci(costs, stat_fn=median_fn, seed=42)
+        # BCa should produce a valid interval
+        assert bca_lo < bca_hi
+
+
+class TestBcaReproducible:
+    def test_same_seed(self):
+        costs = [float(i) for i in range(1, 51)]
+        r1 = bootstrap_bca_ci(costs, percentile=50, seed=42)
+        r2 = bootstrap_bca_ci(costs, percentile=50, seed=42)
+        assert r1 == r2
+
+
+# ---------------------------------------------------------------------------
+# CVaR
+# ---------------------------------------------------------------------------
+
+
+class TestCvarBasic:
+    def test_cvar_known_values(self):
+        from agentcost.projection.montecarlo import compute_cvar
+        costs = list(range(1, 101))
+        cvar = compute_cvar([float(x) for x in costs], alpha=0.05)
+        assert cvar == pytest.approx(98.0, rel=0.01)
+
+
+class TestCvarSubadditivity:
+    def test_subadditive(self):
+        import random
+        from agentcost.projection.montecarlo import compute_cvar
+        rng = random.Random(42)
+        a = [rng.gauss(10, 3) for _ in range(1000)]
+        b = [rng.gauss(20, 5) for _ in range(1000)]
+        ab = [x + y for x, y in zip(a, b)]
+        assert compute_cvar(ab) <= compute_cvar(a) + compute_cvar(b) + 0.01
+
+
+# ---------------------------------------------------------------------------
+# Tightened threshold
+# ---------------------------------------------------------------------------
+
+
+class TestThresholdTightened:
+    def test_p50_ratio_1_8_fails_simple(self):
+        steps = {
+            "classify": _step("classify", 0.001, 0.001, 0.002),
+            "generate": _step("generate", 0.028, 0.027, 0.044),
+            "format": _step("format", 0.005, 0.004, 0.008),
+        }
+        proj = _make_stats(
+            steps=steps,
+            cost_p50=0.050,
+            cost_p95=0.080,
+        )
+        gt_costs = [0.028] * 500
+        gt = _make_stats(
+            steps=steps,
+            cost_p50=0.028,
+            cost_p95=0.048,
+            total_runs=500,
+            run_costs=gt_costs,
+        )
+        sc = score_projection(proj, gt, workflow_complexity="simple")
+        assert sc.p50_ratio > 1.7
+        assert any("p50" in w for w in sc.warnings) or any("p50" in f for f in sc.failures)

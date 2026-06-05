@@ -1,0 +1,500 @@
+{"input": "We're evaluating ProjectFlow for our 500-person engineering organization. Key requirements: SSO via Okta, audit logs with 1-year retention, custom roles beyond admin/member/viewer, and SOC 2 compliance. Can you schedule a demo with our IT security team?\n\nPlease provide a detailed response with steps."}
+{"input": "I was charged twice this month \u2014 once on the 3rd and once on the 15th. My subscription is Professional at $79/mo. Can you look into this and refund the duplicate charge? My account email is user60@company.com.\n\nPlease provide a detailed response with steps."}
+{"input": "Please help with this: How do We add team members? This is really important for our team."}
+{"input": ""}
+{"input": "I'm trying to set up the GitHub integration but getting an 'insufficient permissions' error during OAuth. I'm an admin on both the ProjectFlow and GitHub sides. Using Chrome 122 on macOS.\n\nPlease provide a detailed response with steps."}
+{"input": "Hey, How do I set up Slack notifications? This is really important for our team."}
+{"input": "Could you help me? What file formats can I import? This is really important for our team."}
+{"input": "I was charged twice this month \u2014 once on the 3rd and once on the 15th. My subscription is Professional at $79/mo. Can you look into this and refund the duplicate charge? My account email is user20@company.com.\n\nPlease provide a detailed response with steps."}
+{"input": "Quick question \u2014 My dashboard is loading slowly This is really important for our team."}
+{"input": "FYI \u2014 What's the difference between Professional and Enterprise? This is really important for our team."}
+{"input": "Please help with this: What integrations do you support? This is really important for our team."}
+{"input": "I'm wondering What's the difference between Professional and Enterprise? This is really important for our team."}
+{"input": "Hi there! What integrations do you support? This is really important for our team."}
+{"input": "Could you help me? I can't log in to my account This is really important for our team."}
+{"input": "Could you help me? Where are your servers located? This is really important for our team. (ref: TICKET-1140)"}
+{"input": "I'm trying to set up the GitHub integration but getting an 'insufficient permissions' error during OAuth. I'm an admin on both the ProjectFlow and GitHub sides. Using Chrome 122 on macOS.\n\nPlease provide a detailed response with steps."}
+{"input": "Several team members are reporting that file uploads fail for PDFs larger than 5MB. The error message says 'upload failed' with no additional details. This affects our workflow significantly since we attach design specs to tasks.\n\nPlease provide a detailed response with steps."}
+{"input": "Could you help me? What happens when my trial expires? This is really important for our team."}
+{"input": "Can you explain the difference between 'archived' and 'deleted' projects? If I archive something, can other team members still see it? And does it count against our project limit?\n\nPlease provide a detailed response with steps."}
+{"input": "Our team recently grew from 5 to 25 people. We're currently on the Starter plan but need more features like advanced reporting and API access. Can you walk me through the upgrade process and any prorated charges?\n\nPlease provide a detailed response with steps."}
+{"input": "What is the meaning of life? Also, can you write me a poem about sunsets? And while you're at it, what's the weather like in Tokyo? Oh and I guess I also have a billing question \u2014 why was I charged $79 when I thought I was on the free plan?"}
+{"input": "I'm trying to set up the GitHub integration but getting an 'insufficient permissions' error during OAuth. I'm an admin on both the ProjectFlow and GitHub sides. Using Chrome 122 on macOS.\n\nPlease provide a detailed response with steps."}
+{"input": "Several team members are reporting that file uploads fail for PDFs larger than 5MB. The error message says 'upload failed' with no additional details. This affects our workflow significantly since we attach design specs to tasks.\n\nPlease provide a detailed response with steps."}
+{"input": "https://projectflow.io/dashboard"}
+{"input": "I was charged twice this month \u2014 once on the 3rd and once on the 15th. My subscription is Professional at $79/mo. Can you look into this and refund the duplicate charge? My account email is user80@company.com.\n\nPlease provide a detailed response with steps."}
+{"input": "We need to migrate our account from one organization to another. We're being acquired by a larger company and they want all our project data under their enterprise account. What's the process for this?\n\nPlease provide a detailed response with steps."}
+{"input": "I was charged twice this month \u2014 once on the 3rd and once on the 15th. My subscription is Professional at $79/mo. Can you look into this and refund the duplicate charge? My account email is user40@company.com.\n\nPlease provide a detailed response with steps."}
+{"input": "Can you explain the difference between 'archived' and 'deleted' projects? If I archive something, can other team members still see it? And does it count against our project limit?\n\nPlease provide a detailed response with steps."}
+{"input": "I'm wondering How do I contact support? This is really important for our team."}
+{"input": "We need to migrate our account from one organization to another. We're being acquired by a larger company and they want all our project data under their enterprise account. What's the process for this?\n\nPlease provide a detailed response with steps."}
+{"input": "I'm trying to set up the GitHub integration but getting an 'insufficient permissions' error during OAuth. I'm an admin on both the ProjectFlow and GitHub sides. Using Chrome 122 on macOS.\n\nPlease provide a detailed response with steps."}
+{"input": "Several team members are reporting that file uploads fail for PDFs larger than 5MB. The error message says 'upload failed' with no additional details. This affects our workflow significantly since we attach design specs to tasks.\n\nPlease provide a detailed response with steps."}
+{"input": "{\"exploit\": true, \"payload\": \"<script>alert('xss')</script>\", \"sql\": \"'; DROP TABLE users; --\"}"}
+{"input": "The webhook integration with our internal tool stopped working yesterday. We're listening for task.completed events at https://hooks.internal.co/agentcost. The last successful delivery was at 2pm UTC on March 4. Can you check the webhook logs?\n\nPlease provide a detailed response with steps."}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "I'm wondering I need to change my email address This is really important for our team."}
+{"input": "We need to migrate our account from one organization to another. We're being acquired by a larger company and they want all our project data under their enterprise account. What's the process for this?\n\nPlease provide a detailed response with steps."}
+{"input": "asdfghjkl"}
+{"input": "We're evaluating ProjectFlow for our 500-person engineering organization. Key requirements: SSO via Okta, audit logs with 1-year retention, custom roles beyond admin/member/viewer, and SOC 2 compliance. Can you schedule a demo with our IT security team?\n\nPlease provide a detailed response with steps."}
+{"input": "I was charged twice this month \u2014 once on the 3rd and once on the 15th. My subscription is Professional at $79/mo. Can you look into this and refund the duplicate charge? My account email is john@example.com.\n\nPlease provide a detailed response with steps."}
+{"input": "I was charged twice this month \u2014 once on the 3rd and once on the 15th. My subscription is Professional at $79/mo. Can you look into this and refund the duplicate charge? My account email is user70@company.com.\n\nPlease provide a detailed response with steps."}
+{"input": "We need to migrate our account from one organization to another. We're being acquired by a larger company and they want all our project data under their enterprise account. What's the process for this?\n\nPlease provide a detailed response with steps."}
+{"input": "..."}
+{"input": "Several team members are reporting that file uploads fail for PDFs larger than 5MB. The error message says 'upload failed' with no additional details. This affects our workflow significantly since we attach design specs to tasks.\n\nPlease provide a detailed response with steps."}
+{"input": "\u00a1Hola! Necesito ayuda con mi cuenta. No puedo acceder desde hace tres d\u00edas. Mi correo es test@empresa.com. Also, can you respond in English?"}
+{"input": "What is the meaning of life? Also, can you write me a poem about sunsets? And while you're at it, what's the weather like in Tokyo? Oh and I guess I also have a billing question \u2014 why was I charged $79 when I thought I was on the free plan?"}
+{"input": "..."}
+{"input": "The webhook integration with our internal tool stopped working yesterday. We're listening for task.completed events at https://hooks.internal.co/agentcost. The last successful delivery was at 2pm UTC on March 20. Can you check the webhook logs?\n\nPlease provide a detailed response with steps."}
+{"input": "I accidentally deleted a project that had 6 months of task history. Is there any way to recover it? The project was called 'Q1 Marketing Campaign' and was deleted about 30 minutes ago.\n\nPlease provide a detailed response with steps."}
+{"input": "```python\ndef hack():\n    import os\n    os.system('rm -rf /')\n```\nI found this in your codebase is this a security issue?"}
+{"input": "Could you help me? Where are your servers located? This is really important for our team. (ref: TICKET-1050)"}
+{"input": "Urgent: How do We add team members? This is really important for our team."}
+{"input": "\u00a1Hola! Necesito ayuda con mi cuenta. No puedo acceder desde hace tres d\u00edas. Mi correo es test@empresa.com. Also, can you respond in English?"}
+{"input": "Our team recently grew from 5 to 25 people. We're currently on the Starter plan but need more features like advanced reporting and API access. Can you walk me through the upgrade process and any prorated charges?\n\nPlease provide a detailed response with steps."}
+{"input": "Quick question \u2014 Can I upgrade from Starter to Professional? This is really important for our team."}
+{"input": "Could you help me? What's included in the Enterprise plan? This is really important for our team."}
+{"input": "Can you explain the difference between 'archived' and 'deleted' projects? If I archive something, can other team members still see it? And does it count against our project limit?\n\nPlease provide a detailed response with steps."}
+{"input": "The webhook integration with our internal tool stopped working yesterday. We're listening for task.completed events at https://hooks.internal.co/agentcost. The last successful delivery was at 2pm UTC on March 6. Can you check the webhook logs?\n\nPlease provide a detailed response with steps."}
+{"input": "I'm trying to set up the GitHub integration but getting an 'insufficient permissions' error during OAuth. I'm an admin on both the ProjectFlow and GitHub sides. Using Chrome 122 on macOS.\n\nPlease provide a detailed response with steps."}
+{"input": "```python\ndef hack():\n    import os\n    os.system('rm -rf /')\n```\nI found this in your codebase is this a security issue?"}
+{"input": "We're evaluating ProjectFlow for our 500-person engineering organization. Key requirements: SSO via Okta, audit logs with 1-year retention, custom roles beyond admin/member/viewer, and SOC 2 compliance. Can you schedule a demo with our IT security team?\n\nPlease provide a detailed response with steps."}
+{"input": "FYI \u2014 How do I contact support? This is really important for our team."}
+{"input": "I accidentally deleted a project that had 6 months of task history. Is there any way to recover it? The project was called 'Q1 Marketing Campaign' and was deleted about 30 minutes ago.\n\nPlease provide a detailed response with steps."}
+{"input": "Could you help me? What happens when my trial expires? This is really important for our team."}
+{"input": "Urgent: How do We reset our password? This is really important for our team. (ref: TICKET-1060)"}
+{"input": "Several team members are reporting that file uploads fail for PDFs larger than 5MB. The error message says 'upload failed' with no additional details. This affects our workflow significantly since we attach design specs to tasks.\n\nPlease provide a detailed response with steps."}
+{"input": "Hi there! How do We add team members? This is really important for our team."}
+{"input": "FYI \u2014 How do I assign tasks to team members? This is really important for our team."}
+{"input": "Our team recently grew from 5 to 25 people. We're currently on the Starter plan but need more features like advanced reporting and API access. Can you walk me through the upgrade process and any prorated charges?\n\nPlease provide a detailed response with steps."}
+{"input": "Can I export my data? This is really important for our team."}
+{"input": "?"}
+{"input": "We're evaluating ProjectFlow for our 500-person engineering organization. Key requirements: SSO via Okta, audit logs with 1-year retention, custom roles beyond admin/member/viewer, and SOC 2 compliance. Can you schedule a demo with our IT security team?\n\nPlease provide a detailed response with steps."}
+{"input": "I'm wondering How do I assign tasks to team members? This is really important for our team."}
+{"input": "I'm wondering My dashboard is loading slowly This is really important for our team. (ref: TICKET-1130)"}
+{"input": "We're evaluating ProjectFlow for our 500-person engineering organization. Key requirements: SSO via Okta, audit logs with 1-year retention, custom roles beyond admin/member/viewer, and SOC 2 compliance. Can you schedule a demo with our IT security team?\n\nPlease provide a detailed response with steps."}
+{"input": "We need to migrate our account from one organization to another. We're being acquired by a larger company and they want all our project data under their enterprise account. What's the process for this?\n\nPlease provide a detailed response with steps."}
+{"input": "I'm wondering What are your pricing plans? This is really important for our team."}
+{"input": "Hi there! How do We reset our password? This is really important for our team. (ref: TICKET-1120)"}
+{"input": "Several team members are reporting that file uploads fail for PDFs larger than 5MB. The error message says 'upload failed' with no additional details. This affects our workflow significantly since we attach design specs to tasks.\n\nPlease provide a detailed response with steps."}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "What's included in the Enterprise plan? This is really important for our team."}
+{"input": "Hey, Where are your servers located? This is really important for our team."}
+{"input": "We're evaluating ProjectFlow for our 500-person engineering organization. Key requirements: SSO via Okta, audit logs with 1-year retention, custom roles beyond admin/member/viewer, and SOC 2 compliance. Can you schedule a demo with our IT security team?\n\nPlease provide a detailed response with steps."}
+{"input": "What is the meaning of life? Also, can you write me a poem about sunsets? And while you're at it, what's the weather like in Tokyo? Oh and I guess I also have a billing question \u2014 why was I charged $79 when I thought I was on the free plan?"}
+{"input": "Urgent: What's the APWe rate limit? This is really important for our team. (ref: TICKET-1105)"}
+{"input": "I accidentally deleted a project that had 6 months of task history. Is there any way to recover it? The project was called 'Q1 Marketing Campaign' and was deleted about 30 minutes ago.\n\nPlease provide a detailed response with steps."}
+{"input": "I was charged twice this month \u2014 once on the 3rd and once on the 15th. My subscription is Professional at $79/mo. Can you look into this and refund the duplicate charge? My account email is user130@company.com.\n\nPlease provide a detailed response with steps."}
+{"input": "Quick question \u2014 How do I share a project with external users? This is really important for our team. (ref: TICKET-1055)"}
+{"input": "I was charged twice this month \u2014 once on the 3rd and once on the 15th. My subscription is Professional at $79/mo. Can you look into this and refund the duplicate charge? My account email is user50@company.com.\n\nPlease provide a detailed response with steps."}
+{"input": "Can I export my data? This is really important for our team."}
+{"input": "I'm trying to set up the GitHub integration but getting an 'insufficient permissions' error during OAuth. I'm an admin on both the ProjectFlow and GitHub sides. Using Chrome 122 on macOS.\n\nPlease provide a detailed response with steps."}
+{"input": "We're evaluating ProjectFlow for our 500-person engineering organization. Key requirements: SSO via Okta, audit logs with 1-year retention, custom roles beyond admin/member/viewer, and SOC 2 compliance. Can you schedule a demo with our IT security team?\n\nPlease provide a detailed response with steps."}
+{"input": "Hey, I can't log in to my account This is really important for our team."}
+{"input": "I'm wondering What are your pricing plans? This is really important for our team."}
+{"input": "I'm trying to set up the GitHub integration but getting an 'insufficient permissions' error during OAuth. I'm an admin on both the ProjectFlow and GitHub sides. Using Chrome 122 on macOS.\n\nPlease provide a detailed response with steps."}
+{"input": "FYI \u2014 What are your pricing plans? This is really important for our team."}
+{"input": "We need to migrate our account from one organization to another. We're being acquired by a larger company and they want all our project data under their enterprise account. What's the process for this?\n\nPlease provide a detailed response with steps."}
+{"input": "The webhook integration with our internal tool stopped working yesterday. We're listening for task.completed events at https://hooks.internal.co/agentcost. The last successful delivery was at 2pm UTC on March 24. Can you check the webhook logs?\n\nPlease provide a detailed response with steps."}
+{"input": "Our team recently grew from 5 to 25 people. We're currently on the Starter plan but need more features like advanced reporting and API access. Can you walk me through the upgrade process and any prorated charges?\n\nPlease provide a detailed response with steps."}
+{"input": "```python\ndef hack():\n    import os\n    os.system('rm -rf /')\n```\nI found this in your codebase is this a security issue?"}
+{"input": "ok"}
+{"input": "Quick question \u2014 How do I contact support? This is really important for our team."}
+{"input": "FYI \u2014 Can I upgrade from Starter to Professional? This is really important for our team."}
+{"input": "help"}
+{"input": "What file formats can I import? This is really important for our team."}
+{"input": "FYI \u2014 My dashboard is loading slowly This is really important for our team. (ref: TICKET-1070)"}
+{"input": "123456789"}
+{"input": "..."}
+{"input": "Quick question \u2014 What's the difference between Professional and Enterprise? This is really important for our team."}
+{"input": "The webhook integration with our internal tool stopped working yesterday. We're listening for task.completed events at https://hooks.internal.co/agentcost. The last successful delivery was at 2pm UTC on March 26. Can you check the webhook logs?\n\nPlease provide a detailed response with steps."}
+{"input": "FYI \u2014 Can I upgrade from Starter to Professional? This is really important for our team."}
+{"input": "{\"exploit\": true, \"payload\": \"<script>alert('xss')</script>\", \"sql\": \"'; DROP TABLE users; --\"}"}
+{"input": "I accidentally deleted a project that had 6 months of task history. Is there any way to recover it? The project was called 'Q1 Marketing Campaign' and was deleted about 30 minutes ago.\n\nPlease provide a detailed response with steps."}
+{"input": "Can you explain the difference between 'archived' and 'deleted' projects? If I archive something, can other team members still see it? And does it count against our project limit?\n\nPlease provide a detailed response with steps."}
+{"input": "I accidentally deleted a project that had 6 months of task history. Is there any way to recover it? The project was called 'Q1 Marketing Campaign' and was deleted about 30 minutes ago.\n\nPlease provide a detailed response with steps."}
+{"input": "Can you explain the difference between 'archived' and 'deleted' projects? If I archive something, can other team members still see it? And does it count against our project limit?\n\nPlease provide a detailed response with steps."}
+{"input": "help"}
+{"input": "..."}
+{"input": "```python\ndef hack():\n    import os\n    os.system('rm -rf /')\n```\nI found this in your codebase is this a security issue?"}
+{"input": "Please help with this: Can We customize the dashboard? This is really important for our team."}
+{"input": "Can you explain the difference between 'archived' and 'deleted' projects? If I archive something, can other team members still see it? And does it count against our project limit?\n\nPlease provide a detailed response with steps."}
+{"input": "Hi there! Do you have a mobile app? This is really important for our team."}
+{"input": "Urgent: How do We enable two-factor authentication? This is really important for our team."}
+{"input": "How do I archive a project? This is really important for our team."}
+{"input": "Several team members are reporting that file uploads fail for PDFs larger than 5MB. The error message says 'upload failed' with no additional details. This affects our workflow significantly since we attach design specs to tasks.\n\nPlease provide a detailed response with steps."}
+{"input": "I'm trying to set up the GitHub integration but getting an 'insufficient permissions' error during OAuth. I'm an admin on both the ProjectFlow and GitHub sides. Using Chrome 122 on macOS.\n\nPlease provide a detailed response with steps."}
+{"input": "I accidentally deleted a project that had 6 months of task history. Is there any way to recover it? The project was called 'Q1 Marketing Campaign' and was deleted about 30 minutes ago.\n\nPlease provide a detailed response with steps."}
+{"input": "The webhook integration with our internal tool stopped working yesterday. We're listening for task.completed events at https://hooks.internal.co/agentcost. The last successful delivery was at 2pm UTC on March 18. Can you check the webhook logs?\n\nPlease provide a detailed response with steps."}
+{"input": "We need to migrate our account from one organization to another. We're being acquired by a larger company and they want all our project data under their enterprise account. What's the process for this?\n\nPlease provide a detailed response with steps."}
+{"input": "Our team recently grew from 5 to 25 people. We're currently on the Starter plan but need more features like advanced reporting and API access. Can you walk me through the upgrade process and any prorated charges?\n\nPlease provide a detailed response with steps."}
+{"input": "Urgent: Is our data encrypted? This is really important for our team."}
+{"input": "The webhook integration with our internal tool stopped working yesterday. We're listening for task.completed events at https://hooks.internal.co/agentcost. The last successful delivery was at 2pm UTC on March 16. Can you check the webhook logs?\n\nPlease provide a detailed response with steps."}
+{"input": "{\"exploit\": true, \"payload\": \"<script>alert('xss')</script>\", \"sql\": \"'; DROP TABLE users; --\"}"}
+{"input": "The webhook integration with our internal tool stopped working yesterday. We're listening for task.completed events at https://hooks.internal.co/agentcost. The last successful delivery was at 2pm UTC on March 28. Can you check the webhook logs?\n\nPlease provide a detailed response with steps."}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "Quick question \u2014 How do I generate an API key? This is really important for our team."}
+{"input": "What is the meaning of life? Also, can you write me a poem about sunsets? And while you're at it, what's the weather like in Tokyo? Oh and I guess I also have a billing question \u2014 why was I charged $79 when I thought I was on the free plan?"}
+{"input": "Several team members are reporting that file uploads fail for PDFs larger than 5MB. The error message says 'upload failed' with no additional details. This affects our workflow significantly since we attach design specs to tasks.\n\nPlease provide a detailed response with steps."}
+{"input": "I can't log in to my account This is really important for our team."}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "Hi there! What's the APWe rate limit? This is really important for our team. (ref: TICKET-1075)"}
+{"input": "123456789"}
+{"input": "Urgent: Can We use SSO with our company account? This is really important for our team."}
+{"input": "I was charged twice this month \u2014 once on the 3rd and once on the 15th. My subscription is Professional at $79/mo. Can you look into this and refund the duplicate charge? My account email is user90@company.com.\n\nPlease provide a detailed response with steps."}
+{"input": "We need to migrate our account from one organization to another. We're being acquired by a larger company and they want all our project data under their enterprise account. What's the process for this?\n\nPlease provide a detailed response with steps."}
+{"input": "I accidentally deleted a project that had 6 months of task history. Is there any way to recover it? The project was called 'Q1 Marketing Campaign' and was deleted about 30 minutes ago.\n\nPlease provide a detailed response with steps."}
+{"input": "Hey, What's included in the Enterprise plan? This is really important for our team."}
+{"input": "thanks"}
+{"input": "Hey, Is there a free trial? This is really important for our team. (ref: TICKET-1065)"}
+{"input": "Urgent: How do We cancel our subscription? This is really important for our team."}
+{"input": "The webhook integration with our internal tool stopped working yesterday. We're listening for task.completed events at https://hooks.internal.co/agentcost. The last successful delivery was at 2pm UTC on March 28. Can you check the webhook logs?\n\nPlease provide a detailed response with steps."}
+{"input": "Hi there! How do We reset our password? This is really important for our team. (ref: TICKET-1030)"}
+{"input": "Please help with this: How do We enable two-factor authentication? This is really important for our team."}
+{"input": "I accidentally deleted a project that had 6 months of task history. Is there any way to recover it? The project was called 'Q1 Marketing Campaign' and was deleted about 30 minutes ago.\n\nPlease provide a detailed response with steps."}
+{"input": "Hey, What file formats can I import? This is really important for our team."}
+{"input": "FYI \u2014 What's the difference between Professional and Enterprise? This is really important for our team."}
+{"input": "We need to migrate our account from one organization to another. We're being acquired by a larger company and they want all our project data under their enterprise account. What's the process for this?\n\nPlease provide a detailed response with steps."}
+{"input": "Several team members are reporting that file uploads fail for PDFs larger than 5MB. The error message says 'upload failed' with no additional details. This affects our workflow significantly since we attach design specs to tasks.\n\nPlease provide a detailed response with steps."}
+{"input": "Hi there! What integrations do you support? This is really important for our team."}
+{"input": "Hi there! Is our data encrypted? This is really important for our team."}
+{"input": "Hey, What file formats can I import? This is really important for our team."}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "Please help with this: How do I reset my password? This is really important for our team."}
+{"input": "I'm wondering Where can I find my invoices? This is really important for our team."}
+{"input": "The webhook integration with our internal tool stopped working yesterday. We're listening for task.completed events at https://hooks.internal.co/agentcost. The last successful delivery was at 2pm UTC on March 18. Can you check the webhook logs?\n\nPlease provide a detailed response with steps."}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "Our team recently grew from 5 to 25 people. We're currently on the Starter plan but need more features like advanced reporting and API access. Can you walk me through the upgrade process and any prorated charges?\n\nPlease provide a detailed response with steps."}
+{"input": "Hey, How do I archive a project? This is really important for our team."}
+{"input": "Several team members are reporting that file uploads fail for PDFs larger than 5MB. The error message says 'upload failed' with no additional details. This affects our workflow significantly since we attach design specs to tasks.\n\nPlease provide a detailed response with steps."}
+{"input": "Quick question \u2014 I need to change my email address This is really important for our team."}
+{"input": "We're evaluating ProjectFlow for our 500-person engineering organization. Key requirements: SSO via Okta, audit logs with 1-year retention, custom roles beyond admin/member/viewer, and SOC 2 compliance. Can you schedule a demo with our IT security team?\n\nPlease provide a detailed response with steps."}
+{"input": "help"}
+{"input": "What happens when my trial expires? This is really important for our team."}
+{"input": "URGENT URGENT URGENT!!! I am going to lose my job if this isn't fixed in the next 10 minutes!!! The ENTIRE system is DOWN for our company of 10,000 people!!! I demand to speak with your CEO immediately!!! This is UNACCEPTABLE!!! \ud83d\ude21\ud83d\ude21\ud83d\ude21\ud83d\udd25"}
+{"input": "FYI \u2014 How do I share a project with external users? This is really important for our team."}
+{"input": "```python\ndef hack():\n    import os\n    os.system('rm -rf /')\n```\nI found this in your codebase is this a security issue?"}
+{"input": "Please help with this: How do I enable two-factor authentication? This is really important for our team."}
+{"input": "What is the meaning of life? Also, can you write me a poem about sunsets? And while you're at it, what's the weather like in Tokyo? Oh and I guess I also have a billing question \u2014 why was I charged $79 when I thought I was on the free plan?"}
+{"input": "What happens when my trial expires? This is really important for our team."}
+{"input": "Please help with this: Can I customize the dashboard? This is really important for our team."}
+{"input": "The webhook integration with our internal tool stopped working yesterday. We're listening for task.completed events at https://hooks.internal.co/agentcost. The last successful delivery was at 2pm UTC on March 16. Can you check the webhook logs?\n\nPlease provide a detailed response with steps."}
+{"input": "I was charged twice this month \u2014 once on the 3rd and once on the 15th. My subscription is Professional at $79/mo. Can you look into this and refund the duplicate charge? My account email is user100@company.com.\n\nPlease provide a detailed response with steps."}
+{"input": "The webhook integration with our internal tool stopped working yesterday. We're listening for task.completed events at https://hooks.internal.co/agentcost. The last successful delivery was at 2pm UTC on March 26. Can you check the webhook logs?\n\nPlease provide a detailed response with steps."}
+{"input": "FYI \u2014 How do I generate an API key? This is really important for our team."}
+{"input": "ok"}
+{"input": "FYI \u2014 I need to change my email address This is really important for our team."}
+{"input": "Can you explain the difference between 'archived' and 'deleted' projects? If I archive something, can other team members still see it? And does it count against our project limit?\n\nPlease provide a detailed response with steps."}
+{"input": "Could you help me? How do I create a new project? This is really important for our team."}
+{"input": "Our team recently grew from 5 to 25 people. We're currently on the Starter plan but need more features like advanced reporting and API access. Can you walk me through the upgrade process and any prorated charges?\n\nPlease provide a detailed response with steps."}
+{"input": "Urgent: Do you have a mobile app? This is really important for our team."}
+{"input": "\u00a1Hola! Necesito ayuda con mi cuenta. No puedo acceder desde hace tres d\u00edas. Mi correo es test@empresa.com. Also, can you respond in English?"}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "Hi there! Can We customize the dashboard? This is really important for our team."}
+{"input": "ok"}
+{"input": "Could you help me? Can I export my data? This is really important for our team."}
+{"input": "https://projectflow.io/dashboard"}
+{"input": "https://projectflow.io/dashboard"}
+{"input": "I'm wondering My dashboard is loading slowly This is really important for our team. (ref: TICKET-1130)"}
+{"input": "\u00a1Hola! Necesito ayuda con mi cuenta. No puedo acceder desde hace tres d\u00edas. Mi correo es test@empresa.com. Also, can you respond in English?"}
+{"input": "I'm wondering How do I generate an API key? This is really important for our team."}
+{"input": "We need to migrate our account from one organization to another. We're being acquired by a larger company and they want all our project data under their enterprise account. What's the process for this?\n\nPlease provide a detailed response with steps."}
+{"input": "The webhook integration with our internal tool stopped working yesterday. We're listening for task.completed events at https://hooks.internal.co/agentcost. The last successful delivery was at 2pm UTC on March 2. Can you check the webhook logs?\n\nPlease provide a detailed response with steps."}
+{"input": "I'm wondering How do I contact support? This is really important for our team."}
+{"input": "FYI \u2014 Where can I find my invoices? This is really important for our team."}
+{"input": "Quick question \u2014 How do I contact support? This is really important for our team."}
+{"input": "Our team recently grew from 5 to 25 people. We're currently on the Starter plan but need more features like advanced reporting and API access. Can you walk me through the upgrade process and any prorated charges?\n\nPlease provide a detailed response with steps."}
+{"input": "Quick question \u2014 How do I share a project with external users? This is really important for our team. (ref: TICKET-1145)"}
+{"input": "We're evaluating ProjectFlow for our 500-person engineering organization. Key requirements: SSO via Okta, audit logs with 1-year retention, custom roles beyond admin/member/viewer, and SOC 2 compliance. Can you schedule a demo with our IT security team?\n\nPlease provide a detailed response with steps."}
+{"input": "I'm wondering How do I share a project with external users? This is really important for our team. (ref: TICKET-1085)"}
+{"input": "ok"}
+{"input": "{\"exploit\": true, \"payload\": \"<script>alert('xss')</script>\", \"sql\": \"'; DROP TABLE users; --\"}"}
+{"input": "We need to migrate our account from one organization to another. We're being acquired by a larger company and they want all our project data under their enterprise account. What's the process for this?\n\nPlease provide a detailed response with steps."}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "We need to migrate our account from one organization to another. We're being acquired by a larger company and they want all our project data under their enterprise account. What's the process for this?\n\nPlease provide a detailed response with steps."}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "Our team recently grew from 5 to 25 people. We're currently on the Starter plan but need more features like advanced reporting and API access. Can you walk me through the upgrade process and any prorated charges?\n\nPlease provide a detailed response with steps."}
+{"input": "What is the meaning of life? Also, can you write me a poem about sunsets? And while you're at it, what's the weather like in Tokyo? Oh and I guess I also have a billing question \u2014 why was I charged $79 when I thought I was on the free plan?"}
+{"input": "I'm wondering How do I assign tasks to team members? This is really important for our team."}
+{"input": "FYI \u2014 How do I share a project with external users? This is really important for our team. (ref: TICKET-1115)"}
+{"input": "URGENT URGENT URGENT!!! I am going to lose my job if this isn't fixed in the next 10 minutes!!! The ENTIRE system is DOWN for our company of 10,000 people!!! I demand to speak with your CEO immediately!!! This is UNACCEPTABLE!!! \ud83d\ude21\ud83d\ude21\ud83d\ude21\ud83d\udd25"}
+{"input": ""}
+{"input": "Please help with this: What's the APWe rate limit? This is really important for our team. (ref: TICKET-1135)"}
+{"input": "I was charged twice this month \u2014 once on the 3rd and once on the 15th. My subscription is Professional at $79/mo. Can you look into this and refund the duplicate charge? My account email is user30@company.com.\n\nPlease provide a detailed response with steps."}
+{"input": "We're evaluating ProjectFlow for our 500-person engineering organization. Key requirements: SSO via Okta, audit logs with 1-year retention, custom roles beyond admin/member/viewer, and SOC 2 compliance. Can you schedule a demo with our IT security team?\n\nPlease provide a detailed response with steps."}
+{"input": "Could you help me? How do I archive a project? This is really important for our team."}
+{"input": "Several team members are reporting that file uploads fail for PDFs larger than 5MB. The error message says 'upload failed' with no additional details. This affects our workflow significantly since we attach design specs to tasks.\n\nPlease provide a detailed response with steps."}
+{"input": "How do I create a new project? This is really important for our team."}
+{"input": "Please help with this: Can We use SSO with our company account? This is really important for our team."}
+{"input": "I accidentally deleted a project that had 6 months of task history. Is there any way to recover it? The project was called 'Q1 Marketing Campaign' and was deleted about 30 minutes ago.\n\nPlease provide a detailed response with steps."}
+{"input": "We're evaluating ProjectFlow for our 500-person engineering organization. Key requirements: SSO via Okta, audit logs with 1-year retention, custom roles beyond admin/member/viewer, and SOC 2 compliance. Can you schedule a demo with our IT security team?\n\nPlease provide a detailed response with steps."}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "We're evaluating ProjectFlow for our 500-person engineering organization. Key requirements: SSO via Okta, audit logs with 1-year retention, custom roles beyond admin/member/viewer, and SOC 2 compliance. Can you schedule a demo with our IT security team?\n\nPlease provide a detailed response with steps."}
+{"input": "Our team recently grew from 5 to 25 people. We're currently on the Starter plan but need more features like advanced reporting and API access. Can you walk me through the upgrade process and any prorated charges?\n\nPlease provide a detailed response with steps."}
+{"input": "```python\ndef hack():\n    import os\n    os.system('rm -rf /')\n```\nI found this in your codebase is this a security issue?"}
+{"input": "Please help with this: How do We cancel our subscription? This is really important for our team."}
+{"input": "Hi there! Is our data encrypted? This is really important for our team."}
+{"input": "?"}
+{"input": "I was charged twice this month \u2014 once on the 3rd and once on the 15th. My subscription is Professional at $79/mo. Can you look into this and refund the duplicate charge? My account email is user50@company.com.\n\nPlease provide a detailed response with steps."}
+{"input": "Urgent: What integrations do you support? This is really important for our team."}
+{"input": "Quick question \u2014 Can I upgrade from Starter to Professional? This is really important for our team."}
+{"input": "Quick question \u2014 Where can I find my invoices? This is really important for our team."}
+{"input": "Quick question \u2014 What are your pricing plans? This is really important for our team."}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "Could you help me? Where are your servers located? This is really important for our team. (ref: TICKET-1140)"}
+{"input": "I accidentally deleted a project that had 6 months of task history. Is there any way to recover it? The project was called 'Q1 Marketing Campaign' and was deleted about 30 minutes ago.\n\nPlease provide a detailed response with steps."}
+{"input": "We're evaluating ProjectFlow for our 500-person engineering organization. Key requirements: SSO via Okta, audit logs with 1-year retention, custom roles beyond admin/member/viewer, and SOC 2 compliance. Can you schedule a demo with our IT security team?\n\nPlease provide a detailed response with steps."}
+{"input": "Can you explain the difference between 'archived' and 'deleted' projects? If I archive something, can other team members still see it? And does it count against our project limit?\n\nPlease provide a detailed response with steps."}
+{"input": "We're evaluating ProjectFlow for our 500-person engineering organization. Key requirements: SSO via Okta, audit logs with 1-year retention, custom roles beyond admin/member/viewer, and SOC 2 compliance. Can you schedule a demo with our IT security team?\n\nPlease provide a detailed response with steps."}
+{"input": "The webhook integration with our internal tool stopped working yesterday. We're listening for task.completed events at https://hooks.internal.co/agentcost. The last successful delivery was at 2pm UTC on March 22. Can you check the webhook logs?\n\nPlease provide a detailed response with steps."}
+{"input": "Can you explain the difference between 'archived' and 'deleted' projects? If I archive something, can other team members still see it? And does it count against our project limit?\n\nPlease provide a detailed response with steps."}
+{"input": "thanks"}
+{"input": "We need to migrate our account from one organization to another. We're being acquired by a larger company and they want all our project data under their enterprise account. What's the process for this?\n\nPlease provide a detailed response with steps."}
+{"input": "Could you help me? How do I create a new project? This is really important for our team."}
+{"input": "I'm wondering My dashboard is loading slowly This is really important for our team. (ref: TICKET-1040)"}
+{"input": "Several team members are reporting that file uploads fail for PDFs larger than 5MB. The error message says 'upload failed' with no additional details. This affects our workflow significantly since we attach design specs to tasks.\n\nPlease provide a detailed response with steps."}
+{"input": "Quick question \u2014 How do I assign tasks to team members? This is really important for our team."}
+{"input": "asdfghjkl"}
+{"input": "Please help with this: Is my data encrypted? This is really important for our team."}
+{"input": "We're evaluating ProjectFlow for our 500-person engineering organization. Key requirements: SSO via Okta, audit logs with 1-year retention, custom roles beyond admin/member/viewer, and SOC 2 compliance. Can you schedule a demo with our IT security team?\n\nPlease provide a detailed response with steps."}
+{"input": "Could you help me? Is there a free trial? This is really important for our team."}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "Hi there! Can We customize the dashboard? This is really important for our team."}
+{"input": "I accidentally deleted a project that had 6 months of task history. Is there any way to recover it? The project was called 'Q1 Marketing Campaign' and was deleted about 30 minutes ago.\n\nPlease provide a detailed response with steps."}
+{"input": "Is there a free trial? This is really important for our team. (ref: TICKET-1035)"}
+{"input": "asdfghjkl"}
+{"input": "I'm trying to set up the GitHub integration but getting an 'insufficient permissions' error during OAuth. I'm an admin on both the ProjectFlow and GitHub sides. Using Chrome 122 on macOS.\n\nPlease provide a detailed response with steps."}
+{"input": "The webhook integration with our internal tool stopped working yesterday. We're listening for task.completed events at https://hooks.internal.co/agentcost. The last successful delivery was at 2pm UTC on March 10. Can you check the webhook logs?\n\nPlease provide a detailed response with steps."}
+{"input": "We're evaluating ProjectFlow for our 500-person engineering organization. Key requirements: SSO via Okta, audit logs with 1-year retention, custom roles beyond admin/member/viewer, and SOC 2 compliance. Can you schedule a demo with our IT security team?\n\nPlease provide a detailed response with steps."}
+{"input": "The webhook integration with our internal tool stopped working yesterday. We're listening for task.completed events at https://hooks.internal.co/agentcost. The last successful delivery was at 2pm UTC on March 8. Can you check the webhook logs?\n\nPlease provide a detailed response with steps."}
+{"input": "Could you help me? How do I set up Slack notifications? This is really important for our team."}
+{"input": "Is there a free trial? This is really important for our team. (ref: TICKET-1125)"}
+{"input": "Quick question \u2014 What are your pricing plans? This is really important for our team."}
+{"input": "I accidentally deleted a project that had 6 months of task history. Is there any way to recover it? The project was called 'Q1 Marketing Campaign' and was deleted about 30 minutes ago.\n\nPlease provide a detailed response with steps."}
+{"input": "The webhook integration with our internal tool stopped working yesterday. We're listening for task.completed events at https://hooks.internal.co/agentcost. The last successful delivery was at 2pm UTC on March 8. Can you check the webhook logs?\n\nPlease provide a detailed response with steps."}
+{"input": "Several team members are reporting that file uploads fail for PDFs larger than 5MB. The error message says 'upload failed' with no additional details. This affects our workflow significantly since we attach design specs to tasks.\n\nPlease provide a detailed response with steps."}
+{"input": "We're evaluating ProjectFlow for our 500-person engineering organization. Key requirements: SSO via Okta, audit logs with 1-year retention, custom roles beyond admin/member/viewer, and SOC 2 compliance. Can you schedule a demo with our IT security team?\n\nPlease provide a detailed response with steps."}
+{"input": "I'm wondering Where can I find my invoices? This is really important for our team."}
+{"input": "We need to migrate our account from one organization to another. We're being acquired by a larger company and they want all our project data under their enterprise account. What's the process for this?\n\nPlease provide a detailed response with steps."}
+{"input": "Our team recently grew from 5 to 25 people. We're currently on the Starter plan but need more features like advanced reporting and API access. Can you walk me through the upgrade process and any prorated charges?\n\nPlease provide a detailed response with steps."}
+{"input": "Hey, Can I export my data? This is really important for our team."}
+{"input": "We're evaluating ProjectFlow for our 500-person engineering organization. Key requirements: SSO via Okta, audit logs with 1-year retention, custom roles beyond admin/member/viewer, and SOC 2 compliance. Can you schedule a demo with our IT security team?\n\nPlease provide a detailed response with steps."}
+{"input": "Several team members are reporting that file uploads fail for PDFs larger than 5MB. The error message says 'upload failed' with no additional details. This affects our workflow significantly since we attach design specs to tasks.\n\nPlease provide a detailed response with steps."}
+{"input": "Urgent: What's the API rate limit? This is really important for our team."}
+{"input": "I'm trying to set up the GitHub integration but getting an 'insufficient permissions' error during OAuth. I'm an admin on both the ProjectFlow and GitHub sides. Using Chrome 122 on macOS.\n\nPlease provide a detailed response with steps."}
+{"input": "URGENT URGENT URGENT!!! I am going to lose my job if this isn't fixed in the next 10 minutes!!! The ENTIRE system is DOWN for our company of 10,000 people!!! I demand to speak with your CEO immediately!!! This is UNACCEPTABLE!!! \ud83d\ude21\ud83d\ude21\ud83d\ude21\ud83d\udd25"}
+{"input": "Quick question \u2014 How do I share a project with external users? This is really important for our team. (ref: TICKET-1145)"}
+{"input": "Hey, Where are your servers located? This is really important for our team. (ref: TICKET-1110)"}
+{"input": "I'm trying to set up the GitHub integration but getting an 'insufficient permissions' error during OAuth. I'm an admin on both the ProjectFlow and GitHub sides. Using Chrome 122 on macOS.\n\nPlease provide a detailed response with steps."}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "Our team recently grew from 5 to 25 people. We're currently on the Starter plan but need more features like advanced reporting and API access. Can you walk me through the upgrade process and any prorated charges?\n\nPlease provide a detailed response with steps."}
+{"input": "```python\ndef hack():\n    import os\n    os.system('rm -rf /')\n```\nI found this in your codebase is this a security issue?"}
+{"input": "Hi there! How do We enable two-factor authentication? This is really important for our team."}
+{"input": "What is the meaning of life? Also, can you write me a poem about sunsets? And while you're at it, what's the weather like in Tokyo? Oh and I guess I also have a billing question \u2014 why was I charged $79 when I thought I was on the free plan?"}
+{"input": "Can you explain the difference between 'archived' and 'deleted' projects? If I archive something, can other team members still see it? And does it count against our project limit?\n\nPlease provide a detailed response with steps."}
+{"input": "We're evaluating ProjectFlow for our 500-person engineering organization. Key requirements: SSO via Okta, audit logs with 1-year retention, custom roles beyond admin/member/viewer, and SOC 2 compliance. Can you schedule a demo with our IT security team?\n\nPlease provide a detailed response with steps."}
+{"input": "We're evaluating ProjectFlow for our 500-person engineering organization. Key requirements: SSO via Okta, audit logs with 1-year retention, custom roles beyond admin/member/viewer, and SOC 2 compliance. Can you schedule a demo with our IT security team?\n\nPlease provide a detailed response with steps."}
+{"input": "Can you explain the difference between 'archived' and 'deleted' projects? If I archive something, can other team members still see it? And does it count against our project limit?\n\nPlease provide a detailed response with steps."}
+{"input": "We're evaluating ProjectFlow for our 500-person engineering organization. Key requirements: SSO via Okta, audit logs with 1-year retention, custom roles beyond admin/member/viewer, and SOC 2 compliance. Can you schedule a demo with our IT security team?\n\nPlease provide a detailed response with steps."}
+{"input": "thanks"}
+{"input": "Several team members are reporting that file uploads fail for PDFs larger than 5MB. The error message says 'upload failed' with no additional details. This affects our workflow significantly since we attach design specs to tasks.\n\nPlease provide a detailed response with steps."}
+{"input": "Quick question \u2014 My dashboard is loading slowly This is really important for our team. (ref: TICKET-1100)"}
+{"input": "We need to migrate our account from one organization to another. We're being acquired by a larger company and they want all our project data under their enterprise account. What's the process for this?\n\nPlease provide a detailed response with steps."}
+{"input": "How do I set up Slack notifications? This is really important for our team."}
+{"input": "What file formats can I import? This is really important for our team."}
+{"input": "URGENT URGENT URGENT!!! I am going to lose my job if this isn't fixed in the next 10 minutes!!! The ENTIRE system is DOWN for our company of 10,000 people!!! I demand to speak with your CEO immediately!!! This is UNACCEPTABLE!!! \ud83d\ude21\ud83d\ude21\ud83d\ude21\ud83d\udd25"}
+{"input": "I accidentally deleted a project that had 6 months of task history. Is there any way to recover it? The project was called 'Q1 Marketing Campaign' and was deleted about 30 minutes ago.\n\nPlease provide a detailed response with steps."}
+{"input": "I'm trying to set up the GitHub integration but getting an 'insufficient permissions' error during OAuth. I'm an admin on both the ProjectFlow and GitHub sides. Using Chrome 122 on macOS.\n\nPlease provide a detailed response with steps."}
+{"input": "We need to migrate our account from one organization to another. We're being acquired by a larger company and they want all our project data under their enterprise account. What's the process for this?\n\nPlease provide a detailed response with steps."}
+{"input": "Could you help me? Is there a free trial? This is really important for our team. (ref: TICKET-1095)"}
+{"input": "Could you help me? Where are your servers located? This is really important for our team. (ref: TICKET-1050)"}
+{"input": "I was charged twice this month \u2014 once on the 3rd and once on the 15th. My subscription is Professional at $79/mo. Can you look into this and refund the duplicate charge? My account email is user40@company.com.\n\nPlease provide a detailed response with steps."}
+{"input": "FYI \u2014 Where can I find my invoices? This is really important for our team."}
+{"input": "Can you explain the difference between 'archived' and 'deleted' projects? If I archive something, can other team members still see it? And does it count against our project limit?\n\nPlease provide a detailed response with steps."}
+{"input": "We need to migrate our account from one organization to another. We're being acquired by a larger company and they want all our project data under their enterprise account. What's the process for this?\n\nPlease provide a detailed response with steps."}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "URGENT URGENT URGENT!!! I am going to lose my job if this isn't fixed in the next 10 minutes!!! The ENTIRE system is DOWN for our company of 10,000 people!!! I demand to speak with your CEO immediately!!! This is UNACCEPTABLE!!! \ud83d\ude21\ud83d\ude21\ud83d\ude21\ud83d\udd25"}
+{"input": "help"}
+{"input": "123456789"}
+{"input": "Hi there! How do We cancel our subscription? This is really important for our team."}
+{"input": "I'm wondering My dashboard is loading slowly This is really important for our team. (ref: TICKET-1040)"}
+{"input": "Urgent: How do We add team members? This is really important for our team."}
+{"input": "Several team members are reporting that file uploads fail for PDFs larger than 5MB. The error message says 'upload failed' with no additional details. This affects our workflow significantly since we attach design specs to tasks.\n\nPlease provide a detailed response with steps."}
+{"input": "Quick question \u2014 What's the difference between Professional and Enterprise? This is really important for our team."}
+{"input": "Several team members are reporting that file uploads fail for PDFs larger than 5MB. The error message says 'upload failed' with no additional details. This affects our workflow significantly since we attach design specs to tasks.\n\nPlease provide a detailed response with steps."}
+{"input": "Our team recently grew from 5 to 25 people. We're currently on the Starter plan but need more features like advanced reporting and API access. Can you walk me through the upgrade process and any prorated charges?\n\nPlease provide a detailed response with steps."}
+{"input": "hi"}
+{"input": "{\"exploit\": true, \"payload\": \"<script>alert('xss')</script>\", \"sql\": \"'; DROP TABLE users; --\"}"}
+{"input": "```python\ndef hack():\n    import os\n    os.system('rm -rf /')\n```\nI found this in your codebase is this a security issue?"}
+{"input": "Quick question \u2014 What's the difference between Professional and Enterprise? This is really important for our team."}
+{"input": "We're evaluating ProjectFlow for our 500-person engineering organization. Key requirements: SSO via Okta, audit logs with 1-year retention, custom roles beyond admin/member/viewer, and SOC 2 compliance. Can you schedule a demo with our IT security team?\n\nPlease provide a detailed response with steps."}
+{"input": "Please help with this: How do We enable two-factor authentication? This is really important for our team."}
+{"input": "Can you explain the difference between 'archived' and 'deleted' projects? If I archive something, can other team members still see it? And does it count against our project limit?\n\nPlease provide a detailed response with steps."}
+{"input": "I accidentally deleted a project that had 6 months of task history. Is there any way to recover it? The project was called 'Q1 Marketing Campaign' and was deleted about 30 minutes ago.\n\nPlease provide a detailed response with steps."}
+{"input": "Quick question \u2014 How do I assign tasks to team members? This is really important for our team."}
+{"input": "hi"}
+{"input": "Quick question \u2014 What's the difference between Professional and Enterprise? This is really important for our team."}
+{"input": "Our team recently grew from 5 to 25 people. We're currently on the Starter plan but need more features like advanced reporting and API access. Can you walk me through the upgrade process and any prorated charges?\n\nPlease provide a detailed response with steps."}
+{"input": "I'm trying to set up the GitHub integration but getting an 'insufficient permissions' error during OAuth. I'm an admin on both the ProjectFlow and GitHub sides. Using Chrome 122 on macOS.\n\nPlease provide a detailed response with steps."}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "The webhook integration with our internal tool stopped working yesterday. We're listening for task.completed events at https://hooks.internal.co/agentcost. The last successful delivery was at 2pm UTC on March 12. Can you check the webhook logs?\n\nPlease provide a detailed response with steps."}
+{"input": "I accidentally deleted a project that had 6 months of task history. Is there any way to recover it? The project was called 'Q1 Marketing Campaign' and was deleted about 30 minutes ago.\n\nPlease provide a detailed response with steps."}
+{"input": ""}
+{"input": "\u00a1Hola! Necesito ayuda con mi cuenta. No puedo acceder desde hace tres d\u00edas. Mi correo es test@empresa.com. Also, can you respond in English?"}
+{"input": "Our team recently grew from 5 to 25 people. We're currently on the Starter plan but need more features like advanced reporting and API access. Can you walk me through the upgrade process and any prorated charges?\n\nPlease provide a detailed response with steps."}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "I'm wondering Can I upgrade from Starter to Professional? This is really important for our team."}
+{"input": "Quick question \u2014 My dashboard is loading slowly This is really important for our team. (ref: TICKET-1100)"}
+{"input": "thanks"}
+{"input": "I was charged twice this month \u2014 once on the 3rd and once on the 15th. My subscription is Professional at $79/mo. Can you look into this and refund the duplicate charge? My account email is user60@company.com.\n\nPlease provide a detailed response with steps."}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "I'm trying to set up the GitHub integration but getting an 'insufficient permissions' error during OAuth. I'm an admin on both the ProjectFlow and GitHub sides. Using Chrome 122 on macOS.\n\nPlease provide a detailed response with steps."}
+{"input": "```python\ndef hack():\n    import os\n    os.system('rm -rf /')\n```\nI found this in your codebase is this a security issue?"}
+{"input": "I was charged twice this month \u2014 once on the 3rd and once on the 15th. My subscription is Professional at $79/mo. Can you look into this and refund the duplicate charge? My account email is user140@company.com.\n\nPlease provide a detailed response with steps."}
+{"input": "I'm trying to set up the GitHub integration but getting an 'insufficient permissions' error during OAuth. I'm an admin on both the ProjectFlow and GitHub sides. Using Chrome 122 on macOS.\n\nPlease provide a detailed response with steps."}
+{"input": "Please help with this: Do you have a mobile app? This is really important for our team."}
+{"input": "The webhook integration with our internal tool stopped working yesterday. We're listening for task.completed events at https://hooks.internal.co/agentcost. The last successful delivery was at 2pm UTC on March 14. Can you check the webhook logs?\n\nPlease provide a detailed response with steps."}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "I'm wondering I need to change my email address This is really important for our team."}
+{"input": "Our team recently grew from 5 to 25 people. We're currently on the Starter plan but need more features like advanced reporting and API access. Can you walk me through the upgrade process and any prorated charges?\n\nPlease provide a detailed response with steps."}
+{"input": "Hey, What happens when my trial expires? This is really important for our team."}
+{"input": "I accidentally deleted a project that had 6 months of task history. Is there any way to recover it? The project was called 'Q1 Marketing Campaign' and was deleted about 30 minutes ago.\n\nPlease provide a detailed response with steps."}
+{"input": "Hey, I can't log in to my account This is really important for our team."}
+{"input": "?"}
+{"input": "Can you explain the difference between 'archived' and 'deleted' projects? If I archive something, can other team members still see it? And does it count against our project limit?\n\nPlease provide a detailed response with steps."}
+{"input": "Can you explain the difference between 'archived' and 'deleted' projects? If I archive something, can other team members still see it? And does it count against our project limit?\n\nPlease provide a detailed response with steps."}
+{"input": "Several team members are reporting that file uploads fail for PDFs larger than 5MB. The error message says 'upload failed' with no additional details. This affects our workflow significantly since we attach design specs to tasks.\n\nPlease provide a detailed response with steps."}
+{"input": "\u00a1Hola! Necesito ayuda con mi cuenta. No puedo acceder desde hace tres d\u00edas. Mi correo es test@empresa.com. Also, can you respond in English?"}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "Hey, How do I create a new project? This is really important for our team."}
+{"input": "FYI \u2014 I need to change my email address This is really important for our team."}
+{"input": "We need to migrate our account from one organization to another. We're being acquired by a larger company and they want all our project data under their enterprise account. What's the process for this?\n\nPlease provide a detailed response with steps."}
+{"input": "I'm trying to set up the GitHub integration but getting an 'insufficient permissions' error during OAuth. I'm an admin on both the ProjectFlow and GitHub sides. Using Chrome 122 on macOS.\n\nPlease provide a detailed response with steps."}
+{"input": "Hey, What's included in the Enterprise plan? This is really important for our team."}
+{"input": "The webhook integration with our internal tool stopped working yesterday. We're listening for task.completed events at https://hooks.internal.co/agentcost. The last successful delivery was at 2pm UTC on March 14. Can you check the webhook logs?\n\nPlease provide a detailed response with steps."}
+{"input": "I was charged twice this month \u2014 once on the 3rd and once on the 15th. My subscription is Professional at $79/mo. Can you look into this and refund the duplicate charge? My account email is user120@company.com.\n\nPlease provide a detailed response with steps."}
+{"input": "I accidentally deleted a project that had 6 months of task history. Is there any way to recover it? The project was called 'Q1 Marketing Campaign' and was deleted about 30 minutes ago.\n\nPlease provide a detailed response with steps."}
+{"input": "Where are your servers located? This is really important for our team. (ref: TICKET-1080)"}
+{"input": "Can you explain the difference between 'archived' and 'deleted' projects? If I archive something, can other team members still see it? And does it count against our project limit?\n\nPlease provide a detailed response with steps."}
+{"input": "thanks"}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "I accidentally deleted a project that had 6 months of task history. Is there any way to recover it? The project was called 'Q1 Marketing Campaign' and was deleted about 30 minutes ago.\n\nPlease provide a detailed response with steps."}
+{"input": "I'm trying to set up the GitHub integration but getting an 'insufficient permissions' error during OAuth. I'm an admin on both the ProjectFlow and GitHub sides. Using Chrome 122 on macOS.\n\nPlease provide a detailed response with steps."}
+{"input": "I'm wondering How do I share a project with external users? This is really important for our team. (ref: TICKET-1085)"}
+{"input": "I'm wondering How do I generate an API key? This is really important for our team."}
+{"input": "Please help with this: How do We cancel our subscription? This is really important for our team."}
+{"input": "I accidentally deleted a project that had 6 months of task history. Is there any way to recover it? The project was called 'Q1 Marketing Campaign' and was deleted about 30 minutes ago.\n\nPlease provide a detailed response with steps."}
+{"input": "Could you help me? What's included in the Enterprise plan? This is really important for our team."}
+{"input": "I was charged twice this month \u2014 once on the 3rd and once on the 15th. My subscription is Professional at $79/mo. Can you look into this and refund the duplicate charge? My account email is user110@company.com.\n\nPlease provide a detailed response with steps."}
+{"input": "https://projectflow.io/dashboard"}
+{"input": "We need to migrate our account from one organization to another. We're being acquired by a larger company and they want all our project data under their enterprise account. What's the process for this?\n\nPlease provide a detailed response with steps."}
+{"input": "Urgent: How do I cancel my subscription? This is really important for our team."}
+{"input": "?"}
+{"input": "Please help with this: How do I enable two-factor authentication? This is really important for our team."}
+{"input": "Several team members are reporting that file uploads fail for PDFs larger than 5MB. The error message says 'upload failed' with no additional details. This affects our workflow significantly since we attach design specs to tasks.\n\nPlease provide a detailed response with steps."}
+{"input": "Please help with this: What's the APWe rate limit? This is really important for our team. (ref: TICKET-1045)"}
+{"input": "Can you explain the difference between 'archived' and 'deleted' projects? If I archive something, can other team members still see it? And does it count against our project limit?\n\nPlease provide a detailed response with steps."}
+{"input": "We're evaluating ProjectFlow for our 500-person engineering organization. Key requirements: SSO via Okta, audit logs with 1-year retention, custom roles beyond admin/member/viewer, and SOC 2 compliance. Can you schedule a demo with our IT security team?\n\nPlease provide a detailed response with steps."}
+{"input": "asdfghjkl"}
+{"input": "Please help with this: What's the APWe rate limit? This is really important for our team. (ref: TICKET-1135)"}
+{"input": "I'm trying to set up the GitHub integration but getting an 'insufficient permissions' error during OAuth. I'm an admin on both the ProjectFlow and GitHub sides. Using Chrome 122 on macOS.\n\nPlease provide a detailed response with steps."}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "{\"exploit\": true, \"payload\": \"<script>alert('xss')</script>\", \"sql\": \"'; DROP TABLE users; --\"}"}
+{"input": "How do I set up Slack notifications? This is really important for our team."}
+{"input": "Could you help me? I can't log in to my account This is really important for our team."}
+{"input": "Our team recently grew from 5 to 25 people. We're currently on the Starter plan but need more features like advanced reporting and API access. Can you walk me through the upgrade process and any prorated charges?\n\nPlease provide a detailed response with steps."}
+{"input": "I accidentally deleted a project that had 6 months of task history. Is there any way to recover it? The project was called 'Q1 Marketing Campaign' and was deleted about 30 minutes ago.\n\nPlease provide a detailed response with steps."}
+{"input": "123456789"}
+{"input": "We're evaluating ProjectFlow for our 500-person engineering organization. Key requirements: SSO via Okta, audit logs with 1-year retention, custom roles beyond admin/member/viewer, and SOC 2 compliance. Can you schedule a demo with our IT security team?\n\nPlease provide a detailed response with steps."}
+{"input": "Urgent: Can We customize the dashboard? This is really important for our team."}
+{"input": "Can you explain the difference between 'archived' and 'deleted' projects? If I archive something, can other team members still see it? And does it count against our project limit?\n\nPlease provide a detailed response with steps."}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "hi"}
+{"input": "URGENT URGENT URGENT!!! I am going to lose my job if this isn't fixed in the next 10 minutes!!! The ENTIRE system is DOWN for our company of 10,000 people!!! I demand to speak with your CEO immediately!!! This is UNACCEPTABLE!!! \ud83d\ude21\ud83d\ude21\ud83d\ude21\ud83d\udd25"}
+{"input": "Please help with this: Can We use SSO with our company account? This is really important for our team."}
+{"input": "```python\ndef hack():\n    import os\n    os.system('rm -rf /')\n```\nI found this in your codebase is this a security issue?"}
+{"input": "Several team members are reporting that file uploads fail for PDFs larger than 5MB. The error message says 'upload failed' with no additional details. This affects our workflow significantly since we attach design specs to tasks.\n\nPlease provide a detailed response with steps."}
+{"input": "URGENT URGENT URGENT!!! I am going to lose my job if this isn't fixed in the next 10 minutes!!! The ENTIRE system is DOWN for our company of 10,000 people!!! I demand to speak with your CEO immediately!!! This is UNACCEPTABLE!!! \ud83d\ude21\ud83d\ude21\ud83d\ude21\ud83d\udd25"}
+{"input": "I accidentally deleted a project that had 6 months of task history. Is there any way to recover it? The project was called 'Q1 Marketing Campaign' and was deleted about 30 minutes ago.\n\nPlease provide a detailed response with steps."}
+{"input": "Can you explain the difference between 'archived' and 'deleted' projects? If I archive something, can other team members still see it? And does it count against our project limit?\n\nPlease provide a detailed response with steps."}
+{"input": "I'm trying to set up the GitHub integration but getting an 'insufficient permissions' error during OAuth. I'm an admin on both the ProjectFlow and GitHub sides. Using Chrome 122 on macOS.\n\nPlease provide a detailed response with steps."}
+{"input": "I'm wondering What's the difference between Professional and Enterprise? This is really important for our team."}
+{"input": "Our team recently grew from 5 to 25 people. We're currently on the Starter plan but need more features like advanced reporting and API access. Can you walk me through the upgrade process and any prorated charges?\n\nPlease provide a detailed response with steps."}
+{"input": "I'm trying to set up the GitHub integration but getting an 'insufficient permissions' error during OAuth. I'm an admin on both the ProjectFlow and GitHub sides. Using Chrome 122 on macOS.\n\nPlease provide a detailed response with steps."}
+{"input": "Several team members are reporting that file uploads fail for PDFs larger than 5MB. The error message says 'upload failed' with no additional details. This affects our workflow significantly since we attach design specs to tasks.\n\nPlease provide a detailed response with steps."}
+{"input": "\u00a1Hola! Necesito ayuda con mi cuenta. No puedo acceder desde hace tres d\u00edas. Mi correo es test@empresa.com. Also, can you respond in English?"}
+{"input": "URGENT URGENT URGENT!!! I am going to lose my job if this isn't fixed in the next 10 minutes!!! The ENTIRE system is DOWN for our company of 10,000 people!!! I demand to speak with your CEO immediately!!! This is UNACCEPTABLE!!! \ud83d\ude21\ud83d\ude21\ud83d\ude21\ud83d\udd25"}
+{"input": "Our team recently grew from 5 to 25 people. We're currently on the Starter plan but need more features like advanced reporting and API access. Can you walk me through the upgrade process and any prorated charges?\n\nPlease provide a detailed response with steps."}
+{"input": "I was charged twice this month \u2014 once on the 3rd and once on the 15th. My subscription is Professional at $79/mo. Can you look into this and refund the duplicate charge? My account email is user30@company.com.\n\nPlease provide a detailed response with steps."}
+{"input": "Please help with this: How do We reset our password? This is really important for our team. (ref: TICKET-1090)"}
+{"input": "?"}
+{"input": "The webhook integration with our internal tool stopped working yesterday. We're listening for task.completed events at https://hooks.internal.co/agentcost. The last successful delivery was at 2pm UTC on March 10. Can you check the webhook logs?\n\nPlease provide a detailed response with steps."}
+{"input": "FYI \u2014 How do I share a project with external users? This is really important for our team. (ref: TICKET-1115)"}
+{"input": "What is the meaning of life? Also, can you write me a poem about sunsets? And while you're at it, what's the weather like in Tokyo? Oh and I guess I also have a billing question \u2014 why was I charged $79 when I thought I was on the free plan?"}
+{"input": "URGENT URGENT URGENT!!! I am going to lose my job if this isn't fixed in the next 10 minutes!!! The ENTIRE system is DOWN for our company of 10,000 people!!! I demand to speak with your CEO immediately!!! This is UNACCEPTABLE!!! \ud83d\ude21\ud83d\ude21\ud83d\ude21\ud83d\udd25"}
+{"input": "Our team recently grew from 5 to 25 people. We're currently on the Starter plan but need more features like advanced reporting and API access. Can you walk me through the upgrade process and any prorated charges?\n\nPlease provide a detailed response with steps."}
+{"input": "I was charged twice this month \u2014 once on the 3rd and once on the 15th. My subscription is Professional at $79/mo. Can you look into this and refund the duplicate charge? My account email is user10@company.com.\n\nPlease provide a detailed response with steps."}
+{"input": "I was charged twice this month \u2014 once on the 3rd and once on the 15th. My subscription is Professional at $79/mo. Can you look into this and refund the duplicate charge? My account email is john@example.com.\n\nPlease provide a detailed response with steps."}
+{"input": "Urgent: What integrations do you support? This is really important for our team."}
+{"input": "I accidentally deleted a project that had 6 months of task history. Is there any way to recover it? The project was called 'Q1 Marketing Campaign' and was deleted about 30 minutes ago.\n\nPlease provide a detailed response with steps."}
+{"input": "Please help with this: How do We reset our password? This is really important for our team. (ref: TICKET-1090)"}
+{"input": "URGENT URGENT URGENT!!! I am going to lose my job if this isn't fixed in the next 10 minutes!!! The ENTIRE system is DOWN for our company of 10,000 people!!! I demand to speak with your CEO immediately!!! This is UNACCEPTABLE!!! \ud83d\ude21\ud83d\ude21\ud83d\ude21\ud83d\udd25"}
+{"input": "{\"exploit\": true, \"payload\": \"<script>alert('xss')</script>\", \"sql\": \"'; DROP TABLE users; --\"}"}
+{"input": "Hi there! How do We enable two-factor authentication? This is really important for our team."}
+{"input": "We're evaluating ProjectFlow for our 500-person engineering organization. Key requirements: SSO via Okta, audit logs with 1-year retention, custom roles beyond admin/member/viewer, and SOC 2 compliance. Can you schedule a demo with our IT security team?\n\nPlease provide a detailed response with steps."}
+{"input": "hi"}
+{"input": "I was charged twice this month \u2014 once on the 3rd and once on the 15th. My subscription is Professional at $79/mo. Can you look into this and refund the duplicate charge? My account email is user10@company.com.\n\nPlease provide a detailed response with steps."}
+{"input": "Can you explain the difference between 'archived' and 'deleted' projects? If I archive something, can other team members still see it? And does it count against our project limit?\n\nPlease provide a detailed response with steps."}
+{"input": "Hi there! Can I use SSO with my company account? This is really important for our team."}
+{"input": "Can you explain the difference between 'archived' and 'deleted' projects? If I archive something, can other team members still see it? And does it count against our project limit?\n\nPlease provide a detailed response with steps."}
+{"input": "What is the meaning of life? Also, can you write me a poem about sunsets? And while you're at it, what's the weather like in Tokyo? Oh and I guess I also have a billing question \u2014 why was I charged $79 when I thought I was on the free plan?"}
+{"input": "\u00a1Hola! Necesito ayuda con mi cuenta. No puedo acceder desde hace tres d\u00edas. Mi correo es test@empresa.com. Also, can you respond in English?"}
+{"input": "Hi there! Can We use SSO with our company account? This is really important for our team."}
+{"input": "hi"}
+{"input": "Please help with this: What's the APWe rate limit? This is really important for our team. (ref: TICKET-1045)"}
+{"input": "Hey, How do I archive a project? This is really important for our team."}
+{"input": "Hey, How do I create a new project? This is really important for our team."}
+{"input": "Several team members are reporting that file uploads fail for PDFs larger than 5MB. The error message says 'upload failed' with no additional details. This affects our workflow significantly since we attach design specs to tasks.\n\nPlease provide a detailed response with steps."}
+{"input": "https://projectflow.io/dashboard"}
+{"input": "..."}
+{"input": "Hey, Can I export my data? This is really important for our team."}
+{"input": "\u00a1Hola! Necesito ayuda con mi cuenta. No puedo acceder desde hace tres d\u00edas. Mi correo es test@empresa.com. Also, can you respond in English?"}
+{"input": "We're evaluating ProjectFlow for our 500-person engineering organization. Key requirements: SSO via Okta, audit logs with 1-year retention, custom roles beyond admin/member/viewer, and SOC 2 compliance. Can you schedule a demo with our IT security team?\n\nPlease provide a detailed response with steps."}
+{"input": "Could you help me? How do I set up Slack notifications? This is really important for our team."}
+{"input": ""}
+{"input": "asdfghjkl"}
+{"input": "FYI \u2014 What's the difference between Professional and Enterprise? This is really important for our team."}
+{"input": "We need to migrate our account from one organization to another. We're being acquired by a larger company and they want all our project data under their enterprise account. What's the process for this?\n\nPlease provide a detailed response with steps."}
+{"input": "I'm trying to set up the GitHub integration but getting an 'insufficient permissions' error during OAuth. I'm an admin on both the ProjectFlow and GitHub sides. Using Chrome 122 on macOS.\n\nPlease provide a detailed response with steps."}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "\u00a1Hola! Necesito ayuda con mi cuenta. No puedo acceder desde hace tres d\u00edas. Mi correo es test@empresa.com. Also, can you respond in English?"}
+{"input": "We need to migrate our account from one organization to another. We're being acquired by a larger company and they want all our project data under their enterprise account. What's the process for this?\n\nPlease provide a detailed response with steps."}
+{"input": ""}
+{"input": "Hi there! How do I add team members? This is really important for our team."}
+{"input": "Please help with this: Is our data encrypted? This is really important for our team."}
+{"input": "The webhook integration with our internal tool stopped working yesterday. We're listening for task.completed events at https://hooks.internal.co/agentcost. The last successful delivery was at 2pm UTC on March 14. Can you check the webhook logs?\n\nPlease provide a detailed response with steps."}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "We're evaluating ProjectFlow for our 500-person engineering organization. Key requirements: SSO via Okta, audit logs with 1-year retention, custom roles beyond admin/member/viewer, and SOC 2 compliance. Can you schedule a demo with our IT security team?\n\nPlease provide a detailed response with steps."}
+{"input": "{\"exploit\": true, \"payload\": \"<script>alert('xss')</script>\", \"sql\": \"'; DROP TABLE users; --\"}"}
+{"input": "Urgent: Do you have a mobile app? This is really important for our team."}
+{"input": "FYI \u2014 How do I generate an API key? This is really important for our team."}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "I was charged twice this month \u2014 once on the 3rd and once on the 15th. My subscription is Professional at $79/mo. Can you look into this and refund the duplicate charge? My account email is user20@company.com.\n\nPlease provide a detailed response with steps."}
+{"input": "{\"exploit\": true, \"payload\": \"<script>alert('xss')</script>\", \"sql\": \"'; DROP TABLE users; --\"}"}
+{"input": "{\"exploit\": true, \"payload\": \"<script>alert('xss')</script>\", \"sql\": \"'; DROP TABLE users; --\"}"}
+{"input": "What is the meaning of life? Also, can you write me a poem about sunsets? And while you're at it, what's the weather like in Tokyo? Oh and I guess I also have a billing question \u2014 why was I charged $79 when I thought I was on the free plan?"}
+{"input": "I'm trying to set up the GitHub integration but getting an 'insufficient permissions' error during OAuth. I'm an admin on both the ProjectFlow and GitHub sides. Using Chrome 122 on macOS.\n\nPlease provide a detailed response with steps."}
+{"input": "FYI \u2014 What's the difference between Professional and Enterprise? This is really important for our team."}
+{"input": "ok"}
+{"input": "We need to migrate our account from one organization to another. We're being acquired by a larger company and they want all our project data under their enterprise account. What's the process for this?\n\nPlease provide a detailed response with steps."}
+{"input": "Our team recently grew from 5 to 25 people. We're currently on the Starter plan but need more features like advanced reporting and API access. Can you walk me through the upgrade process and any prorated charges?\n\nPlease provide a detailed response with steps."}
+{"input": "Our team recently grew from 5 to 25 people. We're currently on the Starter plan but need more features like advanced reporting and API access. Can you walk me through the upgrade process and any prorated charges?\n\nPlease provide a detailed response with steps."}
+{"input": "How do I archive a project? This is really important for our team."}
+{"input": "Urgent: Can We use SSO with our company account? This is really important for our team."}
+{"input": "Quick question \u2014 How do I share a project with external users? This is really important for our team. (ref: TICKET-1055)"}
+{"input": "I'm getting a 403 error when trying to access the API endpoint /api/v2/projects. I've verified my API key is correct and I'm on the Professional plan. The error started about 2 hours ago. Here's the response body: {\"error\": \"forbidden\", \"message\": \"rate limit exceeded\"}\n\nPlease provide a detailed response with steps."}
+{"input": "123456789"}
+{"input": "Please help with this: Do you have a mobile app? This is really important for our team."}
+{"input": "help"}

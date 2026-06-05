@@ -185,6 +185,7 @@ class ProfileRunner:
         from_langfuse: bool = False,
         langfuse_last_n: int = 10,
         output_dir: str = ".agentcost",
+        cache_mode: str = "cold",
     ) -> None:
         self.workflow_path = workflow_path
         self.collector_name = collector
@@ -194,6 +195,7 @@ class ProfileRunner:
         self.from_langfuse = from_langfuse
         self.langfuse_last_n = langfuse_last_n
         self.output_dir = output_dir
+        self.cache_mode = cache_mode
 
     def _load_workflow(self) -> tuple[Any, str]:
         module = _load_workflow_module(self.workflow_path)
@@ -311,6 +313,12 @@ class ProfileRunner:
                     cost_summary["per_step"][step_name]["tier"] = "unknown"
             else:
                 cost_summary["per_step"][step_name]["tier"] = "tool"
+
+        from agentcost.validation.data_checks import validate_profiling_data
+
+        data_warnings = validate_profiling_data(runs)
+        for w in data_warnings:
+            logger.warning(w)
 
         profiling_stats = compute_stats(runs)
         patterns = detect_patterns(runs, profiling_stats)

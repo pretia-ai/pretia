@@ -28,6 +28,10 @@ htmlcov/
 # Model artifacts
 *.pkl
 
+# SWE-bench cached data (large, downloaded on demand)
+tests/synthetic/swebench/data/*.json
+tests/synthetic/swebench/data/*.jsonl
+
 # IDE
 .vscode/
 .idea/

@@ -118,21 +118,73 @@ MODEL_TIERS: dict[str, str] = {
     "qwen-long": "fast",
 }
 
+PRICING_LAST_UPDATED = "2026-05-30"
+
+MODEL_CACHE_HIT_PRICING: dict[str, float] = {
+    "deepseek-v4-flash": 0.0028,
+    "deepseek-v4-pro": 0.012,
+    "deepseek-chat": 0.0028,
+    "deepseek-reasoner": 0.0028,
+}
+
 _PER_MILLION = 1_000_000
 _VALID_TIERS = frozenset({"frontier", "mid", "fast"})
+
+
+class UnrecognizedModelError(ValueError):
+    """Raised when a model name is not found in the pricing table."""
+
+
+def _find_similar_models(model: str, max_results: int = 5) -> list[str]:
+    """Find model names that share substrings with the query."""
+    query = model.lower().replace("-", "").replace("_", "").replace(".", "")
+    candidates: list[tuple[int, str]] = []
+    for known in sorted(MODEL_PRICING):
+        normalized = known.lower().replace("-", "").replace("_", "").replace(".", "")
+        score = 0
+        for i in range(min(len(query), len(normalized))):
+            if i < len(query) and i < len(normalized) and query[i] == normalized[i]:
+                score += 1
+        if score >= 3 or query[:4] in normalized or normalized[:4] in query:
+            candidates.append((score, known))
+    candidates.sort(key=lambda x: -x[0])
+    return [c[1] for c in candidates[:max_results]]
+
+
+def register_model(
+    model: str,
+    input_price: float,
+    output_price: float,
+    tier: str = "mid",
+) -> None:
+    """Register a custom model with per-million-token pricing.
+
+    Prices are per million tokens (e.g., 0.50 = $0.50 per million input tokens).
+    """
+    MODEL_PRICING[model] = (input_price, output_price)
+    if tier in _VALID_TIERS:
+        MODEL_TIERS[model] = tier
 
 
 def resolve_model(model: str) -> str:
     """Return the canonical model name, resolving aliases.
 
     Raises:
-        ValueError: If the model is neither canonical nor a known alias.
+        UnrecognizedModelError: If the model is neither canonical nor a known alias.
     """
     if model in MODEL_PRICING:
         return model
     if model in MODEL_ALIASES:
         return MODEL_ALIASES[model]
-    raise ValueError(f"Unknown model {model!r}. Available models: {sorted(MODEL_PRICING)}")
+    similar = _find_similar_models(model)
+    msg = f"Unknown model {model!r}."
+    if similar:
+        msg += f" Did you mean: {', '.join(similar)}?"
+    msg += (
+        f" Add custom pricing with register_model({model!r}, input_price=X, output_price=Y)"
+        " where prices are per million tokens."
+    )
+    raise UnrecognizedModelError(msg)
 
 
 def get_model_pricing(model: str) -> tuple[float, float]:
@@ -142,10 +194,29 @@ def get_model_pricing(model: str) -> tuple[float, float]:
     return per_m_input / _PER_MILLION, per_m_output / _PER_MILLION
 
 
-def calculate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
+def calculate_cost(
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    cache_hit_tokens: int | None = None,
+    cache_miss_tokens: int | None = None,
+) -> float:
     """Return the dollar cost of one call, rounded to 6 decimal places."""
+    canonical = resolve_model(model)
     input_price, output_price = get_model_pricing(model)
-    return round(input_tokens * input_price + output_tokens * output_price, 6)
+
+    if cache_hit_tokens is not None and cache_miss_tokens is not None:
+        cache_hit_rate = MODEL_CACHE_HIT_PRICING.get(canonical)
+        if cache_hit_rate is not None:
+            input_cost = cache_miss_tokens * input_price + cache_hit_tokens * (
+                cache_hit_rate / _PER_MILLION
+            )
+        else:
+            input_cost = input_tokens * input_price
+    else:
+        input_cost = input_tokens * input_price
+
+    return round(input_cost + output_tokens * output_price, 6)
 
 
 def list_models() -> list[str]:
@@ -156,3 +227,17 @@ def list_models() -> list[str]:
 def model_tier(model: str) -> str:
     """Return the capability tier of the model: 'frontier', 'mid', or 'fast'."""
     return MODEL_TIERS[resolve_model(model)]
+
+
+def check_pricing_staleness() -> str | None:
+    """Warn if pricing data is more than 30 days old."""
+    from datetime import date
+
+    last_updated = date.fromisoformat(PRICING_LAST_UPDATED)
+    age_days = (date.today() - last_updated).days
+    if age_days > 30:
+        return (
+            f"Pricing data is {age_days} days old. Provider prices may have changed. "
+            "Run `agentcost update-pricing` to refresh."
+        )
+    return None

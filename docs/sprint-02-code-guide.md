@@ -1,6 +1,6 @@
 # Sprint 2 Code Guide
 
-Developer walkthrough, data flow diagrams, debugging exercises, and REPL cheat sheet for the Sprint 2 codebase.
+Developer walkthrough, data flow diagrams, worked example runs, debugging exercises, and REPL cheat sheet for the Sprint 2 codebase.
 
 ---
 
@@ -552,9 +552,727 @@ console.print() ──▶ terminal output
 
 ---
 
-## Part 3: Debugging Exercises
+## Part 3: Worked Example Runs
 
-Work through each exercise: read the broken code, answer the four questions. Solutions are at the bottom of this file — try before you peek.
+Six traced examples that exercise every Sprint 2 code path. Each shows exact functions called, intermediate values, and branch decisions. Read these like a debugger trace.
+
+### Coverage map
+
+| Example | compute_stats | compute_percentile_stats | _detect_context_growth | _detect_loop_count_variance | _detect_high_token_variance | OpenAI Agents hooks | Langfuse import | traces_to_step_records | format_cli_report (stats path) | format_cli_report (legacy path) | report cmd recompute |
+|---------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| A (stats basics) | ✓ | ✓ | | | | | | | | | |
+| B (context growth) | ✓ | | ✓ | | | | | | ✓ | | |
+| C (loop variance) | ✓ | | | ✓ | | | | | ✓ | | |
+| D (OpenAI hooks) | ✓ | | | | | ✓ | | | | | |
+| E (Langfuse analyze) | ✓ | | | | ✓ | | ✓ | ✓ | ✓ | | |
+| F (report legacy) | | | | | | | | | | ✓ | ✓ |
+
+---
+
+### Example A: `compute_stats` on a 3-run workflow — building ProfilingStats from scratch
+
+**Scenario:** 3 profiling runs, each with 2 steps (classify + respond). No loops, no variance. This traces the full stats computation to show how raw StepRecords become PercentileStats.
+
+**Input data:**
+
+```python
+# All steps use iteration=1, no loops.
+# classify: claude-haiku-4-5 (Haiku pricing: $1.00/$5.00 per million)
+# respond:  claude-sonnet-4-6 (Sonnet pricing: $3.00/$15.00 per million)
+runs = [
+    [classify(in=300, out=40), respond(in=600, out=200)],   # run 0
+    [classify(in=350, out=38), respond(in=550, out=210)],   # run 1
+    [classify(in=280, out=42), respond(in=620, out=190)],   # run 2
+]
+```
+
+**Trace:**
+
+```
+compute_stats(runs, cost_fn=None):
+  cost_fn defaults to calculate_cost
+  runs is not empty → proceed
+
+  ─── Run 0 ───
+    classify: step_records["classify"].append(rec)
+              step_runs_presence["classify"].add(0)
+              step_iterations_per_run["classify"][0] = 1
+              cost = _safe_cost(calculate_cost, "claude-haiku-4-5", 300, 40)
+                   = calculate_cost("claude-haiku-4-5", 300, 40)
+                   = 300 × (1.00/1M) + 40 × (5.00/1M)
+                   = 0.000300 + 0.000200 = 0.000500
+              run_cost += 0.000500
+              run_total_tokens += 340
+
+    respond:  cost = _safe_cost(calculate_cost, "claude-sonnet-4-6", 600, 200)
+                   = 600 × (3.00/1M) + 200 × (15.00/1M)
+                   = 0.001800 + 0.003000 = 0.004800
+              run_cost += 0.004800
+              run_total_tokens += 800
+
+    run_cost = 0.005300
+    run_costs.append(0.005300)
+    RunStats(run_index=0, total_cost=0.00530, total_tokens=1140, step_count=2, ...)
+
+  ─── Run 1 ───
+    classify: cost = 350 × 0.000001 + 38 × 0.000005 = 0.000350 + 0.000190 = 0.000540
+    respond:  cost = 550 × 0.000003 + 210 × 0.000015 = 0.001650 + 0.003150 = 0.004800
+    run_cost = 0.005340
+    RunStats(run_index=1, total_cost=0.00534, ...)
+
+  ─── Run 2 ───
+    classify: cost = 280 × 0.000001 + 42 × 0.000005 = 0.000280 + 0.000210 = 0.000490
+    respond:  cost = 620 × 0.000003 + 190 × 0.000015 = 0.001860 + 0.002850 = 0.004710
+    run_cost = 0.005200
+    RunStats(run_index=2, total_cost=0.00520, ...)
+
+  ─── Per-step stats for "classify" ───
+    records = 3 records from runs 0, 1, 2
+    input_tok_vals = [300.0, 350.0, 280.0]
+    output_tok_vals = [40.0, 38.0, 42.0]
+    cost_vals = [0.000500, 0.000540, 0.000490]
+
+    compute_percentile_stats([0.000500, 0.000540, 0.000490]):
+      sorted = [0.000490, 0.000500, 0.000540]
+      n = 3
+      mean = (0.000490 + 0.000500 + 0.000540) / 3 = 0.000510
+      variance = ((−0.000020)² + (−0.000010)² + (0.000030)²) / 2
+               = (0.0000000004 + 0.0000000001 + 0.0000000009) / 2
+               = 0.0000000014 / 2 = 0.0000000007
+      std = √0.0000000007 = 0.0000265
+      p50 = _percentile([0.000490, 0.000500, 0.000540], 50):
+            k = (3−1) × 50/100 = 1.0
+            f=1, c=2 → sorted[1] + (1.0−1) × (sorted[2]−sorted[1]) = 0.000500
+      p95 = _percentile(..., 95):
+            k = 2 × 0.95 = 1.9
+            f=1, c=2 → 0.000500 + 0.9 × (0.000540−0.000500) = 0.000536
+      → PercentileStats(min=0.000490, max=0.000540, mean=0.000510,
+                         std=0.0000265, p50=0.000500, p95=0.000536, ...)
+
+    iter_per_run:
+      step_iterations_per_run["classify"] = {0: 1, 1: 1, 2: 1}
+      For each run in step_runs_presence["classify"] = {0, 1, 2}:
+        [1.0, 1.0, 1.0]
+      compute_percentile_stats([1.0, 1.0, 1.0]):
+        n=3, all identical → mean=1.0, std=0.0, all percentiles=1.0
+      mean_iterations = 1.0
+
+    → StepStats(step_name="classify", model="claude-haiku-4-5", call_count=3,
+         runs_present=3, cost=PercentileStats(mean=0.000510, ...), ...)
+
+  ─── Per-step stats for "respond" ───
+    cost_vals = [0.004800, 0.004800, 0.004710]
+    (similar computation → mean=0.004770, p50=0.004800, ...)
+
+  ─── Cross-run stats ───
+    run_costs = [0.005300, 0.005340, 0.005200]
+    compute_percentile_stats([0.005200, 0.005300, 0.005340]):
+      mean = 0.005280
+      p50 = 0.005300
+      p95 = 0.005336
+
+  → ProfilingStats(
+      step_stats={"classify": ..., "respond": ...},
+      run_stats=[RunStats×3],
+      cost_per_run=PercentileStats(mean=0.005280, p50=0.005300, p95=0.005336),
+      total_runs=3,
+      total_steps=6,
+    )
+```
+
+**Key takeaway:** `compute_stats` does two passes: (1) iterate all runs collecting per-record costs and run totals, (2) for each step, call `compute_percentile_stats` on every metric dimension. The Bessel-corrected std (dividing by `n-1`) matters most at small n. With 3 runs of nearly identical cost, p50 ≈ p95 — there's barely any spread. This is normal; patterns won't fire and projections will be tight.
+
+---
+
+### Example B: Context growth detection — Pearson r² with linear iteration data
+
+**Scenario:** A summarize step loops 1–5 times across 4 runs, with context_size growing ~400 tokens per iteration. This traces the full `_detect_context_growth` pipeline including the r² computation.
+
+**Input data:**
+
+```python
+# 4 runs. "summarize" step iterates with growing context.
+runs = [
+  [summarize(iter=1, ctx=500), summarize(iter=2, ctx=900), summarize(iter=3, ctx=1300)],
+  [summarize(iter=1, ctx=500), summarize(iter=2, ctx=920), summarize(iter=3, ctx=1280),
+   summarize(iter=4, ctx=1700)],
+  [summarize(iter=1, ctx=480), summarize(iter=2, ctx=880)],
+  [summarize(iter=1, ctx=510), summarize(iter=2, ctx=910), summarize(iter=3, ctx=1320),
+   summarize(iter=4, ctx=1710), summarize(iter=5, ctx=2100)],
+]
+```
+
+**Trace:**
+
+```
+detect_patterns(runs, stats):
+  stats = compute_stats(runs)  (if not provided)
+
+  _detect_context_growth(runs):
+    │
+    ├─ Build step_pairs:
+    │    For each record: check "rec.iteration > 1 OR any record in same run
+    │    for same step has iteration > 1"
+    │    Run 0: summarize iter=1 → check run: iter 2,3 exist → YES. Include all 3.
+    │    Run 1: all 4 included (iterations 1–4)
+    │    Run 2: both included (iterations 1–2)
+    │    Run 3: all 5 included (iterations 1–5)
+    │
+    │    step_pairs["summarize"] = [
+    │      (1, 500), (2, 900), (3, 1300),           # run 0
+    │      (1, 500), (2, 920), (3, 1280), (4, 1700), # run 1
+    │      (1, 480), (2, 880),                        # run 2
+    │      (1, 510), (2, 910), (3, 1320), (4, 1710), (5, 2100), # run 3
+    │    ]
+    │    n = 14 data points  (≥ 5 threshold → proceed)
+    │
+    ├─ xs = [1, 2, 3, 1, 2, 3, 4, 1, 2, 1, 2, 3, 4, 5]
+    │  ys = [500, 900, 1300, 500, 920, 1280, 1700, 480, 880, 510, 910, 1320, 1710, 2100]
+    │
+    ├─ _pearson_r_squared(xs, ys):
+    │    n = 14
+    │    sum_x = 1+2+3+1+2+3+4+1+2+1+2+3+4+5 = 34
+    │    sum_y = 500+900+1300+500+920+1280+1700+480+880+510+910+1320+1710+2100 = 15010
+    │    sum_xy = 1×500 + 2×900 + 3×1300 + ... = 34900 (approx)
+    │    sum_x2 = 1+4+9+1+4+9+16+1+4+1+4+9+16+25 = 104
+    │    sum_y2 = 500²+900²+... (large)
+    │
+    │    denom_x = 14 × 104 − 34² = 1456 − 1156 = 300
+    │    denom_y = 14 × sum_y2 − 15010² (large positive)
+    │    denom_x ≠ 0, denom_y ≠ 0 → proceed
+    │
+    │    numerator = 14 × 34900 − 34 × 15010 = 488600 − 510340 = ... (let's get the sign right)
+    │    Actually the slope is positive (context grows with iteration), so r > 0.
+    │
+    │    r_squared ≈ 0.993  (near-perfect linear relationship)
+    │    slope ≈ 400 tokens/iteration
+    │
+    ├─ r_squared = 0.993 > 0.7 → candidate
+    │  slope > 0 → positive direction (growth, not shrinkage)
+    │
+    ├─ severity:
+    │    r_squared = 0.993 > 0.85 → "danger"
+    │
+    ├─ Context ratio:
+    │    first_iter_contexts = [500, 500, 480, 510] → mean_first = 497.5
+    │    max_iter = 5
+    │    last_iter_contexts = [2100] → mean_last = 2100
+    │    ratio = 2100 / 497.5 = 4.2×
+    │
+    └─ → DetectedPattern(
+           pattern_type="context_growth",
+           step_name="summarize",
+           severity="danger",
+           evidence={"r_squared": 0.993, "slope": 400.0,
+                     "mean_context_first": 497.5, "mean_context_last": 2100.0,
+                     "n_datapoints": 14},
+           description="Context grows by ~400 tokens per iteration in step
+             'summarize' (r²=0.99). At iteration 5, context is 4.2x the initial size."
+         )
+
+  _detect_loop_count_variance(runs):
+    step_max_iter["summarize"] = [3, 4, 2, 5]  (max iter per run)
+    Not all 1 → proceed
+    n=4, mean=3.5, std=1.29, CV=1.29/3.5=0.37
+    0.37 ≤ 0.5 → does NOT trigger (CV too low)
+    → return []
+
+  _detect_high_token_variance(stats):
+    For "summarize": total_tokens vary because iteration count varies
+    p95/p50 ≈ 1.8 (some runs have 2 iterations, some have 5)
+    1.8 ≤ 3.0 → skip
+    → return []
+
+  → patterns = [context_growth "summarize" (danger)], sorted by severity
+```
+
+**Key takeaway:** The r² calculation uses the raw (iteration, context_size) pairs across ALL runs — not averages. With 14 data points and a strong linear trend, r²=0.993 easily passes the 0.7 threshold. The loop count variance detector does NOT fire here (CV=0.37 < 0.5) even though iteration counts vary — that's because the variance is moderate, not extreme. The two detectors are independent: one measures whether context grows per iteration, the other measures whether the iteration count itself varies.
+
+---
+
+### Example C: Loop count variance — high iteration spread across runs
+
+**Scenario:** A "review" step loops 1–15 times across 10 runs. The iteration count varies wildly (some inputs need no review, others need extensive review). Context is constant at ~600 tokens.
+
+**Input data:**
+
+```python
+# 10 runs. "review" max iterations: [1, 8, 2, 15, 3, 12, 1, 7, 4, 10]
+# Each iteration costs ~$0.005 (Sonnet). Context does not grow.
+```
+
+**Trace:**
+
+```
+detect_patterns(runs, stats):
+
+  _detect_context_growth(runs):
+    step_pairs["review"]: collects (iteration, context_size) pairs
+    context = 600 for every record (constant)
+    _pearson_r_squared([1,2,...], [600,600,...]):
+      denom_y = n × sum_y2 − sum_y²
+      All y values are 600 → denom_y = n × n × 600² − (n × 600)² = 0
+      denom_y == 0 → return (0.0, 0.0)
+    r² = 0.0 → skip
+    → return []  (no growth when context is constant)
+
+  _detect_loop_count_variance(runs):
+    │
+    ├─ step_max_iter["review"]:
+    │    Run 0: max iteration = 1
+    │    Run 1: max iteration = 8
+    │    ... (from all 10 runs)
+    │    iters = [1, 8, 2, 15, 3, 12, 1, 7, 4, 10]
+    │
+    ├─ all(i == 1 for i in iters) → False → proceed
+    │  n = 10, n >= 2 → proceed
+    │
+    ├─ mean_iter = (1+8+2+15+3+12+1+7+4+10)/10 = 63/10 = 6.3
+    │  mean_iter > 0 → proceed
+    │
+    ├─ variance = sum((x - 6.3)² for x in iters) / (10-1)
+    │    = ((−5.3)² + (1.7)² + (−4.3)² + (8.7)² + (−3.3)² + (5.7)²
+    │       + (−5.3)² + (0.7)² + (−2.3)² + (3.7)²) / 9
+    │    = (28.09 + 2.89 + 18.49 + 75.69 + 10.89 + 32.49
+    │       + 28.09 + 0.49 + 5.29 + 13.69) / 9
+    │    = 216.1 / 9 = 24.01
+    │  std = √24.01 = 4.90
+    │
+    ├─ CV = 4.90 / 6.3 = 0.778
+    │  0.778 > 0.5 → pattern triggered!
+    │
+    ├─ max_i = 15, min_i = 1
+    │  ratio = 15 / 6.3 = 2.38
+    │
+    ├─ Severity check:
+    │    CV > 1.0? 0.778 > 1.0 → No
+    │    max > 3 × mean? 15 > 18.9 → No
+    │    → severity = "warning"
+    │
+    └─ → DetectedPattern(
+           pattern_type="loop_count_variance",
+           step_name="review",
+           severity="warning",
+           evidence={
+             "cv": 0.778, "mean_iterations": 6.3,
+             "min_iterations": 1, "max_iterations": 15,
+             "std_iterations": 4.90
+           },
+           description="Loop count for step 'review' varies from 1 to 15
+             iterations (mean=6.3, CV=0.78). Worst-case runs cost ~2.4x the average."
+         )
+
+  _detect_high_token_variance(stats):
+    "review" step: total tokens vary (1 iteration × 650 = 650 vs 15 × 650 = 9750)
+    p95_tokens / p50_tokens ≈ 9100/3900 = 2.33
+    2.33 ≤ 3.0 → skip (just under the threshold)
+    → return []
+
+  → patterns = [loop_count_variance "review" (warning)]
+```
+
+**Key takeaway:** The CV formula uses Bessel-corrected sample variance (`/(n-1)`). CV=0.778 crosses the 0.5 threshold. The severity distinction matters: `danger` (CV > 1.0 or max > 3× mean) triggers stronger warnings. The token variance detector is separate and almost fires here (ratio 2.33 vs threshold 3.0) — in a real workflow with even more iteration spread, both patterns would appear.
+
+---
+
+### Example D: OpenAI Agents hooks — `AgentCostRunHooks` lifecycle
+
+**Scenario:** An OpenAI Agents SDK workflow with one agent that makes 2 LLM calls and 1 tool call. This traces the hook-based collection mechanism including the inflight pairing, fallback path, and try/except safety.
+
+**Input data:**
+
+```python
+# Agent "support_bot" uses gpt-4.1, has a "lookup_account" tool
+# Flow: LLM call 1 (plan) → tool call (lookup) → LLM call 2 (respond)
+```
+
+**Trace:**
+
+```
+OpenAIAgentsCollector.collect(workflow=agent, inputs=["reset my password"]):
+  │
+  ├─ Input 0: "reset my password"
+  │    hooks = AgentCostRunHooks()   ← fresh per run
+  │    hooks._steps = []
+  │    hooks._inflight_llm = {}
+  │    hooks._inflight_tool = {}
+  │    hooks._iteration_counters = {}
+  │
+  │    result = await Runner.run(agent, "reset my password", hooks=hooks)
+  │    │
+  │    │  ┌─ SDK fires: hooks.on_agent_start(context, agent)
+  │    │  │   try:
+  │    │  │     agent_name = _extract_agent_name(agent) → "support_bot"
+  │    │  │     (Stores agent start time, but no StepRecord yet)
+  │    │  │   except Exception: logger.debug(...)  ← safety wrapper
+  │    │  │
+  │    │  ┌─ SDK fires: hooks.on_llm_start(context, agent, input_items)
+  │    │  │   try:
+  │    │  │     agent_name = _extract_agent_name(agent) → "support_bot"
+  │    │  │     model = _extract_model_name(agent):
+  │    │  │       getattr(agent, "model", None) → "gpt-4.1"
+  │    │  │       isinstance("gpt-4.1", str) → True → return "gpt-4.1"
+  │    │  │
+  │    │  │     step_name = f"support_bot/llm"
+  │    │  │     context_size = _estimate_tokens(str(input_items)) → len(str(...))/4 ≈ 250
+  │    │  │
+  │    │  │     self._inflight_llm["support_bot"] = {
+  │    │  │       "model": "gpt-4.1",
+  │    │  │       "start_ns": time.monotonic_ns(),
+  │    │  │       "step_name": "support_bot/llm",
+  │    │  │       "context_size": 250,
+  │    │  │       "system_prompt_hash": sha256(agent.instructions),
+  │    │  │       "system_prompt_tokens": len(agent.instructions) // 4,
+  │    │  │       "timestamp": datetime.now(UTC),
+  │    │  │     }
+  │    │  │   except Exception: logger.debug(...)
+  │    │  │
+  │    │  ┌─ SDK fires: hooks.on_llm_end(context, agent, response)
+  │    │  │   try:
+  │    │  │     agent_name = "support_bot"
+  │    │  │     inflight = self._inflight_llm.pop("support_bot") → the dict above
+  │    │  │
+  │    │  │     usage = getattr(response, "usage", None) → Usage(input_tokens=250, output_tokens=80)
+  │    │  │     input_tokens = getattr(usage, "input_tokens", 0) → 250
+  │    │  │     output_tokens = getattr(usage, "output_tokens", 0) → 80
+  │    │  │
+  │    │  │     output_items = getattr(response, "output", [])
+  │    │  │     → [ToolCallItem(name="lookup_account", ...)]
+  │    │  │     output_text = "" (tool calls don't have .text)
+  │    │  │     output_format = "text" (default when no text extracted)
+  │    │  │
+  │    │  │     duration_ms = (now_ns - inflight["start_ns"]) // 1_000_000 → 450
+  │    │  │     iteration = self._next_iteration("support_bot/llm") → 1
+  │    │  │
+  │    │  │     StepRecord(step_name="support_bot/llm", step_type="llm",
+  │    │  │       model="gpt-4.1", input_tokens=250, output_tokens=80,
+  │    │  │       context_size=250, iteration=1, duration_ms=450, ...)
+  │    │  │     self._steps.append(record)   ← first record
+  │    │  │   except Exception: logger.debug(...)
+  │    │  │
+  │    │  ┌─ SDK fires: hooks.on_tool_start(context, agent, tool)
+  │    │  │   try:
+  │    │  │     tool_name = _extract_tool_name(tool) → "lookup_account"
+  │    │  │     self._inflight_tool["lookup_account"] = {
+  │    │  │       "start_ns": time.monotonic_ns(),
+  │    │  │       "step_name": "lookup_account",
+  │    │  │       "agent_name": "support_bot",
+  │    │  │     }
+  │    │  │   except Exception: ...
+  │    │  │
+  │    │  ┌─ SDK fires: hooks.on_tool_end(context, agent, tool, result)
+  │    │  │   try:
+  │    │  │     inflight = self._inflight_tool.pop("lookup_account")
+  │    │  │     duration_ms = ... → 120
+  │    │  │     StepRecord(step_name="lookup_account", step_type="tool",
+  │    │  │       model="", input_tokens=0, output_tokens=0, iteration=1, ...)
+  │    │  │     self._steps.append(record)   ← second record (tool)
+  │    │  │   except Exception: ...
+  │    │  │
+  │    │  ┌─ SDK fires: hooks.on_llm_start (second LLM call)
+  │    │  │   self._inflight_llm["support_bot"] = { model: "gpt-4.1", ... }
+  │    │  │
+  │    │  ┌─ SDK fires: hooks.on_llm_end (second LLM call)
+  │    │  │   inflight = self._inflight_llm.pop("support_bot")
+  │    │  │   usage: input_tokens=580, output_tokens=200 (larger — includes tool result in context)
+  │    │  │   iteration = self._next_iteration("support_bot/llm") → 2
+  │    │  │   StepRecord(step_name="support_bot/llm", step_type="llm",
+  │    │  │     model="gpt-4.1", input_tokens=580, output_tokens=200, iteration=2, ...)
+  │    │  │   self._steps.append(record)   ← third record (LLM #2)
+  │    │  │
+  │    │  ┌─ SDK fires: hooks.on_agent_end(context, agent, output)
+  │    │  │   (No StepRecord created — agent_end is just tracking metadata)
+  │    │
+  │    │  Runner.run completes → result
+  │    │
+  │    ├─ hooks.steps → returns copy of [llm_1, tool, llm_2]  (3 records)
+  │    │
+  │    ├─ len(hooks.steps) = 3 > 0 → skip fallback path
+  │    │   (If hooks.steps were empty — e.g., older SDK that doesn't fire hooks —
+  │    │    _build_fallback_steps(result.raw_responses, "support_bot", "gpt-4.1")
+  │    │    would parse result.raw_responses[].usage for token data)
+  │    │
+  │    └─ runs[0] = [llm_1, tool, llm_2]
+  │
+  └─ → runs = [[llm_1, tool, llm_2]]
+```
+
+**Key takeaway:** Every hook method is wrapped in `try/except Exception` — a bug in AgentCost never crashes the user's workflow. The inflight dict pairs start/end events by agent name (LLM) or tool name (tool). The `_next_iteration` counter increments per `step_name`, so `support_bot/llm` gets iterations 1 and 2. The fallback path (`_build_fallback_steps`) only activates if hooks capture nothing — it reads `result.raw_responses` as a last resort.
+
+---
+
+### Example E: Langfuse trace analysis — full `analyze` pipeline with EVENT filtering
+
+**Scenario:** `agentcost analyze --from-langfuse --last 3`. Three Langfuse traces are imported, one contains an EVENT observation that should be filtered. This traces the full import → stats → patterns → report pipeline.
+
+**Input data:**
+
+```python
+# Trace 1: classify (GENERATION, gpt-4o, 500/50) + respond (GENERATION, gpt-4o, 800/200)
+# Trace 2: classify (GENERATION, gpt-4o, 480/48) + log_event (EVENT, None, 0/0)
+#           + respond (GENERATION, gpt-4o, 820/190)
+# Trace 3: classify (GENERATION, gpt-4o, 510/52) + retrieve_docs (SPAN, None, 0/0)
+#           + respond (GENERATION, gpt-4o, 780/210)
+```
+
+**Trace:**
+
+```
+cli.py:analyze_cmd(from_langfuse=True, last_n=3, name=None, ...)
+  │
+  ├─ create_langfuse_client():
+  │    secret_key = os.environ.get("LANGFUSE_SECRET_KEY") → "sk-lf-..."
+  │    public_key = os.environ.get("LANGFUSE_PUBLIC_KEY") → "pk-lf-..."
+  │    host = os.environ.get("LANGFUSE_HOST", "https://cloud.langfuse.com")
+  │    Both present → proceed
+  │    from langfuse.api.client import LangfuseAPI
+  │    → LangfuseAPI(base_url=host, username=public_key, password=secret_key)
+  │
+  ├─ fetch_traces(client, last_n=3):
+  │    min(3, 100) = 3
+  │    client.trace.list(limit=3, order_by="timestamp") → trace_list of 3 summaries
+  │    For each summary:
+  │      full_trace = client.trace.get(trace_id=...)
+  │      observations = [_parse_observation(obs) for obs in full_trace.observations]
+  │        _parse_observation(obs):
+  │          usage = getattr(obs, "usage", None)
+  │          input_tokens = getattr(usage, "input", 0) → 500 (or 0 for EVENT)
+  │          output_tokens = getattr(usage, "output", 0) → 50 (or 0 for EVENT)
+  │          → LangfuseObservation(name="classify", type="GENERATION", model="gpt-4o", ...)
+  │
+  │      input_text = _extract_input_text(getattr(full_trace, "input", None)):
+  │        raw_input = {"messages": [{"role": "user", "content": "Help me"}]}
+  │        messages[0]["content"] → "Help me"
+  │        → "Help me"
+  │
+  │    → [LangfuseTrace×3]
+  │
+  ├─ traces_to_step_records(traces):
+  │    │
+  │    │  ─── Trace 1 ───
+  │    │  obs_name_map = {"obs-1a": "classify", "obs-1b": "respond"}
+  │    │  iteration_counts = {}  ← reset per trace
+  │    │
+  │    │  Obs "classify" (GENERATION):
+  │    │    "GENERATION" in _SKIP_TYPES({"EVENT"})? → No
+  │    │    "GENERATION" in _GENERATION_TYPES? → Yes → step_type = "llm"
+  │    │    iteration_counts.get("classify", 0) + 1 = 1
+  │    │    StepRecord(step_name="classify", step_type="llm", model="gpt-4o",
+  │    │      input_tokens=500, output_tokens=50, context_size=500,
+  │    │      system_prompt_hash="imported", iteration=1, ...)
+  │    │
+  │    │  Obs "respond" (GENERATION):
+  │    │    step_type = "llm", iteration = 1
+  │    │    StepRecord(model="gpt-4o", input_tokens=800, output_tokens=200, ...)
+  │    │
+  │    │  → run 0 = [classify, respond]  (2 records)
+  │    │
+  │    │  ─── Trace 2 ───
+  │    │  iteration_counts = {}  ← RESET (key design decision — not carried from trace 1)
+  │    │
+  │    │  Obs "classify" (GENERATION): iteration=1, StepRecord created
+  │    │
+  │    │  Obs "log_event" (EVENT):
+  │    │    "EVENT" in _SKIP_TYPES → YES → continue (SKIPPED)
+  │    │    (Without this filter, "log_event" would create a StepRecord with
+  │    │     model="unknown", input_tokens=0, pulling down cost averages)
+  │    │
+  │    │  Obs "respond" (GENERATION): iteration=1, StepRecord created
+  │    │
+  │    │  → run 1 = [classify, respond]  (2 records, EVENT filtered out)
+  │    │
+  │    │  ─── Trace 3 ───
+  │    │  iteration_counts = {}
+  │    │
+  │    │  Obs "classify" (GENERATION): step_type="llm", iteration=1
+  │    │
+  │    │  Obs "retrieve_docs" (SPAN):
+  │    │    "SPAN" not in _SKIP_TYPES → proceed
+  │    │    "SPAN" not in _GENERATION_TYPES → proceed
+  │    │    "retriev" in "retrieve_docs".lower() → YES → step_type = "retrieval"
+  │    │    model = None → "unknown"
+  │    │    StepRecord(step_name="retrieve_docs", step_type="retrieval",
+  │    │      model="unknown", input_tokens=0, output_tokens=0, ...)
+  │    │
+  │    │  Obs "respond" (GENERATION): step_type="llm", iteration=1
+  │    │
+  │    │  → run 2 = [classify, retrieve_docs, respond]  (3 records)
+  │    │
+  │    └─ → runs = [[2 recs], [2 recs], [3 recs]]
+  │
+  ├─ compute_stats(runs):
+  │    3 runs, 7 total steps
+  │    "classify": 3 records across 3 runs, cost ≈ $0.00175 each
+  │    "respond": 3 records, cost ≈ $0.005 each
+  │    "retrieve_docs": 1 record, model="unknown" → _safe_cost returns $0.00
+  │    run_costs ≈ [0.00675, 0.00655, 0.00675]
+  │    → ProfilingStats(total_runs=3, total_steps=7, ...)
+  │
+  ├─ detect_patterns(runs, stats):
+  │    _detect_context_growth: all iteration=1 → return []
+  │    _detect_loop_count_variance: all iteration=1 → return []
+  │    _detect_high_token_variance(stats):
+  │      "classify": p95/p50 ≈ 1.04 → skip
+  │      "respond": p95/p50 ≈ 1.05 → skip
+  │      "retrieve_docs": p50=0 → ratio=0 → skip (division guard: p50 > 0)
+  │    → patterns = []
+  │
+  ├─ Build ProfilingSession:
+  │    workflow_name = traces[0].name → "support-workflow"
+  │    input_mode = "langfuse-analyze"
+  │    metadata = {"stats": stats.to_dict(), "patterns": [],
+  │                "langfuse_trace_count": 3, "langfuse_trace_ids": [...]}
+  │
+  ├─ ProfileStore.save(session) → .agentcost/support-workflow_20260601_143022.json
+  │
+  └─ format_cli_report(session):
+      reads session.metadata["stats"] → dict (the stats-based path, not legacy)
+      _build_cost_summary_table(stats):
+        mean = 0.00668, p50 = 0.00675, p95 = 0.00675
+      _build_step_table(stats):
+        respond:       $0.0050 mean, $0.0050 p95 (sorted first — highest cost)
+        classify:      $0.0018 mean, $0.0018 p95
+        retrieve_docs: $0.0000 mean, $0.0000 p95 (unknown model → zero cost)
+      _build_patterns_panel([]):
+        "No significant patterns detected" (green message)
+      → list of Rich renderables → console.print()
+```
+
+**Key takeaway:** The EVENT filter (`_SKIP_TYPES`) is the critical line. Without it, trace 2's "log_event" would become a StepRecord with `model="unknown"` and zero tokens, diluting the cost average. The iteration counter resets per trace — this is verified by trace 2's "classify" starting at iteration=1, not continuing from trace 1's count. The retrieval detection uses substring matching (`"retriev" in name.lower()`), which catches "retrieve_docs", "retrieval", "document_retriever", etc.
+
+---
+
+### Example F: `agentcost report` on a Sprint 1 profile — legacy fallback + recomputation
+
+**Scenario:** The user runs `agentcost report .agentcost/old_profile.json` on a profile saved by Sprint 1 code. The JSON has `cost_summary` but no `stats` key. The `report` command detects this, recomputes stats and patterns from the stored runs, then renders.
+
+**Input data:**
+
+```python
+# Saved by Sprint 1: session.metadata has "cost_summary" but NOT "stats" or "patterns"
+# session.runs has the raw StepRecord lists (3 runs × 2 steps)
+```
+
+**Trace:**
+
+```
+cli.py:report_cmd(profile_path=".agentcost/old_profile.json", traffic=None):
+  │
+  ├─ store = ProfileStore()
+  │  p = Path(".agentcost/old_profile.json") → exists
+  │  session = store.load(p):
+  │    json.loads(file content) → dict
+  │    ProfilingSession.from_dict(data):
+  │      runs = [[StepRecord.from_dict(r) for r in run] for run in data["runs"]]
+  │        (3 runs × 2 steps → 6 StepRecords reconstructed + validated)
+  │      metadata = {"cost_summary": {...}}  (Sprint 1 format, no "stats" key)
+  │    → ProfilingSession
+  │
+  ├─ "stats" not in session.metadata → True
+  │  session.runs → truthy (3 runs)
+  │  → RECOMPUTE PATH:
+  │
+  │  profiling_stats = compute_stats(session.runs):
+  │    (Same computation as Example A — produces full ProfilingStats
+  │     with PercentileStats for every metric)
+  │    → ProfilingStats(total_runs=3, ...)
+  │
+  │  patterns = detect_patterns(session.runs, profiling_stats):
+  │    (Runs all 3 Sprint 2 detectors on the stored data)
+  │    → [] (no patterns for this simple workflow)
+  │
+  │  session.metadata["stats"] = profiling_stats.to_dict()
+  │  session.metadata["patterns"] = [p.to_dict() for p in patterns]
+  │  (Now session.metadata has BOTH Sprint 1 "cost_summary" AND Sprint 2 "stats")
+  │
+  ├─ format_cli_report(session, traffic=None):
+  │    │
+  │    │  session.metadata has "stats" → YES → use stats-based rendering path
+  │    │
+  │    │  _build_cost_summary_table(stats, cost_summary=None):
+  │    │    Reads from stats["cost_per_run"]:
+  │    │      mean, p50, p95, p99, min, max, std
+  │    │    → Rich Table with "Cost Per Run" header
+  │    │
+  │    │  _build_step_table(stats, cost_summary=None, sample_size=3):
+  │    │    For each step in stats["step_stats"]:
+  │    │      mean_cost = step["cost"]["mean"]
+  │    │      p95_cost = step["cost"]["p95"]
+  │    │      mean_tokens = step["total_tokens"]["mean"]
+  │    │      p95_tokens = step["total_tokens"]["p95"]
+  │    │    Sort by mean_cost descending
+  │    │    → Rich Table
+  │    │
+  │    │  _build_projection_panel(stats, cost_summary=None, traffic=None):
+  │    │    traffic is None → use default [100, 1000, 10000]
+  │    │    For each volume:
+  │    │      mean_monthly = stats.cost_per_run.mean × volume × 30
+  │    │      p95_monthly = stats.cost_per_run.p95 × volume × 30
+  │    │    → Rich Panel
+  │    │
+  │    │  _build_patterns_panel(patterns=[]):
+  │    │    Empty list → "No significant patterns detected" (green)
+  │    │
+  │    │  _build_iteration_panel(stats):
+  │    │    No step has mean_iterations > 1.0 → returns None → skipped
+  │    │
+  │    └─ → [header, cost_table, step_table, projection_panel, patterns_panel]
+  │
+  └─ console.print() each → terminal output
+
+  NOTE: The legacy cost_summary is still in metadata but is NOT used —
+  the stats-based path takes priority once stats are present. The legacy
+  path (_build_step_table with cost_summary) would only activate if
+  stats were somehow missing AND the code couldn't recompute from runs.
+```
+
+**Key takeaway:** The `report` command is backward-compatible with Sprint 1 profiles. The recomputation path (`compute_stats` + `detect_patterns`) upgrades the session in-memory by adding the new keys to `metadata`. The session is NOT re-saved to disk — this is a read-only operation. The report function checks for `stats` first (Sprint 2 path) and falls back to `cost_summary` (Sprint 1 legacy) only if stats are missing and recomputation fails.
+
+---
+
+### Cross-reference: Which code paths each example uniquely exercises
+
+| Code path | Exercised by |
+|-----------|-------------|
+| `compute_stats` full pipeline (runs → StepStats + RunStats + PercentileStats) | A, B, C, E, F |
+| `compute_percentile_stats` with n=3 (Bessel correction visible) | A |
+| `compute_percentile_stats` with n=1 (all-same branch) | — (documented as failure mode) |
+| `_safe_cost` wrapping `calculate_cost` | A, E |
+| `_percentile` linear interpolation with f≠c | A |
+| `_detect_context_growth` → positive r², pass threshold | B |
+| `_detect_context_growth` → denom_y=0 guard (constant context) | C |
+| `_detect_context_growth` → n < 5 skip (too few data points) | — (implicit in A,E where iteration=1) |
+| `_detect_loop_count_variance` → CV > 0.5 passes | C |
+| `_detect_loop_count_variance` → CV ≤ 0.5 skips | B |
+| `_detect_loop_count_variance` → severity "danger" vs "warning" | C (warning) |
+| `_detect_high_token_variance` → p95/p50 ≤ 3 skip | B, C, E |
+| `AgentCostRunHooks.on_llm_start` + `on_llm_end` pairing | D |
+| `AgentCostRunHooks.on_tool_start` + `on_tool_end` pairing | D |
+| `_extract_model_name` from agent object | D |
+| `_extract_tool_name` from tool object | D |
+| `_next_iteration` counter (incrementing per step_name) | D |
+| `_build_fallback_steps` (skipped when hooks work) | D (documented) |
+| try/except safety wrapper on every hook method | D |
+| `create_langfuse_client` from env vars | E |
+| `fetch_traces` → `_parse_observation` for each observation | E |
+| `_extract_input_text` from dict with "messages" key | E |
+| `traces_to_step_records` with EVENT filtering (`_SKIP_TYPES`) | E |
+| `traces_to_step_records` with "retriev" substring → "retrieval" step_type | E |
+| `traces_to_step_records` iteration counter reset per trace | E |
+| `format_cli_report` stats-based path (Sprint 2) | B, C, E, F |
+| `format_cli_report` legacy cost_summary path (Sprint 1) | F (documented) |
+| `_build_cost_summary_table` from stats dict | E, F |
+| `_build_step_table` sorted by mean cost | E, F |
+| `_build_patterns_panel` with empty patterns (green message) | E, F |
+| `_build_iteration_panel` returns None (no iterating steps) | F |
+| `report` command: load → detect missing stats → recompute → render | F |
+| `format_cost` precision branching (sub-cent → 4 decimals) | E, F |
+
+---
+
+## Part 4: Debugging Exercises
+
+Work through each exercise: read the broken code, answer the four questions. Solutions are at the bottom of this section — try before you peek.
 
 ---
 
@@ -1093,7 +1811,7 @@ for trace in traces:
 
 ---
 
-## Part 4: REPL Cheat Sheet
+## Part 5: REPL Cheat Sheet
 
 ### Stats and percentiles
 

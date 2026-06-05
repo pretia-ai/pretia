@@ -164,9 +164,9 @@ class TestMonteCarloTriggered:
         ]
         stats = compute_stats(runs)
         patterns = [_make_danger_pattern("review")]
-        result = project(stats, patterns, traffic=[1000], runs=runs)
+        result = project(stats, patterns, traffic=[10], runs=runs)
         assert result.method == "montecarlo"
-        assert result.projections[1000].monthly_cost.mean > 0
+        assert result.projections[10].monthly_cost.mean > 0
 
 
 class TestWarningOnlyUsesLinear:
@@ -203,3 +203,38 @@ class TestProjectionToDict:
         deserialized = json.loads(serialized)
         assert deserialized["method"] == "linear"
         assert "100" in deserialized["projections"] or 100 in deserialized["projections"]
+
+
+class TestStepCountTriggersMonteCarloMode:
+    def test_step_count_triggers_mc_mode(self):
+        runs = []
+        for i in range(20):
+            if i < 10:
+                runs.append(
+                    [
+                        _make_record("step_a", "gpt-4o-mini", 200, 100),
+                        _make_record("step_b", "gpt-4o-mini", 200, 100),
+                        _make_record("step_c", "gpt-4o-mini", 200, 100),
+                        _make_record("step_d", "gpt-4o-mini", 200, 100),
+                        _make_record("step_e", "gpt-4o-mini", 200, 100),
+                    ]
+                )
+            else:
+                runs.append(
+                    [
+                        _make_record("step_a", "gpt-4o-mini", 200, 100),
+                        _make_record("step_b", "gpt-4o-mini", 0, 0),
+                        _make_record("step_c", "gpt-4o-mini", 0, 0),
+                        _make_record("step_d", "gpt-4o-mini", 0, 0),
+                        _make_record("step_e", "gpt-4o-mini", 0, 0),
+                    ]
+                )
+        stats = compute_stats(runs)
+        from agentcost.projection.patterns import detect_patterns
+
+        patterns = detect_patterns(runs, stats)
+        scv = [p for p in patterns if p.pattern_type == "step_count_variance"]
+        assert len(scv) >= 1
+
+        result = project(stats, patterns, traffic=[10], runs=runs)
+        assert result.method == "montecarlo"

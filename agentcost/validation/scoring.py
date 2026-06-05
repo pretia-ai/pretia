@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import math
+import random
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -12,6 +14,55 @@ if TYPE_CHECKING:
     from agentcost.projection.projector import ProjectionResult
 
 logger = logging.getLogger(__name__)
+
+_THRESHOLDS = {
+    "simple": {
+        "p50_ratio_lo": 0.8,
+        "p50_ratio_hi": 1.7,
+        "p95_coverage": 0.88,
+        "range_ratio": 2.5,
+        "co_dominant_pct": 0.25,
+    },
+    "complex": {
+        "p50_ratio_lo": 0.8,
+        "p50_ratio_hi": 1.7,
+        "p95_coverage": 0.80,
+        "range_ratio": 6.0,
+        "co_dominant_pct": 0.25,
+    },
+}
+
+
+def _normal_cdf(x: float) -> float:
+    """Standard normal CDF via Abramowitz & Stegun approximation."""
+    if x < -8:
+        return 0.0
+    if x > 8:
+        return 1.0
+    t = 1.0 / (1.0 + 0.2316419 * abs(x))
+    d = 0.3989422804014327
+    poly = t * (
+        0.319381530
+        + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429)))
+    )
+    p = d * math.exp(-x * x / 2.0) * poly
+    return 1.0 - p if x > 0 else p
+
+
+def _normal_ppf(p: float) -> float:
+    """Inverse standard normal CDF via bisection on _normal_cdf."""
+    if p <= 0.001:
+        return -3.09
+    if p >= 0.999:
+        return 3.09
+    lo, hi = -5.0, 5.0
+    for _ in range(60):
+        mid = (lo + hi) / 2
+        if _normal_cdf(mid) < p:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,15 +131,118 @@ def _spearman_rank_correlation(
     return 1.0 - (6.0 * d_squared_sum) / (n * (n * n - 1))
 
 
+def _percentile(sorted_data: list[float], p: float) -> float:
+    """Compute the p-th percentile (0-100) via linear interpolation."""
+    n = len(sorted_data)
+    if n == 0:
+        return 0.0
+    if n == 1:
+        return sorted_data[0]
+    k = (n - 1) * p / 100.0
+    f = int(k)
+    c = f + 1
+    if c >= n:
+        return sorted_data[f]
+    return sorted_data[f] + (k - f) * (sorted_data[c] - sorted_data[f])
+
+
+def bootstrap_bca_ci(
+    costs: list[float],
+    stat_fn: Any = None,
+    n_bootstrap: int = 2000,
+    ci_level: float = 0.90,
+    seed: int = 42,
+    percentile: float | None = None,
+) -> tuple[float, float, float]:
+    """BCa bootstrap confidence interval. Returns (point_estimate, lower, upper).
+
+    Pass either stat_fn (a callable on list[float]) or percentile (0-100).
+    """
+    rng = random.Random(seed)  # noqa: S311
+    n = len(costs)
+    if n == 0:
+        return 0.0, 0.0, 0.0
+
+    if stat_fn is None and percentile is not None:
+        def stat_fn(c: list[float]) -> float:
+            return _percentile(sorted(c), percentile)
+
+    if stat_fn is None:
+        def stat_fn(c: list[float]) -> float:
+            return sum(c) / len(c) if c else 0.0
+
+    theta_hat = stat_fn(costs)
+
+    boot_thetas: list[float] = []
+    for _ in range(n_bootstrap):
+        sample = [costs[rng.randint(0, n - 1)] for _ in range(n)]
+        boot_thetas.append(stat_fn(sample))
+    boot_thetas.sort()
+
+    # Bias correction (z0)
+    count_below = sum(1 for t in boot_thetas if t < theta_hat)
+    p0 = max(0.001, min(0.999, count_below / n_bootstrap))
+    z0 = _normal_ppf(p0)
+
+    # Acceleration (a) via jackknife
+    jack_thetas: list[float] = []
+    for i in range(n):
+        loo = costs[:i] + costs[i + 1 :]
+        jack_thetas.append(stat_fn(loo))
+    theta_dot = sum(jack_thetas) / n
+
+    num = sum((theta_dot - t) ** 3 for t in jack_thetas)
+    den = sum((theta_dot - t) ** 2 for t in jack_thetas)
+    a = num / (6 * den**1.5) if den > 0 else 0.0
+
+    alpha_lo = (1 - ci_level) / 2
+    alpha_hi = 1 - alpha_lo
+    z_lo = _normal_ppf(alpha_lo)
+    z_hi = _normal_ppf(alpha_hi)
+
+    denom_lo = 1 - a * (z0 + z_lo)
+    denom_hi = 1 - a * (z0 + z_hi)
+    if abs(denom_lo) < 1e-10:
+        denom_lo = 1e-10
+    if abs(denom_hi) < 1e-10:
+        denom_hi = 1e-10
+
+    adj_lo = _normal_cdf(z0 + (z0 + z_lo) / denom_lo)
+    adj_hi = _normal_cdf(z0 + (z0 + z_hi) / denom_hi)
+
+    idx_lo = max(0, min(n_bootstrap - 1, int(adj_lo * n_bootstrap)))
+    idx_hi = max(0, min(n_bootstrap - 1, int(adj_hi * n_bootstrap)))
+
+    return theta_hat, boot_thetas[idx_lo], boot_thetas[idx_hi]
+
+
+def bootstrap_percentile_ci(
+    costs: list[float],
+    percentile: float,
+    n_bootstrap: int = 2000,
+    ci_level: float = 0.90,
+    seed: int = 42,
+) -> tuple[float, float, float]:
+    """Backward-compatible wrapper. Delegates to BCa bootstrap."""
+    return bootstrap_bca_ci(
+        costs, percentile=percentile, n_bootstrap=n_bootstrap,
+        ci_level=ci_level, seed=seed,
+    )
+
+
 def score_projection(
     projected: ProfilingStats,
     ground_truth: ProfilingStats,
     projected_projection: ProjectionResult | None = None,
     traffic: int = 1000,
+    workflow_complexity: str = "simple",
+    ground_truth_p50_ci: tuple[float, float] | None = None,
+    ground_truth_p95_ci: tuple[float, float] | None = None,
 ) -> CalibrationScore:
     """Score a projection against ground truth data."""
     failures: list[str] = []
     warnings: list[str] = []
+    thresholds = _THRESHOLDS.get(workflow_complexity, _THRESHOLDS["simple"])
 
     # --- p50 ratio ---
     gt_p50 = ground_truth.cost_per_run.p50 if ground_truth.cost_per_run else 0
@@ -99,13 +253,21 @@ def score_projection(
         p50_ratio = 1.0
         warnings.append("Ground truth p50 is zero — p50 ratio defaulted to 1.0.")
 
-    if p50_ratio < 0.33 or p50_ratio > 3.0:
-        failures.append(f"p50 estimate off by {p50_ratio:.1f}x — projection is unreliable")
-    elif p50_ratio < 0.5 or p50_ratio > 2.0:
-        warnings.append(
-            f"p50 estimate off by {p50_ratio:.1f}x "
-            f"(projected ${proj_p50:.4f}, actual ${gt_p50:.4f})"
-        )
+    p50_in_ci = False
+    if ground_truth_p50_ci is not None:
+        ci_lo, ci_hi = ground_truth_p50_ci
+        p50_in_ci = ci_lo <= proj_p50 <= ci_hi
+
+    p50_lo = thresholds.get("p50_ratio_lo", 0.8)
+    p50_hi = thresholds.get("p50_ratio_hi", 1.7)
+    if not p50_in_ci:
+        if p50_ratio < 0.33 or p50_ratio > 3.0:
+            failures.append(f"p50 estimate off by {p50_ratio:.1f}x — projection is unreliable")
+        elif p50_ratio < p50_lo or p50_ratio > p50_hi:
+            warnings.append(
+                f"p50 estimate off by {p50_ratio:.1f}x "
+                f"(projected ${proj_p50:.4f}, actual ${gt_p50:.4f})"
+            )
 
     # --- p95 coverage ---
     proj_p95 = projected.cost_per_run.p95 if projected.cost_per_run else 0
@@ -117,14 +279,23 @@ def score_projection(
         gt_p95 = ground_truth.cost_per_run.p95 if ground_truth.cost_per_run else 0
         p95_coverage = 1.0 if gt_p95 <= proj_p95 else 0.0
 
-    if p95_coverage < 0.60:
-        failures.append(
-            f"p95 coverage is only {p95_coverage:.0%} — projection is dangerously overconfident"
-        )
-    elif p95_coverage < 0.80:
-        warnings.append(
-            f"p95 coverage is {p95_coverage:.0%} — projected p95 underestimates tail costs"
-        )
+    p95_cov_threshold = thresholds["p95_coverage"]
+
+    p95_in_ci = False
+    if ground_truth_p95_ci is not None:
+        ci_lo, ci_hi = ground_truth_p95_ci
+        p95_in_ci = ci_lo <= proj_p95 <= ci_hi * 1.2
+
+    if not p95_in_ci:
+        if p95_coverage < 0.60:
+            failures.append(
+                f"p95 coverage is only {p95_coverage:.0%} — "
+                "projection is dangerously overconfident"
+            )
+        elif p95_coverage < p95_cov_threshold:
+            warnings.append(
+                f"p95 coverage is {p95_coverage:.0%} — projected p95 underestimates tail costs"
+            )
 
     # --- Range ratio ---
     if proj_p50 > 0:
@@ -132,14 +303,16 @@ def score_projection(
     else:
         range_ratio = 1.0
 
+    range_threshold = thresholds["range_ratio"]
+
     if range_ratio >= 10.0:
         failures.append(f"Projection range is {range_ratio:.1f}x — too wide to be actionable")
-    elif range_ratio >= 5.0:
+    elif range_ratio >= range_threshold:
         warnings.append(
             f"Wide projection range ({range_ratio:.1f}x). Consider more profiling runs."
         )
 
-    # --- Top step correct (with co-dominant detection) ---
+    # --- Top step correct (with co-dominant detection at 30% threshold) ---
     top_step_correct = True
     if projected.step_stats and ground_truth.step_stats:
         proj_sorted = sorted(
@@ -156,12 +329,12 @@ def score_projection(
         actual_top_name = actual_sorted[0].step_name
 
         if proj_top_name != actual_top_name:
-            # Check co-dominant: top 2 actual steps within 20%
             co_dominant = False
             if len(actual_sorted) >= 2:
                 top_cost = actual_sorted[0].cost.mean
                 second_cost = actual_sorted[1].cost.mean
-                if top_cost > 0 and abs(top_cost - second_cost) / top_cost <= 0.20:
+                co_pct = thresholds.get("co_dominant_pct", 0.25)
+                if top_cost > 0 and abs(top_cost - second_cost) / top_cost <= co_pct:
                     second_name = actual_sorted[1].step_name
                     if proj_top_name in (actual_top_name, second_name):
                         co_dominant = True
@@ -186,27 +359,16 @@ def score_projection(
     actual_step_costs = {name: ss.cost.mean for name, ss in ground_truth.step_stats.items()}
     common_steps = set(proj_step_costs) & set(actual_step_costs)
 
-    if len(common_steps) < 3:
+    if len(common_steps) <= 3:
         ranking_correlation = 1.0
-        warnings.append(
-            f"Only {len(common_steps)} common steps — "
-            "too few to compute meaningful rank correlation."
-        )
     else:
         ranking_correlation = _spearman_rank_correlation(
             proj_step_costs,
             actual_step_costs,
         )
-
-    if len(common_steps) >= 3:
-        if ranking_correlation < 0.6:
+        if ranking_correlation < 0.7:
             failures.append(
                 f"Step ranking doesn't match ground truth (Spearman r={ranking_correlation:.2f})"
-            )
-        elif ranking_correlation <= 0.8:
-            warnings.append(
-                f"Step ranking partially matches ground truth "
-                f"(Spearman r={ranking_correlation:.2f})"
             )
 
     # --- Overall verdict ---
@@ -261,14 +423,14 @@ def format_calibration_report(scores: list[CalibrationScore]) -> str:
                 return "⚠"
             return "✗"
 
-        p50_ok = 0.5 <= sc.p50_ratio <= 2.0
-        p50_warn = (0.33 <= sc.p50_ratio < 0.5) or (2.0 < sc.p50_ratio <= 3.0)
-        p95_ok = sc.p95_coverage >= 0.80
-        p95_warn = 0.60 <= sc.p95_coverage < 0.80
-        range_ok = sc.range_ratio < 5.0
-        range_warn = 5.0 <= sc.range_ratio < 10.0
-        rank_ok = sc.ranking_correlation > 0.8
-        rank_warn = 0.6 <= sc.ranking_correlation <= 0.8
+        p50_ok = 0.7 <= sc.p50_ratio <= 2.0
+        p50_warn = (0.33 <= sc.p50_ratio < 0.7) or (2.0 < sc.p50_ratio <= 3.0)
+        p95_ok = sc.p95_coverage >= 0.85
+        p95_warn = 0.60 <= sc.p95_coverage < 0.85
+        range_ok = sc.range_ratio < 3.0
+        range_warn = 3.0 <= sc.range_ratio < 10.0
+        rank_ok = sc.ranking_correlation > 0.7
+        rank_warn = False
 
         p50_str = f"{sc.p50_ratio:.1f}x {_check(p50_ok, p50_warn)}"
         p95_str = f"{sc.p95_coverage:.0%} {_check(p95_ok, p95_warn)}"

@@ -46,6 +46,8 @@ class StepTracker:
         system_prompt: str = "",
         output_format: str = "text",
         is_retry: bool = False,
+        cache_hit_tokens: int | None = None,
+        cache_miss_tokens: int | None = None,
     ) -> None:
         """Store LLM call data to be turned into a StepRecord on context exit."""
         self._recorded = {
@@ -58,6 +60,8 @@ class StepTracker:
             "system_prompt_tokens": len(system_prompt) // 4,
             "output_format": output_format,
             "is_retry": is_retry,
+            "cache_hit_tokens": cache_hit_tokens,
+            "cache_miss_tokens": cache_miss_tokens,
         }
 
     async def __aenter__(self) -> StepTracker:
@@ -90,6 +94,8 @@ class StepTracker:
             parent_step=self._parent_step,
             duration_ms=duration_ms,
             timestamp=datetime.now(UTC),
+            cache_hit_tokens=self._recorded.get("cache_hit_tokens"),
+            cache_miss_tokens=self._recorded.get("cache_miss_tokens"),
         )
         self._collector._current_run.append(record)
 
@@ -142,10 +148,19 @@ def _try_extract(tracker: StepTracker, result: Any) -> None:
         if input_tokens is None or output_tokens is None:
             return
 
+        if isinstance(usage, dict):
+            cache_hit = usage.get("prompt_cache_hit_tokens")
+            cache_miss = usage.get("prompt_cache_miss_tokens")
+        else:
+            cache_hit = getattr(usage, "prompt_cache_hit_tokens", None)
+            cache_miss = getattr(usage, "prompt_cache_miss_tokens", None)
+
         tracker.record_llm_call(
             model=model,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
+            cache_hit_tokens=cache_hit,
+            cache_miss_tokens=cache_miss,
         )
     except (AttributeError, KeyError, TypeError):
         logger.debug("Could not extract token usage from %s", type(result).__name__)

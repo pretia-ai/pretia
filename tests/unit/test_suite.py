@@ -9,6 +9,7 @@ from agentcost.projection.stats import PercentileStats, StepStats
 from agentcost.store import ProfilingSession
 from agentcost.validation.suite import (
     BacktestConfig,
+    check_directional_bias,
     run_backtesting_suite,
 )
 
@@ -218,3 +219,109 @@ class TestSuiteResultToDict:
         d = result.to_dict()
         serialized = json.dumps(d)
         assert len(serialized) > 0
+
+
+# ---------------------------------------------------------------------------
+# Launch gate tests
+# ---------------------------------------------------------------------------
+
+
+class TestLaunchGateHardGateFailure:
+    def test_hard_gate_failure(self):
+        configs = [_make_config("w1"), _make_config("w2")]
+        gt_costs = [0.028] * 500
+        profiles = {
+            "w1": {
+                "synth20": _make_session(total_runs=20),
+                "synth100": _make_session(total_runs=100),
+                "real500": _make_session(total_runs=500, run_costs=gt_costs),
+            },
+            "w2": {
+                "synth20": _make_session(cost_p50=0.200, total_runs=20),
+                "synth100": _make_session(total_runs=100),
+                "real500": _make_session(total_runs=500, run_costs=gt_costs),
+            },
+        }
+        result = run_backtesting_suite(profiles, configs)
+        assert result.hard_gate_passed is False
+        assert result.overall_passed is False
+
+
+class TestLaunchGateSoftGateBelow80:
+    def test_soft_below_80(self):
+        configs = [_make_config(f"w{i}") for i in range(10)]
+        gt_costs_pass = [0.020 + (i % 40) * 0.0006 for i in range(500)]
+        gt_costs_fail = [0.060] * 500
+        profiles = {}
+        for i, cfg in enumerate(configs):
+            if i < 7:
+                profiles[cfg.name] = {
+                    "synth20": _make_session(total_runs=20),
+                    "synth100": _make_session(total_runs=100),
+                    "real500": _make_session(total_runs=500, run_costs=gt_costs_pass),
+                }
+            else:
+                profiles[cfg.name] = {
+                    "synth20": _make_session(cost_p95=0.020, total_runs=20),
+                    "synth100": _make_session(total_runs=100),
+                    "real500": _make_session(total_runs=500, run_costs=gt_costs_fail),
+                }
+        result = run_backtesting_suite(profiles, configs)
+        if result.soft_gate_pass_rates.get("p95_coverage", 1.0) < 0.80:
+            assert result.overall_passed is False
+
+
+class TestLaunchGateSoftGateAt80:
+    def test_soft_at_80(self):
+        configs = [_make_config(f"w{i}") for i in range(5)]
+        gt_costs = [0.020 + (i % 40) * 0.0006 for i in range(500)]
+        profiles = {}
+        for cfg in configs:
+            profiles[cfg.name] = {
+                "synth20": _make_session(total_runs=20),
+                "synth100": _make_session(total_runs=100),
+                "real500": _make_session(total_runs=500, run_costs=gt_costs),
+            }
+        result = run_backtesting_suite(profiles, configs)
+        assert result.hard_gate_passed is True
+        for rate in result.soft_gate_pass_rates.values():
+            assert rate >= 0.80
+        assert result.overall_passed is True
+
+
+# ---------------------------------------------------------------------------
+# Directional bias tests
+# ---------------------------------------------------------------------------
+
+
+class TestDirectionalBiasUnderestimation:
+    def test_underestimation(self):
+        data = [
+            {"workflow_name": f"w{i}", "projected_p95": 0.03, "ground_truth_p95": 0.05}
+            for i in range(9)
+        ] + [{"workflow_name": "w9", "projected_p95": 0.06, "ground_truth_p95": 0.05}]
+        result = check_directional_bias(data)
+        assert result["bias_detected"] == "underestimation"
+
+
+class TestDirectionalBiasNone:
+    def test_no_bias(self):
+        data = [
+            {"workflow_name": f"w{i}", "projected_p95": 0.03, "ground_truth_p95": 0.05}
+            for i in range(5)
+        ] + [
+            {"workflow_name": f"w{i}", "projected_p95": 0.06, "ground_truth_p95": 0.05}
+            for i in range(5, 10)
+        ]
+        result = check_directional_bias(data)
+        assert result["bias_detected"] is None
+
+
+class TestDirectionalBiasOverestimation:
+    def test_overestimation(self):
+        data = [
+            {"workflow_name": f"w{i}", "projected_p95": 0.06, "ground_truth_p95": 0.05}
+            for i in range(9)
+        ] + [{"workflow_name": "w9", "projected_p95": 0.03, "ground_truth_p95": 0.05}]
+        result = check_directional_bias(data)
+        assert result["bias_detected"] == "overestimation"

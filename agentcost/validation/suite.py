@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
 from agentcost.projection.stats import ProfilingStats
 from agentcost.store import ProfilingSession
 from agentcost.validation.scoring import (
+    _THRESHOLDS,
     CalibrationScore,
+    bootstrap_percentile_ci,
     format_calibration_report,
     score_projection,
 )
@@ -79,6 +81,13 @@ class BacktestSuiteResult:
     fail_count: int
     launch_gate: bool
     timestamp: str
+    hard_gate_passed: bool = True
+    soft_gate_pass_rates: dict[str, float] = field(default_factory=dict)
+    overall_passed: bool = True
+    directional_bias: dict[str, Any] | None = None
+    ground_truth_cis: dict[str, dict[str, tuple[float, float, float]]] = field(
+        default_factory=dict,
+    )
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a JSON-compatible dict."""
@@ -90,7 +99,58 @@ class BacktestSuiteResult:
             "fail_count": self.fail_count,
             "launch_gate": self.launch_gate,
             "timestamp": self.timestamp,
+            "hard_gate_passed": self.hard_gate_passed,
+            "soft_gate_pass_rates": self.soft_gate_pass_rates,
+            "overall_passed": self.overall_passed,
+            "directional_bias": self.directional_bias,
+            "ground_truth_cis": {
+                wf: {k: list(v) for k, v in pcts.items()}
+                for wf, pcts in self.ground_truth_cis.items()
+            },
         }
+
+
+def check_directional_bias(
+    results: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Check for systematic over- or under-estimation across workflows."""
+    count_above = 0
+    count_below = 0
+    per_workflow: list[dict[str, Any]] = []
+
+    for r in results:
+        proj = r["projected_p95"]
+        gt = r["ground_truth_p95"]
+        if proj > gt:
+            direction = "above"
+            count_above += 1
+        else:
+            direction = "below"
+            count_below += 1
+        per_workflow.append(
+            {
+                "name": r["workflow_name"],
+                "projected_p95": proj,
+                "ground_truth_p95": gt,
+                "direction": direction,
+            }
+        )
+
+    total = len(results)
+    bias: str | None = None
+    if total > 0:
+        if count_below >= 0.8 * total:
+            bias = "underestimation"
+        elif count_above >= 0.8 * total:
+            bias = "overestimation"
+
+    return {
+        "count_above": count_above,
+        "count_below": count_below,
+        "total": total,
+        "bias_detected": bias,
+        "per_workflow": per_workflow,
+    }
 
 
 def _extract_stats(session: ProfilingSession) -> ProfilingStats | None:
@@ -187,6 +247,8 @@ def run_backtesting_suite(
 ) -> BacktestSuiteResult:
     """Run the backtesting protocol on pre-computed profiles."""
     results: list[BacktestResult] = []
+    bias_data: list[dict[str, Any]] = []
+    gt_cis: dict[str, dict[str, tuple[float, float, float]]] = {}
 
     for cfg in configs:
         wf_profiles = profiles.get(cfg.name)
@@ -199,16 +261,27 @@ def run_backtesting_suite(
         real500_session = wf_profiles.get("real500")
 
         if real500_session is None:
-            logger.warning(
-                "No ground truth (real500) for %r — skipping",
-                cfg.name,
-            )
+            logger.warning("No ground truth (real500) for %r — skipping", cfg.name)
             continue
 
         gt_stats = _extract_stats(real500_session)
         if gt_stats is None:
             logger.warning("Cannot extract stats from real500 for %r", cfg.name)
             continue
+
+        gt_costs = [rs.total_cost for rs in gt_stats.run_stats]
+
+        p50_ci: tuple[float, float] | None = None
+        p95_ci: tuple[float, float] | None = None
+        if len(gt_costs) >= 15:
+            p50_result = bootstrap_percentile_ci(gt_costs, 50)
+            p95_result = bootstrap_percentile_ci(gt_costs, 95)
+            p50_ci = (p50_result[1], p50_result[2])
+            p95_ci = (p95_result[1], p95_result[2])
+            gt_cis[cfg.name] = {
+                "p50": p50_result,
+                "p95": p95_result,
+            }
 
         synth20_score: CalibrationScore | None = None
         synth100_score: CalibrationScore | None = None
@@ -217,7 +290,14 @@ def run_backtesting_suite(
         if synth20_session is not None:
             s20_stats = _extract_stats(synth20_session)
             if s20_stats is not None:
-                synth20_score = score_projection(s20_stats, gt_stats, traffic=traffic)
+                synth20_score = score_projection(
+                    s20_stats,
+                    gt_stats,
+                    traffic=traffic,
+                    workflow_complexity=cfg.complexity,
+                    ground_truth_p50_ci=p50_ci,
+                    ground_truth_p95_ci=p95_ci,
+                )
 
         if synth100_session is not None:
             s100_stats = _extract_stats(synth100_session)
@@ -226,6 +306,9 @@ def run_backtesting_suite(
                     s100_stats,
                     gt_stats,
                     traffic=traffic,
+                    workflow_complexity=cfg.complexity,
+                    ground_truth_p50_ci=p50_ci,
+                    ground_truth_p95_ci=p95_ci,
                 )
 
                 if synth20_session is not None:
@@ -242,6 +325,21 @@ def run_backtesting_suite(
                             * 100
                         )
 
+        if synth20_score is not None:
+            proj_p95 = (
+                s20_stats.cost_per_run.p95
+                if s20_stats is not None and s20_stats.cost_per_run is not None
+                else 0
+            )
+            gt_p95 = gt_stats.cost_per_run.p95 if gt_stats.cost_per_run else 0
+            bias_data.append(
+                {
+                    "workflow_name": cfg.name,
+                    "projected_p95": proj_p95,
+                    "ground_truth_p95": gt_p95,
+                }
+            )
+
         results.append(
             BacktestResult(
                 config=cfg,
@@ -252,9 +350,45 @@ def run_backtesting_suite(
             )
         )
 
-    pass_count = sum(1 for r in results if r.synth20_score and r.synth20_score.verdict == "PASS")
-    warn_count = sum(1 for r in results if r.synth20_score and r.synth20_score.verdict == "WARN")
-    fail_count = sum(1 for r in results if r.synth20_score and r.synth20_score.verdict == "FAIL")
+    scored = [r for r in results if r.synth20_score is not None]
+    n_scored = len(scored)
+
+    pass_count = sum(1 for r in scored if r.synth20_score.verdict == "PASS")
+    warn_count = sum(1 for r in scored if r.synth20_score.verdict == "WARN")
+    fail_count = sum(1 for r in scored if r.synth20_score.verdict == "FAIL")
+
+    # --- Hard gates: p50 ratio + top step must pass for every workflow ---
+    hard_gate_passed = (
+        all(
+            0.7 <= r.synth20_score.p50_ratio <= 2.0 and r.synth20_score.top_step_correct
+            for r in scored
+        )
+        if scored
+        else True
+    )
+
+    # --- Soft gates: p95 coverage, range ratio, step ranking at ≥80% pass rate ---
+    soft_rates: dict[str, float] = {}
+    if n_scored > 0:
+        p95_pass = 0
+        range_pass = 0
+        rank_pass = 0
+        for r in scored:
+            th = _THRESHOLDS.get(r.config.complexity, _THRESHOLDS["simple"])
+            if r.synth20_score.p95_coverage >= th["p95_coverage"]:
+                p95_pass += 1
+            if r.synth20_score.range_ratio < th["range_ratio"]:
+                range_pass += 1
+            if r.synth20_score.ranking_correlation > 0.7:
+                rank_pass += 1
+        soft_rates = {
+            "p95_coverage": p95_pass / n_scored,
+            "range_ratio": range_pass / n_scored,
+            "step_ranking": rank_pass / n_scored,
+        }
+
+    soft_gates_pass = all(v >= 0.80 for v in soft_rates.values()) if soft_rates else True
+    overall_passed = hard_gate_passed and soft_gates_pass
 
     if fail_count > 0:
         overall = "FAIL"
@@ -263,14 +397,21 @@ def run_backtesting_suite(
     else:
         overall = "PASS"
 
+    dir_bias = check_directional_bias(bias_data) if bias_data else None
+
     return BacktestSuiteResult(
         results=results,
         overall_verdict=overall,
         pass_count=pass_count,
         warn_count=warn_count,
         fail_count=fail_count,
-        launch_gate=fail_count == 0,
+        launch_gate=overall_passed,
         timestamp=datetime.now(UTC).isoformat(),
+        hard_gate_passed=hard_gate_passed,
+        soft_gate_pass_rates=soft_rates,
+        overall_passed=overall_passed,
+        directional_bias=dir_bias,
+        ground_truth_cis=gt_cis,
     )
 
 
@@ -292,5 +433,15 @@ def format_suite_report(suite_result: BacktestSuiteResult) -> str:
             lines.append(f"  {name}: {conv:.0f}% difference{flag}")
         else:
             lines.append(f"  {name}: N/A")
+
+    if suite_result.directional_bias:
+        bias = suite_result.directional_bias
+        if bias["bias_detected"]:
+            lines.append("")
+            lines.append(f"⚠ Directional bias: {bias['bias_detected']}")
+            lines.append(
+                f"  {bias['count_above']} above, {bias['count_below']} below "
+                f"(of {bias['total']} workflows)"
+            )
 
     return "\n".join(lines)

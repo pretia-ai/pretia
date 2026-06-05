@@ -25,6 +25,16 @@ class ProfilingSession:
     input_mode: str
     runs: list[list[StepRecord]]
     metadata: dict[str, Any]
+    # v2 environment context — optional, backward compatible
+    python_version: str | None = None
+    sdk_versions: dict[str, str] | None = None
+    api_endpoints: dict[str, str] | None = None
+    git_commit_hash: str | None = None
+    git_branch: str | None = None
+    git_diff_summary: str | None = None
+    profiling_start_time: str | None = None
+    profiling_end_time: str | None = None
+    inter_request_delay_ms: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a JSON-compatible dict."""
@@ -36,6 +46,15 @@ class ProfilingSession:
             "input_mode": self.input_mode,
             "runs": [[record.to_dict() for record in run] for run in self.runs],
             "metadata": self.metadata,
+            "python_version": self.python_version,
+            "sdk_versions": self.sdk_versions,
+            "api_endpoints": self.api_endpoints,
+            "git_commit_hash": self.git_commit_hash,
+            "git_branch": self.git_branch,
+            "git_diff_summary": self.git_diff_summary,
+            "profiling_start_time": self.profiling_start_time,
+            "profiling_end_time": self.profiling_end_time,
+            "inter_request_delay_ms": self.inter_request_delay_ms,
         }
 
     @classmethod
@@ -49,6 +68,15 @@ class ProfilingSession:
             input_mode=data["input_mode"],
             runs=[[StepRecord.from_dict(r) for r in run] for run in data["runs"]],
             metadata=dict(data["metadata"]),
+            python_version=data.get("python_version"),
+            sdk_versions=data.get("sdk_versions"),
+            api_endpoints=data.get("api_endpoints"),
+            git_commit_hash=data.get("git_commit_hash"),
+            git_branch=data.get("git_branch"),
+            git_diff_summary=data.get("git_diff_summary"),
+            profiling_start_time=data.get("profiling_start_time"),
+            profiling_end_time=data.get("profiling_end_time"),
+            inter_request_delay_ms=data.get("inter_request_delay_ms"),
         )
 
 

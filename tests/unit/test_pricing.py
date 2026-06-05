@@ -204,3 +204,46 @@ class TestStepRecordIntegration:
             calculate_cost(record.model, record.input_tokens, record.output_tokens),
             abs=1e-6,
         )
+
+
+# ---------------------------------------------------------------------------
+# Pricing table structural validation
+# ---------------------------------------------------------------------------
+
+# Models referenced by backtesting workflow configs (from tests/backtesting/workflows/_shared.py)
+_BACKTESTING_MODELS = [
+    "claude-haiku-4-5",
+    "claude-sonnet-4-6",
+    "claude-opus-4-7",
+    "gpt-4.1-nano",
+    "gpt-4.1",
+    "gemini-2.5-flash",
+    "qwen-turbo",
+    "qwen3.6-plus",
+    "deepseek-v4-flash",
+]
+
+
+class TestAllBacktestingModelsInPricingTable:
+    @pytest.mark.parametrize("model", _BACKTESTING_MODELS)
+    def test_model_in_table(self, model):
+        cost = calculate_cost(model, input_tokens=1000, output_tokens=1000)
+        assert cost > 0
+
+
+class TestPricingTableNoZeroPrices:
+    @pytest.mark.parametrize("model", sorted(MODEL_PRICING.keys()))
+    def test_no_zero_price(self, model):
+        input_price, output_price = MODEL_PRICING[model]
+        assert input_price > 0, f"{model} has zero input price"
+        assert output_price > 0, f"{model} has zero output price"
+
+
+class TestPricingTableInputCheaperThanOutput:
+    @pytest.mark.parametrize("model", sorted(MODEL_PRICING.keys()))
+    def test_input_leq_output(self, model):
+        input_price, output_price = MODEL_PRICING[model]
+        assert input_price <= output_price, (
+            f"{model}: input ${input_price}/MTok > output ${output_price}/MTok — "
+            "unusual pricing; verify against provider docs"
+        )

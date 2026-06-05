@@ -1,4 +1,4 @@
-"""Backtesting workflow configurations for the 10 test workflows."""
+"""Backtesting workflow configurations for the test workflows."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from tests.backtesting.workflows._shared import (
     get_qwen_model,
 )
 
-BACKTESTING_CONFIGS: list[BacktestConfig] = [
+_ALL_CONFIGS: list[BacktestConfig] = [
     BacktestConfig(
         name="W1-support-simple",
         archetype="support-agent",
@@ -39,6 +39,7 @@ BACKTESTING_CONFIGS: list[BacktestConfig] = [
         has_loops=True,
         expected_cost_range=(0.08, 0.60),
     ),
+    # W3 excluded from active suite — redundant with W4 (both code-review, W3 is simple-only)
     BacktestConfig(
         name="W3-codereview-simple",
         archetype="code-review",
@@ -72,6 +73,7 @@ BACKTESTING_CONFIGS: list[BacktestConfig] = [
         has_loops=False,
         expected_cost_range=(0.005, 0.04),
     ),
+    # W6 excluded from active suite — redundant with W5 (both extraction, W6 adds loop)
     BacktestConfig(
         name="W6-extraction-complex",
         archetype="data-extraction",
@@ -89,6 +91,7 @@ BACKTESTING_CONFIGS: list[BacktestConfig] = [
         has_loops=True,
         expected_cost_range=(0.08, 0.50),
     ),
+    # W7 excluded from active suite — redundant with W8 (both research, W7 is simple-only)
     BacktestConfig(
         name="W7-research-simple",
         archetype="research-agent",
@@ -172,4 +175,28 @@ BACKTESTING_CONFIGS: list[BacktestConfig] = [
         has_loops=False,
         expected_cost_range=(0.001, 0.01),
     ),
+    BacktestConfig(
+        name="W13-routing-conditional",
+        archetype="routing-agent",
+        complexity="complex",
+        workflow_path="tests/backtesting/workflows/w13_routing_conditional.py",
+        description=(
+            "Classify (Haiku) → route to one of: respond_simple (Haiku, 70%), "
+            "research_and_respond (Sonnet, 20%), escalate_review (Sonnet+Opus, 10%). "
+            "Tests step count variance and bimodal cost distribution."
+        ),
+        expected_models=[
+            get_anthropic_model("haiku"),
+            get_anthropic_model("sonnet"),
+            get_anthropic_model("opus"),
+        ],
+        has_loops=False,
+        expected_cost_range=(0.001, 0.20),
+    ),
+]
+
+_EXCLUDED_NAMES = {"W3-codereview-simple", "W6-extraction-complex", "W7-research-simple"}
+
+BACKTESTING_CONFIGS: list[BacktestConfig] = [
+    c for c in _ALL_CONFIGS if c.name not in _EXCLUDED_NAMES
 ]
