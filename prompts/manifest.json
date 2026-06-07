@@ -1,0 +1,415 @@
+{
+  "prompts": [
+    {
+      "workflow_id": "W01",
+      "workflow_name": "support_simple",
+      "step_name": "classify_respond",
+      "file_path": "w01_support_simple/step1_classify_respond.txt",
+      "target_model": "claude-haiku-4-5",
+      "alternate_model": "claude-sonnet-4-6",
+      "token_budget_min": 1200,
+      "token_budget_max": 1600,
+      "output_format": "text",
+      "has_cache_bust": true,
+      "cost_critical_elements": [
+        "output length variance: 100-200 words simple, 200-400 words complex"
+      ],
+      "measured_token_count": 1202
+    },
+    {
+      "workflow_id": "W02",
+      "workflow_name": "support_complex",
+      "step_name": "intake_classify",
+      "file_path": "w02_support_complex/step1_intake_classify.txt",
+      "target_model": "claude-haiku-4-5",
+      "token_budget_min": 600,
+      "token_budget_max": 900,
+      "output_format": "json",
+      "has_cache_bust": true,
+      "cost_critical_elements": [
+        "complexity determination: simple/complex output"
+      ],
+      "measured_token_count": 660
+    },
+    {
+      "workflow_id": "W02",
+      "workflow_name": "support_complex",
+      "step_name": "research_draft_loop",
+      "file_path": "w02_support_complex/step2_research_draft_loop.txt",
+      "target_model": "claude-sonnet-4-6",
+      "token_budget_min": 1800,
+      "token_budget_max": 2400,
+      "output_format": "json",
+      "has_cache_bust": true,
+      "cost_critical_elements": [
+        "5-criteria self-assessment rubric",
+        "loop termination: confidence >= 0.9 OR 12 iterations",
+        "Opus escalation gate: iteration 4, confidence < 0.75"
+      ],
+      "measured_token_count": 1900
+    },
+    {
+      "workflow_id": "W02",
+      "workflow_name": "support_complex",
+      "step_name": "final_review",
+      "file_path": "w02_support_complex/step3_final_review.txt",
+      "target_model": "claude-opus-4-7",
+      "token_budget_min": 800,
+      "token_budget_max": 1200,
+      "output_format": "json",
+      "has_cache_bust": true,
+      "cost_critical_elements": [],
+      "measured_token_count": 855
+    },
+    {
+      "workflow_id": "W04",
+      "workflow_name": "compliance_review",
+      "step_name": "initial_review",
+      "file_path": "w04_compliance_review/step1_initial_review.txt",
+      "target_model": "deepseek-v4-flash",
+      "token_budget_min": 1400,
+      "token_budget_max": 1800,
+      "output_format": "json",
+      "has_cache_bust": true,
+      "cost_critical_elements": [
+        "thoroughness: check every section including boilerplate"
+      ],
+      "measured_token_count": 1764
+    },
+    {
+      "workflow_id": "W04",
+      "workflow_name": "compliance_review",
+      "step_name": "self_critique",
+      "file_path": "w04_compliance_review/step2_self_critique.txt",
+      "target_model": "qwen3.6-plus",
+      "token_budget_min": 1000,
+      "token_budget_max": 1400,
+      "output_format": "json",
+      "has_cache_bust": true,
+      "cost_critical_elements": [
+        "4 critique dimensions",
+        "loop termination: satisfied true/false"
+      ],
+      "measured_token_count": 1346
+    },
+    {
+      "workflow_id": "W04",
+      "workflow_name": "compliance_review",
+      "step_name": "revision",
+      "file_path": "w04_compliance_review/step3_revision.txt",
+      "target_model": "deepseek-v4-flash",
+      "token_budget_min": 1200,
+      "token_budget_max": 1600,
+      "output_format": "json",
+      "has_cache_bust": true,
+      "cost_critical_elements": [],
+      "measured_token_count": 1238
+    },
+    {
+      "workflow_id": "W05",
+      "workflow_name": "multimodal_extraction",
+      "step_name": "extract",
+      "file_path": "w05_multimodal_extraction/step1_extract.txt",
+      "target_model": "claude-sonnet-4-6",
+      "token_budget_min": 1400,
+      "token_budget_max": 1800,
+      "output_format": "json",
+      "has_cache_bust": true,
+      "cost_critical_elements": [
+        "JSON enforcement: Respond ONLY with valid JSON"
+      ],
+      "measured_token_count": 1597
+    },
+    {
+      "workflow_id": "W09",
+      "workflow_name": "sales_outreach",
+      "step_name": "qualify",
+      "file_path": "w09_sales_outreach/step1_qualify.txt",
+      "target_model": "gpt-4.1-nano",
+      "token_budget_min": 800,
+      "token_budget_max": 1100,
+      "output_format": "json",
+      "has_cache_bust": false,
+      "cost_critical_elements": [
+        "scoring criteria with point values: 7+ hot, 4-6 warm, 0-3 cold"
+      ],
+      "measured_token_count": 951
+    },
+    {
+      "workflow_id": "W09",
+      "workflow_name": "sales_outreach",
+      "step_name": "draft_email",
+      "file_path": "w09_sales_outreach/step2_draft_email.txt",
+      "target_model": "gpt-4.1",
+      "token_budget_min": 1000,
+      "token_budget_max": 1400,
+      "output_format": "json",
+      "has_cache_bust": false,
+      "cost_critical_elements": [
+        "output length by rating: hot 120-180, warm 150-220, cold 80-120 words"
+      ],
+      "measured_token_count": 1072
+    },
+    {
+      "workflow_id": "W11",
+      "workflow_name": "support_qwen",
+      "step_name": "classify_respond",
+      "file_path": "w11_support_qwen/step1_classify_respond.txt",
+      "target_model": "qwen-turbo",
+      "alternate_model": "qwen3.6-plus",
+      "token_budget_min": 1200,
+      "token_budget_max": 1600,
+      "output_format": "text",
+      "has_cache_bust": false,
+      "cost_critical_elements": [
+        "output length variance: 100-200 words simple, 200-400 words complex"
+      ],
+      "measured_token_count": 1221
+    },
+    {
+      "workflow_id": "W12",
+      "workflow_name": "extraction_deepseek",
+      "step_name": "extract",
+      "file_path": "w12_extraction_deepseek/step1_extract.txt",
+      "target_model": "deepseek-v4-flash",
+      "token_budget_min": 1000,
+      "token_budget_max": 1400,
+      "output_format": "json",
+      "has_cache_bust": true,
+      "cost_critical_elements": [
+        "JSON enforcement for DeepSeek verbosity"
+      ],
+      "measured_token_count": 1210
+    },
+    {
+      "workflow_id": "W13",
+      "workflow_name": "routing_agent",
+      "step_name": "classify",
+      "file_path": "w13_routing_agent/step1_classify.txt",
+      "target_model": "claude-haiku-4-5",
+      "token_budget_min": 800,
+      "token_budget_max": 1100,
+      "output_format": "json",
+      "has_cache_bust": true,
+      "cost_critical_elements": [
+        "tier classification criteria controlling 70/20/10 split"
+      ],
+      "measured_token_count": 805
+    },
+    {
+      "workflow_id": "W13",
+      "workflow_name": "routing_agent",
+      "step_name": "path_a_simple",
+      "file_path": "w13_routing_agent/step2_path_a_simple.txt",
+      "target_model": "claude-haiku-4-5",
+      "token_budget_min": 400,
+      "token_budget_max": 600,
+      "output_format": "text",
+      "has_cache_bust": true,
+      "cost_critical_elements": [
+        "output length constraint: 1-3 sentences, max 75 words"
+      ],
+      "measured_token_count": 426
+    },
+    {
+      "workflow_id": "W13",
+      "workflow_name": "routing_agent",
+      "step_name": "path_b_moderate",
+      "file_path": "w13_routing_agent/step3_path_b_moderate.txt",
+      "target_model": "claude-sonnet-4-6",
+      "token_budget_min": 600,
+      "token_budget_max": 900,
+      "output_format": "text",
+      "has_cache_bust": true,
+      "cost_critical_elements": [
+        "output length constraint: 150-350 words, paragraphs not bullets"
+      ],
+      "measured_token_count": 729
+    },
+    {
+      "workflow_id": "W13",
+      "workflow_name": "routing_agent",
+      "step_name": "path_c_complex",
+      "file_path": "w13_routing_agent/step4_path_c_complex.txt",
+      "target_model": "claude-sonnet-4-6",
+      "token_budget_min": 900,
+      "token_budget_max": 1300,
+      "output_format": "text",
+      "has_cache_bust": true,
+      "cost_critical_elements": [
+        "3 tool schemas: web_search, calculator, unit_converter",
+        "output length constraint: 200-500 words"
+      ],
+      "measured_token_count": 1046
+    },
+    {
+      "workflow_id": "W14",
+      "workflow_name": "simple_rag",
+      "step_name": "generate_answer",
+      "file_path": "w14_simple_rag/step4_generate_answer.txt",
+      "target_model": "claude-sonnet-4-6",
+      "token_budget_min": 1000,
+      "token_budget_max": 1400,
+      "output_format": "json",
+      "has_cache_bust": true,
+      "cost_critical_elements": [
+        "context injected in user message, not system prompt"
+      ],
+      "measured_token_count": 1112
+    },
+    {
+      "workflow_id": "W15",
+      "workflow_name": "multihop_rag",
+      "step_name": "assess_sufficiency",
+      "file_path": "w15_multihop_rag/step3_assess_sufficiency.txt",
+      "target_model": "gemini-2.5-flash",
+      "token_budget_min": 800,
+      "token_budget_max": 1100,
+      "output_format": "json",
+      "has_cache_bust": false,
+      "cost_critical_elements": [
+        "sufficiency threshold: ALL parts answered with specific evidence",
+        "max 4 hops forced-sufficient"
+      ],
+      "measured_token_count": 945
+    },
+    {
+      "workflow_id": "W15",
+      "workflow_name": "multihop_rag",
+      "step_name": "generate_answer",
+      "file_path": "w15_multihop_rag/step5_generate_answer.txt",
+      "target_model": "deepseek-v4-flash",
+      "token_budget_min": 1000,
+      "token_budget_max": 1400,
+      "output_format": "json",
+      "has_cache_bust": true,
+      "cost_critical_elements": [
+        "same behavioral rules as W14 + multi-retrieval synthesis"
+      ],
+      "measured_token_count": 1153
+    },
+    {
+      "workflow_id": "W16",
+      "workflow_name": "map_reduce",
+      "step_name": "split",
+      "file_path": "w16_map_reduce/step1_split.txt",
+      "target_model": "claude-sonnet-4-6",
+      "token_budget_min": 800,
+      "token_budget_max": 1100,
+      "output_format": "json",
+      "has_cache_bust": true,
+      "cost_critical_elements": [
+        "section count determines parallel calls \u2014 granularity scales with doc length"
+      ],
+      "measured_token_count": 852
+    },
+    {
+      "workflow_id": "W16",
+      "workflow_name": "map_reduce",
+      "step_name": "process_section",
+      "file_path": "w16_map_reduce/step2_process_section.txt",
+      "target_model": "claude-haiku-4-5",
+      "token_budget_min": 600,
+      "token_budget_max": 900,
+      "output_format": "json",
+      "has_cache_bust": true,
+      "cost_critical_elements": [
+        "must NOT reference other sections"
+      ],
+      "measured_token_count": 629
+    },
+    {
+      "workflow_id": "W16",
+      "workflow_name": "map_reduce",
+      "step_name": "aggregate",
+      "file_path": "w16_map_reduce/step3_aggregate.txt",
+      "target_model": "claude-sonnet-4-6",
+      "token_budget_min": 1000,
+      "token_budget_max": 1400,
+      "output_format": "json",
+      "has_cache_bust": true,
+      "cost_critical_elements": [
+        "receives all N section analyses as input"
+      ],
+      "measured_token_count": 1079
+    },
+    {
+      "workflow_id": "W17",
+      "workflow_name": "claims_agent",
+      "step_name": "intake_override",
+      "file_path": "w17_claims_agent/step1_intake_override.txt",
+      "target_model": "claude-haiku-4-5",
+      "token_budget_min": 800,
+      "token_budget_max": 1200,
+      "output_format": "json",
+      "has_cache_bust": true,
+      "cost_critical_elements": [
+        "4 override rules: inactive->deny, missing docs->request, >$5000->flag senior, code inconsistency->flag coding"
+      ],
+      "measured_token_count": 979
+    },
+    {
+      "workflow_id": "W17",
+      "workflow_name": "claims_agent",
+      "step_name": "evaluate_decide",
+      "file_path": "w17_claims_agent/step3_evaluate_decide.txt",
+      "target_model": "claude-sonnet-4-6",
+      "token_budget_min": 1800,
+      "token_budget_max": 2400,
+      "output_format": "json",
+      "has_cache_bust": true,
+      "cost_critical_elements": [
+        "3 claim-type eval paths: pre-approval, standard, appeal",
+        "6 function schemas: approve_pre_authorization, approve_claim_payment, deny_claim, request_missing_documentation, route_to_senior_reviewer, route_to_coding_review"
+      ],
+      "measured_token_count": 2129
+    },
+    {
+      "workflow_id": "W17",
+      "workflow_name": "claims_agent",
+      "step_name": "conditional_routing",
+      "file_path": "w17_claims_agent/step4_conditional_routing.txt",
+      "target_model": "claude-haiku-4-5",
+      "token_budget_min": 500,
+      "token_budget_max": 800,
+      "output_format": "json",
+      "has_cache_bust": true,
+      "cost_critical_elements": [
+        "routing precedence: high_amount->senior_reviewer, code_inconsistency->coding_review, both->senior"
+      ],
+      "measured_token_count": 563
+    },
+    {
+      "workflow_id": "W18",
+      "workflow_name": "long_document",
+      "step_name": "process",
+      "file_path": "w18_long_document/step1_process.txt",
+      "target_model": "deepseek-v4-flash",
+      "token_budget_min": 1000,
+      "token_budget_max": 1400,
+      "output_format": "json",
+      "has_cache_bust": true,
+      "cost_critical_elements": [
+        "output 800-2000 tokens regardless of doc length",
+        "must NOT instruct section-by-section summary"
+      ],
+      "measured_token_count": 1391
+    },
+    {
+      "workflow_id": "W19",
+      "workflow_name": "multi_turn",
+      "step_name": "respond",
+      "file_path": "w19_multi_turn/step1_respond.txt",
+      "target_model": "deepseek-v4-flash",
+      "token_budget_min": 1200,
+      "token_budget_max": 1600,
+      "output_format": "text",
+      "has_cache_bust": true,
+      "cost_critical_elements": [
+        "response under 200 words per turn",
+        "must NOT instruct context summarization"
+      ],
+      "measured_token_count": 1572
+    }
+  ]
+}

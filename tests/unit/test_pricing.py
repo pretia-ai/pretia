@@ -154,7 +154,7 @@ class TestDeepSeekPricing:
 
     def test_deepseek_alias_resolution(self):
         assert resolve_model("deepseek") == "deepseek-v4-flash"
-        assert resolve_model("deepseek-v4") == "deepseek-v4-flash"
+        assert resolve_model("deepseek-v4") == "deepseek-v4-pro"
         assert resolve_model("deepseek-flash") == "deepseek-v4-flash"
         assert resolve_model("deepseek-pro") == "deepseek-v4-pro"
 

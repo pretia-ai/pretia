@@ -32,8 +32,12 @@ htmlcov/
 tests/synthetic/swebench/data/*.json
 tests/synthetic/swebench/data/*.jsonl
 
+# Generated PDFs and corpora
+pdfs/generated/
+
 # IDE
 .vscode/
 .idea/
 *.swp
 .DS_Store
+.env

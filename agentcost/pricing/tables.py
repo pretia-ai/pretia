@@ -16,6 +16,8 @@ MODEL_PRICING: dict[str, tuple[float, float]] = {
     "claude-sonnet-4-20250514": (3.00, 15.00),
     # OpenAI — https://openai.com/api/pricing/
     "gpt-5.5": (5.00, 30.00),
+    "gpt-5.4": (2.50, 10.00),
+    "gpt-5.4-nano": (0.12, 0.48),
     "gpt-4.1": (2.00, 8.00),
     "gpt-4.1-mini": (0.40, 1.60),
     "gpt-4.1-nano": (0.10, 0.40),
@@ -23,6 +25,9 @@ MODEL_PRICING: dict[str, tuple[float, float]] = {
     "gpt-4o-mini": (0.15, 0.60),
     "o3": (2.00, 8.00),
     "o4-mini": (1.10, 4.40),
+    # OpenAI Embeddings — https://openai.com/api/pricing/
+    "text-embedding-3-small": (0.02, 0.02),
+    "text-embedding-3-large": (0.13, 0.13),
     # Google Gemini — https://ai.google.dev/gemini-api/docs/pricing
     # Prices shown for ≤200k-context tier.
     "gemini-2.5-pro": (1.25, 10.00),
@@ -61,12 +66,13 @@ MODEL_ALIASES: dict[str, str] = {
     "claude-haiku": "claude-haiku-4-5",
     "claude-sonnet": "claude-sonnet-4-6",
     "claude-opus": "claude-opus-4-7",
+    "gpt-5.4-mini": "gpt-5.4-nano",
     "gpt-4.1-micro": "gpt-4.1-nano",
     "o3-mini": "o4-mini",
     "mistral-large": "mistral-large-latest",
     "mistral-small": "mistral-small-latest",
     "deepseek": "deepseek-v4-flash",
-    "deepseek-v4": "deepseek-v4-flash",
+    "deepseek-v4": "deepseek-v4-pro",
     "deepseek-flash": "deepseek-v4-flash",
     "deepseek-pro": "deepseek-v4-pro",
     "qwen-3.7-max": "qwen3.7-max",
@@ -88,6 +94,7 @@ MODEL_TIERS: dict[str, str] = {
     "claude-opus-4-6": "frontier",
     "claude-opus-4-20250514": "frontier",
     "gpt-5.5": "frontier",
+    "gpt-5.4": "mid",
     "o3": "frontier",
     "gemini-2.5-pro": "frontier",
     "mistral-large-latest": "frontier",
@@ -102,8 +109,11 @@ MODEL_TIERS: dict[str, str] = {
     "deepseek-reasoner": "mid",
     "claude-haiku-4-5": "fast",
     "gpt-4.1-mini": "fast",
+    "gpt-5.4-nano": "fast",
     "gpt-4.1-nano": "fast",
     "gpt-4o-mini": "fast",
+    "text-embedding-3-small": "fast",
+    "text-embedding-3-large": "fast",
     "gemini-2.5-flash": "fast",
     "llama-4-scout": "fast",
     "mistral-small-latest": "fast",
@@ -118,7 +128,7 @@ MODEL_TIERS: dict[str, str] = {
     "qwen-long": "fast",
 }
 
-PRICING_LAST_UPDATED = "2026-05-30"
+PRICING_LAST_UPDATED = "2026-06-05"
 
 MODEL_CACHE_HIT_PRICING: dict[str, float] = {
     "deepseek-v4-flash": 0.0028,
