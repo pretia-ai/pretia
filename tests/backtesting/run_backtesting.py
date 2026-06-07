@@ -117,6 +117,8 @@ def _run_phase(
         _run_phase_2(configs, resume)
     elif phase == 3:
         _run_phase_3(configs)
+    elif phase == 4:
+        _run_phase_4()
     else:
         click.echo(f"Unknown phase: {phase}", err=True)
         sys.exit(1)
@@ -215,12 +217,76 @@ def _run_phase_3(configs: list) -> None:
     click.echo(f"\nResults saved: {report_path}")
 
 
+def _run_phase_4() -> None:
+    """Phase 4: Generate visualizations, dashboard, and narrative report."""
+    click.echo("Phase 4: Generating visualizations and reports...")
+
+    plots_dir = RESULTS_DIR / "plots"
+
+    try:
+        from visualization.pilot.visualize_pilot import generate_all_pilot_visuals
+
+        paths = generate_all_pilot_visuals(RESULTS_DIR, plots_dir / "pilot")
+        click.echo(f"  Pilot plots: {len(paths)} files")
+    except Exception as exc:
+        click.echo(f"  Pilot plots failed: {exc}", err=True)
+
+    try:
+        from visualization.backtest.visualize_backtest import generate_all_backtest_visuals
+
+        paths = generate_all_backtest_visuals(RESULTS_DIR, plots_dir / "backtest")
+        click.echo(f"  Backtest plots: {len(paths)} files")
+    except Exception as exc:
+        click.echo(f"  Backtest plots failed: {exc}", err=True)
+
+    try:
+        from visualization.dashboard.generate_dashboard import generate_dashboard
+
+        result = generate_dashboard(RESULTS_DIR, RESULTS_DIR / "dashboard.html")
+        if result:
+            click.echo(f"  Dashboard: {result}")
+        else:
+            click.echo("  Dashboard: skipped (plotly not installed)")
+    except Exception as exc:
+        click.echo(f"  Dashboard failed: {exc}", err=True)
+
+    try:
+        from visualization.narrative.generate_narrative import generate_narrative
+
+        output = generate_narrative(RESULTS_DIR, RESULTS_DIR / "narrative.md")
+        click.echo(f"  Narrative: {output}")
+    except Exception as exc:
+        click.echo(f"  Narrative failed: {exc}", err=True)
+
+
+def _run_pre_calibration() -> bool:
+    """Run pre-calibration checks. Returns True if pilot can proceed."""
+    import asyncio
+
+    try:
+        from pre_calibration.pre_calibration import run_pre_calibration
+
+        report = asyncio.run(
+            run_pre_calibration(output=RESULTS_DIR / "pre_calibration.json")
+        )
+        if report.proceed_to_pilot:
+            click.echo("Pre-calibration: PASSED")
+            return True
+        click.echo("Pre-calibration: BLOCKED")
+        for f in report.blocking_failures:
+            click.echo(f"  Failure: {f}")
+        return False
+    except Exception as exc:
+        click.echo(f"Pre-calibration error: {exc}", err=True)
+        return False
+
+
 @click.command()
 @click.option(
     "--phase",
     type=int,
     default=None,
-    help="Phase to run: 1 (synthetic), 2 (ground truth), 3 (score).",
+    help="Phase to run: 1 (synthetic), 2 (ground truth), 3 (score), 4 (visualize).",
 )
 @click.option(
     "--all",
@@ -242,6 +308,12 @@ def _run_phase_3(configs: list) -> None:
     help="Skip workflows that already have result files.",
 )
 @click.option(
+    "--pre-calibrate",
+    is_flag=True,
+    default=False,
+    help="Run pre-calibration checks before starting.",
+)
+@click.option(
     "-v",
     "--verbose",
     is_flag=True,
@@ -253,6 +325,7 @@ def main(
     run_all: bool,
     workflow: str | None,
     resume: bool,
+    pre_calibrate: bool,
     verbose: bool,
 ) -> None:
     """Run the AgentCost backtesting protocol."""
@@ -261,8 +334,13 @@ def main(
 
     from tests.backtesting.configs import BACKTESTING_CONFIGS
 
+    if pre_calibrate:
+        if not _run_pre_calibration():
+            click.echo("Fix pre-calibration issues before running the pilot.")
+            sys.exit(1)
+
     if run_all:
-        for p in (1, 2, 3):
+        for p in (1, 2, 3, 4):
             _run_phase(p, BACKTESTING_CONFIGS, workflow, resume)
     elif phase is not None:
         _run_phase(phase, BACKTESTING_CONFIGS, workflow, resume)

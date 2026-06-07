@@ -400,6 +400,146 @@ def score_projection(
     )
 
 
+_COMPARISON_TARGETS = {
+    "no_drift": {
+        "mean_error": 10.0,
+        "p75_error": 15.0,
+        "ci_coverage": 85.0,
+        "monthly_error": 10.0,
+        "cvar95_error": 25.0,
+    },
+    "drifted": {
+        "mean_error": 20.0,
+        "p75_error": 25.0,
+        "ci_coverage": 75.0,
+        "monthly_error": 20.0,
+        "cvar95_error": 40.0,
+    },
+}
+
+
+@dataclass(frozen=True, slots=True)
+class ComparisonScore:
+    """Accuracy metrics for one workflow under one comparison (A, B, or C)."""
+
+    workflow_name: str
+    comparison: str
+    mean_error_pct: float
+    p75_error_pct: float
+    ci_coverage_pct: float
+    monthly_error_pct: float
+    cvar95_error_pct: float
+    passes: bool
+    failures: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a JSON-compatible dict."""
+        return {
+            "workflow_name": self.workflow_name,
+            "comparison": self.comparison,
+            "mean_error_pct": self.mean_error_pct,
+            "p75_error_pct": self.p75_error_pct,
+            "ci_coverage_pct": self.ci_coverage_pct,
+            "monthly_error_pct": self.monthly_error_pct,
+            "cvar95_error_pct": self.cvar95_error_pct,
+            "passes": self.passes,
+            "failures": list(self.failures),
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> ComparisonScore:
+        """Deserialize from a JSON-compatible dict."""
+        return cls(
+            workflow_name=d["workflow_name"],
+            comparison=d["comparison"],
+            mean_error_pct=d["mean_error_pct"],
+            p75_error_pct=d["p75_error_pct"],
+            ci_coverage_pct=d["ci_coverage_pct"],
+            monthly_error_pct=d["monthly_error_pct"],
+            cvar95_error_pct=d["cvar95_error_pct"],
+            passes=d["passes"],
+            failures=d.get("failures", []),
+        )
+
+
+def score_comparison(
+    projected: ProfilingStats,
+    ground_truth: ProfilingStats,
+    workflow_name: str,
+    comparison: str,
+    traffic: int = 1000,
+) -> ComparisonScore:
+    """Score a projection against ground truth using the 3-comparison protocol.
+
+    Args:
+        projected: Stats from n=50 profiling runs.
+        ground_truth: Stats from ground truth runs.
+        workflow_name: Workflow identifier.
+        comparison: One of "A" (no drift), "B" (drifted), "C" (reweighted).
+        traffic: Daily traffic volume for monthly projection.
+    """
+    from agentcost.projection.montecarlo import compute_cvar
+
+    targets = _COMPARISON_TARGETS["no_drift" if comparison == "A" else "drifted"]
+    failures: list[str] = []
+
+    gt_mean = ground_truth.cost_per_run.mean if ground_truth.cost_per_run else 0.0
+    proj_mean = projected.cost_per_run.mean if projected.cost_per_run else 0.0
+    mean_error = abs(proj_mean - gt_mean) / gt_mean * 100 if gt_mean > 0 else 0.0
+    if mean_error > targets["mean_error"]:
+        failures.append(f"Mean error {mean_error:.1f}% exceeds {targets['mean_error']}% target")
+
+    gt_p75 = ground_truth.cost_per_run.p75 if ground_truth.cost_per_run else 0.0
+    proj_p75 = projected.cost_per_run.p75 if projected.cost_per_run else 0.0
+    p75_error = abs(proj_p75 - gt_p75) / gt_p75 * 100 if gt_p75 > 0 else 0.0
+    if p75_error > targets["p75_error"]:
+        failures.append(f"P75 error {p75_error:.1f}% exceeds {targets['p75_error']}% target")
+
+    gt_costs = [rs.total_cost for rs in ground_truth.run_stats]
+    proj_p95 = projected.cost_per_run.p95 if projected.cost_per_run else 0.0
+    proj_p05 = projected.cost_per_run.min if projected.cost_per_run else 0.0
+    if gt_costs:
+        inside = sum(1 for c in gt_costs if proj_p05 <= c <= proj_p95)
+        ci_coverage = inside / len(gt_costs) * 100
+    else:
+        ci_coverage = 0.0
+    if ci_coverage < targets["ci_coverage"]:
+        failures.append(
+            f"CI coverage {ci_coverage:.0f}% below {targets['ci_coverage']}% target"
+        )
+
+    gt_monthly = gt_mean * traffic * 30
+    proj_monthly = proj_mean * traffic * 30
+    monthly_error = (
+        abs(proj_monthly - gt_monthly) / gt_monthly * 100 if gt_monthly > 0 else 0.0
+    )
+    if monthly_error > targets["monthly_error"]:
+        failures.append(
+            f"Monthly error {monthly_error:.1f}% exceeds {targets['monthly_error']}% target"
+        )
+
+    gt_cvar = compute_cvar(gt_costs) if gt_costs else 0.0
+    proj_costs = [rs.total_cost for rs in projected.run_stats]
+    proj_cvar = compute_cvar(proj_costs) if proj_costs else 0.0
+    cvar95_error = abs(proj_cvar - gt_cvar) / gt_cvar * 100 if gt_cvar > 0 else 0.0
+    if cvar95_error > targets["cvar95_error"]:
+        failures.append(
+            f"CVaR95 error {cvar95_error:.1f}% exceeds {targets['cvar95_error']}% target"
+        )
+
+    return ComparisonScore(
+        workflow_name=workflow_name,
+        comparison=comparison,
+        mean_error_pct=mean_error,
+        p75_error_pct=p75_error,
+        ci_coverage_pct=ci_coverage,
+        monthly_error_pct=monthly_error,
+        cvar95_error_pct=cvar95_error,
+        passes=len(failures) == 0,
+        failures=failures,
+    )
+
+
 def format_calibration_report(scores: list[CalibrationScore]) -> str:
     """Format a rich terminal report for a batch of calibration scores."""
     lines: list[str] = []

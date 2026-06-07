@@ -12,6 +12,7 @@ from agentcost.store import ProfilingSession
 from agentcost.validation.scoring import (
     _THRESHOLDS,
     CalibrationScore,
+    ComparisonScore,
     bootstrap_percentile_ci,
     format_calibration_report,
     score_projection,
@@ -108,6 +109,139 @@ class BacktestSuiteResult:
                 for wf, pcts in self.ground_truth_cis.items()
             },
         }
+
+
+@dataclass(frozen=True, slots=True)
+class FailureAttribution:
+    """Classify why a workflow failed the backtest into actionable buckets."""
+
+    workflow_name: str
+    bucket: int
+    bucket_label: str
+    explanation: str
+    recommended_action: str
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a JSON-compatible dict."""
+        return {
+            "workflow_name": self.workflow_name,
+            "bucket": self.bucket,
+            "bucket_label": self.bucket_label,
+            "explanation": self.explanation,
+            "recommended_action": self.recommended_action,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ComparisonResult:
+    """Backtest results across all three comparisons for one workflow."""
+
+    workflow_name: str
+    score_a: ComparisonScore | None
+    score_b: ComparisonScore | None
+    score_c: ComparisonScore | None
+    attribution: FailureAttribution | None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a JSON-compatible dict."""
+        return {
+            "workflow_name": self.workflow_name,
+            "score_a": self.score_a.to_dict() if self.score_a else None,
+            "score_b": self.score_b.to_dict() if self.score_b else None,
+            "score_c": self.score_c.to_dict() if self.score_c else None,
+            "attribution": self.attribution.to_dict() if self.attribution else None,
+        }
+
+
+def attribute_failure(
+    workflow_name: str,
+    score_a: ComparisonScore | None,
+    score_b: ComparisonScore | None,
+    score_c: ComparisonScore | None,
+) -> FailureAttribution | None:
+    """Apply the failure attribution flowchart from the backtest protocol.
+
+    Returns None if all comparisons pass (no failure to attribute).
+    """
+    if score_a is None:
+        return FailureAttribution(
+            workflow_name=workflow_name,
+            bucket=1,
+            bucket_label="engine_problem",
+            explanation="No Comparison A score available — engine or infrastructure problem.",
+            recommended_action="Fix the projection engine or data pipeline.",
+        )
+
+    if not score_a.passes:
+        return FailureAttribution(
+            workflow_name=workflow_name,
+            bucket=1,
+            bucket_label="engine_problem",
+            explanation=(
+                f"Comparison A (no drift) failed: {', '.join(score_a.failures)}. "
+                "Engine cannot project accurately even without distribution mismatch."
+            ),
+            recommended_action="Fix the projection engine. Common causes: pricing table error, "
+            "token counting bug, detector threshold miscalibration.",
+        )
+
+    if score_b is None or score_b.passes:
+        return None
+
+    if score_c is not None and score_c.passes:
+        recovery_pct = _compute_recovery(score_a, score_b, score_c)
+        return FailureAttribution(
+            workflow_name=workflow_name,
+            bucket=2,
+            bucket_label="drift_sensitivity",
+            explanation=(
+                f"Comparison B (drifted) failed but reweighting recovered "
+                f"{recovery_pct:.0f}% of lost accuracy. Drift is distributional, "
+                "not structural."
+            ),
+            recommended_action="Use --traffic-mix to specify production distribution weights.",
+        )
+
+    recovery_pct = (
+        _compute_recovery(score_a, score_b, score_c) if score_c is not None else 0.0
+    )
+    if score_c is not None and recovery_pct >= 50.0:
+        return FailureAttribution(
+            workflow_name=workflow_name,
+            bucket=2,
+            bucket_label="drift_sensitivity",
+            explanation=(
+                f"Comparison C recovered {recovery_pct:.0f}% of lost accuracy. "
+                "Reweighting partially compensates for drift."
+            ),
+            recommended_action="Use --traffic-mix to specify production distribution weights.",
+        )
+
+    return FailureAttribution(
+        workflow_name=workflow_name,
+        bucket=3,
+        bucket_label="structural_drift",
+        explanation=(
+            f"Comparison B failed and reweighting recovered only "
+            f"{recovery_pct:.0f}% of lost accuracy. "
+            "Drift is structural (style, length, modality), not distributional."
+        ),
+        recommended_action="Re-profile with production-representative inputs. "
+        "Investigate per-step cost breakdown to identify which step is misprojected.",
+    )
+
+
+def _compute_recovery(
+    score_a: ComparisonScore,
+    score_b: ComparisonScore,
+    score_c: ComparisonScore,
+) -> float:
+    """Compute what percentage of accuracy lost to drift was recovered by reweighting."""
+    drift_impact = score_b.mean_error_pct - score_a.mean_error_pct
+    if drift_impact <= 0:
+        return 100.0
+    recovery = score_b.mean_error_pct - score_c.mean_error_pct
+    return max(0.0, min(100.0, recovery / drift_impact * 100))
 
 
 def check_directional_bias(

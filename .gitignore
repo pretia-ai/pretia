@@ -41,3 +41,16 @@ pdfs/generated/
 *.swp
 .DS_Store
 .env
+
+# Generated pipeline output (PDFs, descriptors, manifests)
+output/
+
+# Generated reports and analysis artifacts
+reports/
+
+# Auto-generated workflow inputs (regenerated on demand)
+inputs/generated/
+
+# Claude Code local config
+.claude/
+CLAUDE.md

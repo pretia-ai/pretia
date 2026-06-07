@@ -8,10 +8,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-# scan_simulator.py imports PIL.Image at module level; mock it so the
-# dataclass and randomize function can be exercised without Pillow installed.
-sys.modules.setdefault("PIL", MagicMock())
-sys.modules.setdefault("PIL.Image", MagicMock())
+# scan_simulator.py imports PIL.Image at module level.
+# Pillow must be installed (it's in the pdf-generation extra).
+# Previous code mocked PIL here, but that corrupts PIL for matplotlib
+# when pytest collects all tests together.
 
 from pdfs.generators.rendering.chart_renderer import ChartSpec  # noqa: E402
 from pdfs.generators.rendering.scan_simulator import (  # noqa: E402

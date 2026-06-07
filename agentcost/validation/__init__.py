@@ -9,13 +9,18 @@ from agentcost.validation.confidence import (
 )
 from agentcost.validation.scoring import (
     CalibrationScore,
+    ComparisonScore,
     format_calibration_report,
+    score_comparison,
     score_projection,
 )
 from agentcost.validation.suite import (
     BacktestConfig,
     BacktestResult,
     BacktestSuiteResult,
+    ComparisonResult,
+    FailureAttribution,
+    attribute_failure,
     format_suite_report,
     run_backtesting_suite,
 )
@@ -30,8 +35,12 @@ __all__ = [
     "BacktestResult",
     "BacktestSuiteResult",
     "CalibrationScore",
+    "ComparisonResult",
+    "ComparisonScore",
     "ConfidenceResult",
+    "FailureAttribution",
     "ValidateResult",
+    "attribute_failure",
     "compute_confidence",
     "compute_conformal_interval",
     "format_calibration_report",
@@ -39,5 +48,6 @@ __all__ = [
     "format_validate_report",
     "run_backtesting_suite",
     "run_validation",
+    "score_comparison",
     "score_projection",
 ]

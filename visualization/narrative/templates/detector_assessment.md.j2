@@ -1,0 +1,31 @@
+## Detector Assessment
+
+Pattern detection accuracy across {{ detector.per_workflow | length }} workflows and 5 detectors:
+
+| Metric | Value |
+|--------|-------|
+| True Positive Rate | {{ "%.0f" | format(detector.tp_rate * 100) }}% ({{ detector.tp }} of {{ detector.tp + detector.fn }}) |
+| False Negative Rate | {{ "%.0f" | format(detector.fn_rate * 100) }}% ({{ detector.fn }} of {{ detector.tp + detector.fn }}) |
+| False Positive Rate | {{ "%.0f" | format(detector.fp_rate * 100) }}% ({{ detector.fp }} of {{ detector.tn + detector.fp }}) |
+
+### Per-Detector Breakdown
+
+| Detector | TP Rate | FN Rate | FP Rate |
+|----------|---------|---------|---------|
+{% for det, rates in detector.detector_rates.items() -%}
+| {{ det | replace("_", " ") | title }} | {{ "%.0f" | format(rates.tp_rate * 100) }}% | {{ "%.0f" | format(rates.fn_rate * 100) }}% | {{ "%.0f" | format(rates.fp_rate * 100) }}% |
+{% endfor %}
+
+{% if detector.false_positives -%}
+### False Positives
+
+The following detectors fired when they should not have:
+
+{% for fp in detector.false_positives -%}
+- **{{ fp.workflow }}**: {{ fp.detector | replace("_", " ") | title }} fired unexpectedly
+{% endfor %}
+
+False positives cause unnecessary warnings but do not affect projection accuracy. Consider raising detector thresholds if these are noise.
+{% else -%}
+No false positives detected. All detector activations matched expectations.
+{% endif %}

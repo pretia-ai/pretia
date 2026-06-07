@@ -29,8 +29,10 @@ _mock_agents.Runner = MagicMock()
 _mock_agents.lifecycle = _mock_lifecycle
 _mock_agents.lifecycle.RunHooksBase = _MockRunHooksBase
 
-sys.modules.setdefault("agents", _mock_agents)
-sys.modules.setdefault("agents.lifecycle", _mock_lifecycle)
+_saved_agents = sys.modules.get("agents")
+_saved_agents_lifecycle = sys.modules.get("agents.lifecycle")
+sys.modules["agents"] = _mock_agents
+sys.modules["agents.lifecycle"] = _mock_lifecycle
 
 from agentcost.collectors.openai_agents import (  # noqa: E402
     AgentCostRunHooks,

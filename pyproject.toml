@@ -64,6 +64,11 @@ backtesting = [
     "langchain-google-genai>=2.0.0",
     "langgraph>=1.0.0",
 ]
+visualization = [
+    "matplotlib>=3.8",
+    "seaborn>=0.13",
+    "plotly>=5.18",
+]
 pdf-generation = [
     "reportlab>=4.1",
     "matplotlib>=3.8",
