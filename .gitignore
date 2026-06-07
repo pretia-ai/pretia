@@ -1,3 +1,4 @@
+CLAUDE.md
 # Python
 __pycache__/
 *.pyc
@@ -53,4 +54,3 @@ inputs/generated/
 
 # Claude Code local config
 .claude/
-CLAUDE.md
