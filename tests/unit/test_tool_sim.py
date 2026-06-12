@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from agents.harness.tool_sim import (
+from bt_agents.harness.tool_sim import (
     TOOL_SCHEMAS,
     _calculator,
     _unit_converter,

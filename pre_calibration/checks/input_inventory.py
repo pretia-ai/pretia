@@ -43,21 +43,31 @@ async def check(*, inputs_dir: Path = Path("inputs/generated")) -> CheckResult:
     gt_total = 0
 
     for wf_id, expected_gt in EXPECTED_GT_COUNTS.items():
-        prof_file = inputs_dir / f"{wf_id}_profiling.jsonl"
-        gt_file = inputs_dir / f"{wf_id}_ground_truth.jsonl"
+        # Try directory-of-JSONs layout first (inputs/generated/profiling/w01/*.json)
+        wf_short = wf_id.replace("w0", "w")  # w01 -> w1 for alt naming
+        prof_dir = inputs_dir / "profiling" / wf_id
+        if not prof_dir.is_dir():
+            prof_dir = inputs_dir / "profiling" / wf_short
+        gt_dir = inputs_dir / "ground_truth" / wf_id
+        if not gt_dir.is_dir():
+            gt_dir = inputs_dir / "ground_truth" / wf_short
 
-        if prof_file.exists():
-            count = sum(1 for _ in prof_file.open())
+        if prof_dir.is_dir():
+            count = len(list(prof_dir.glob("*.json")))
             profiling_total += count
             if count < EXPECTED_PROFILING_COUNT:
                 issues.append(
                     f"{wf_id}: profiling has {count}, expected {EXPECTED_PROFILING_COUNT}"
                 )
         else:
-            # Try alternate naming
+            # Fallback: JSONL file at root
+            prof_file = inputs_dir / f"{wf_id}_profiling.jsonl"
             alt = inputs_dir / f"{wf_id}_realistic.jsonl"
             alt2 = inputs_dir / f"{wf_id}_inputs.jsonl"
-            if alt.exists():
+            if prof_file.exists():
+                count = sum(1 for _ in prof_file.open())
+                profiling_total += count
+            elif alt.exists():
                 count = sum(1 for _ in alt.open())
                 profiling_total += count
             elif alt2.exists():
@@ -66,13 +76,24 @@ async def check(*, inputs_dir: Path = Path("inputs/generated")) -> CheckResult:
             else:
                 issues.append(f"{wf_id}: no profiling input file found")
 
-        if gt_file.exists():
-            count = sum(1 for _ in gt_file.open())
+        if gt_dir.is_dir():
+            count = len(list(gt_dir.glob("*.json")))
             gt_total += count
             if count < expected_gt:
-                issues.append(f"{wf_id}: ground truth has {count}, expected {expected_gt}")
+                issues.append(
+                    f"{wf_id}: ground truth has {count}, expected {expected_gt}"
+                )
         else:
-            issues.append(f"{wf_id}: no ground truth file found")
+            gt_file = inputs_dir / f"{wf_id}_ground_truth.jsonl"
+            if gt_file.exists():
+                count = sum(1 for _ in gt_file.open())
+                gt_total += count
+                if count < expected_gt:
+                    issues.append(
+                        f"{wf_id}: ground truth has {count}, expected {expected_gt}"
+                    )
+            else:
+                issues.append(f"{wf_id}: no ground truth file found")
 
     details["profiling_total"] = profiling_total
     details["ground_truth_total"] = gt_total

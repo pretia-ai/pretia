@@ -8,9 +8,9 @@ from dataclasses import replace
 import pytest
 
 from agentcost.collectors.base import StepRecord
-from agents.harness.step_builder import build_embedding_step, build_llm_step
-from agents.providers.embeddings import EmbeddingResponse
-from agents.providers.llm import LLMResponse
+from bt_agents.harness.step_builder import build_embedding_step, build_llm_step
+from bt_agents.providers.embeddings import EmbeddingResponse
+from bt_agents.providers.llm import LLMResponse
 
 
 # ---------------------------------------------------------------------------

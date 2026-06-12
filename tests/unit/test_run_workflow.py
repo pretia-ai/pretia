@@ -9,7 +9,7 @@ import tempfile
 import pytest
 from click.exceptions import UsageError
 
-from agents.harness.run_workflow import load_agent, load_inputs, load_prompts
+from bt_agents.harness.run_workflow import load_agent, load_inputs, load_prompts
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _PROMPTS_DIR = os.path.join(_PROJECT_ROOT, "prompts")

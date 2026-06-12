@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from agents.providers.llm import (
+from bt_agents.providers.llm import (
     LLMResponse,
     _CACHE_BUST_PLACEHOLDER,
     _extract_cache_tokens,
@@ -27,18 +27,20 @@ from agents.providers.llm import (
 class TestSubstituteCacheBust:
     """Tests for _substitute_cache_bust."""
 
-    def test_placeholder_replaced_with_correct_length(self) -> None:
-        """Prompt containing the placeholder gets a 24-char hex UUID substituted."""
+    def test_placeholder_replaced_and_prefix_prepended(self) -> None:
+        """Prompt gets a unique prefix prepended and placeholder substituted."""
         prompt = f"You are a helpful assistant. {_CACHE_BUST_PLACEHOLDER}"
         result = _substitute_cache_bust(prompt)
-        expected_len = len(prompt) - len(_CACHE_BUST_PLACEHOLDER) + 24
-        assert len(result) == expected_len
         assert _CACHE_BUST_PLACEHOLDER not in result
+        assert result.startswith("<!-- req:")
+        assert "You are a helpful assistant." in result
 
-    def test_prompt_without_placeholder_returned_unchanged(self) -> None:
-        """Prompt with no placeholder passes through unmodified."""
+    def test_prompt_without_placeholder_gets_prefix(self) -> None:
+        """Prompt with no placeholder still gets the unique prefix prepended."""
         prompt = "Plain system prompt with no special markers."
-        assert _substitute_cache_bust(prompt) is prompt
+        result = _substitute_cache_bust(prompt)
+        assert result.startswith("<!-- req:")
+        assert result.endswith(prompt)
 
     def test_two_calls_produce_different_uuids(self) -> None:
         """Consecutive calls yield distinct substitution values (cache uniqueness)."""
@@ -52,8 +54,7 @@ class TestSubstituteCacheBust:
         prompt = f"A {_CACHE_BUST_PLACEHOLDER} middle {_CACHE_BUST_PLACEHOLDER} end"
         result = _substitute_cache_bust(prompt)
         assert _CACHE_BUST_PLACEHOLDER not in result
-        # Both slots get the same uuid (str.replace replaces all at once)
-        assert result.startswith("A ")
+        assert "A " in result
         assert " middle " in result
         assert result.endswith(" end")
 
@@ -79,7 +80,7 @@ class TestToLitellmModel:
         """Model in MODEL_PRICING but absent from LITELLM_MODEL_MAP logs a
         warning and returns the canonical name directly."""
         # "gpt-4o" exists in MODEL_PRICING but has no LITELLM_MODEL_MAP entry
-        with caplog.at_level(logging.WARNING, logger="agents.providers.llm"):
+        with caplog.at_level(logging.WARNING, logger="bt_agents.providers.llm"):
             result = _to_litellm_model("gpt-4o")
         assert result == "gpt-4o"
         assert "No LiteLLM mapping" in caplog.text

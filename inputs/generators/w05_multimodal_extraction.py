@@ -3,14 +3,21 @@
 Produce document inputs with modality drift between profiling and ground
 truth.  Profiling uses 70% text / 30% image; GT uses 40% text / 60% image.
 Dry-run mode uses template stubs — image content is a placeholder string.
+When dry_run is False, image-modality inputs render the document text as a
+scanned PNG via the existing PDF rendering + scan-simulation pipeline.
 """
 
 from __future__ import annotations
 
+import logging
 import random
+import tempfile
+from pathlib import Path
 from typing import Any
 
 from inputs.generators._base import BaseInputGenerator, GeneratedInput, add_cli
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Token-length targets  (chars ≈ tokens * 4)
@@ -191,6 +198,59 @@ _EDGE_QUALITIES = [
 ]
 
 
+def _render_document_image(
+    text_content: str,
+    output_path: Path,
+    rng: random.Random,
+    edge_quality: str = "",
+) -> Path:
+    """Render document text as a scanned PNG image.
+
+    Uses the existing PDF rendering + scan-simulation pipeline:
+    1. Render text as a 1-page PDF via reportlab (text_renderer)
+    2. Rasterize the PDF page to a PIL Image (scan_simulator)
+    3. Save as PNG
+
+    Returns the path to the saved PNG.
+    """
+    from pdfs.generators.rendering.scan_simulator import (
+        ScanParams,
+        randomize_scan_params,
+        rasterize_pdf_page,
+    )
+    from pdfs.generators.rendering.text_renderer import render_markdown_to_pdf
+
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Map edge qualities to degraded scan parameters
+    quality_overrides: dict[str, ScanParams] = {
+        "blurry": ScanParams(dpi=120, blur_sigma=2.5, noise_sigma=6.0),
+        "rotated_90": ScanParams(rotation_degrees=90.0),
+        "rotated_180": ScanParams(rotation_degrees=180.0),
+        "upside_down": ScanParams(rotation_degrees=180.0),
+        "low_contrast": ScanParams(contrast_factor=0.4),
+        "faded_ink": ScanParams(contrast_factor=0.35, noise_sigma=12.0),
+        "crumpled": ScanParams(blur_sigma=1.5, noise_sigma=10.0, contrast_factor=0.7),
+        "coffee_stained": ScanParams(contrast_factor=0.6, noise_sigma=8.0),
+    }
+
+    with tempfile.TemporaryDirectory() as tmp:
+        pdf_path = Path(tmp) / "doc.pdf"
+        render_markdown_to_pdf(text_content, pdf_path)
+
+        if edge_quality and edge_quality in quality_overrides:
+            params = quality_overrides[edge_quality]
+        else:
+            params = randomize_scan_params(rng)
+
+        pil_image = rasterize_pdf_page(pdf_path, 0, params)
+
+    pil_image.save(str(output_path), format="PNG")
+    logger.debug("Rendered document image: %s", output_path)
+    return output_path
+
+
 def _select_fields(
     subtype: str, n_fields: int, rng: random.Random,
 ) -> list[str]:
@@ -210,118 +270,267 @@ def _select_fields(
     return rng.sample(pool, n)
 
 
+_STREET_NAMES = [
+    "Main St", "Oak Ave", "Elm Blvd", "Park Dr", "Cedar Ln",
+    "Market St", "Broadway", "5th Ave", "Industrial Pkwy", "Commerce Way",
+]
+_CITIES = [
+    "San Francisco, CA 94105", "New York, NY 10001", "Chicago, IL 60601",
+    "Austin, TX 78701", "Seattle, WA 98101", "Boston, MA 02101",
+    "Denver, CO 80202", "Portland, OR 97201", "Miami, FL 33101",
+]
+_FIRST_NAMES = ["James", "Maria", "David", "Sarah", "Michael", "Lisa", "Robert", "Anna"]
+_LAST_NAMES = ["Smith", "Johnson", "Chen", "Garcia", "Kim", "Patel", "Miller", "Brown"]
+_BANK_NAMES = ["Chase", "Bank of America", "Wells Fargo", "Citibank", "US Bank"]
+_PAYMENT_METHODS = ["Visa", "Mastercard", "Amex", "Cash", "Debit", "Apple Pay"]
+_DEPARTMENTS = ["Engineering", "Sales", "Marketing", "Operations", "Finance", "HR"]
+_COUNTRIES = ["United States", "Canada", "United Kingdom", "Germany", "Japan"]
+_TABLE_TEXT_VALS = [
+    "Northeast", "Southeast", "Midwest", "West", "Central",
+    "Q1", "Q2", "Q3", "Q4", "YTD", "Active", "Pending", "Shipped",
+    "In Stock", "Low Stock", "Approved", "Under Review", "Completed",
+]
+
+
+def _gen_address(rng: random.Random) -> str:
+    return f"{rng.randint(100, 9999)} {rng.choice(_STREET_NAMES)}"
+
+
+def _gen_full_name(rng: random.Random) -> str:
+    return f"{rng.choice(_FIRST_NAMES)} {rng.choice(_LAST_NAMES)}"
+
+
+def _gen_phone(rng: random.Random) -> str:
+    return (
+        f"+1 ({rng.randint(200, 999)}) "
+        f"{rng.randint(200, 999)}-{rng.randint(1000, 9999)}"
+    )
+
+
+def _invoice_field_val(
+    field: str, rng: random.Random, template: dict[str, Any],
+) -> str:
+    currency = template.get("currency", "USD")
+    if "Amount" in field or "Price" in field or "Total" in field:
+        return f"{currency} {rng.uniform(10, 10000):.2f}"
+    if "Date" in field:
+        return f"202{rng.randint(3, 6)}-{rng.randint(1, 12):02d}-{rng.randint(1, 28):02d}"
+    if "Quantity" in field:
+        return str(rng.randint(1, 100))
+    if "Rate" in field:
+        return f"{rng.uniform(5, 15):.1f}%"
+    if "Description" in field:
+        items = ["Consulting Services", "Software License", "Hardware Kit",
+                 "Training Session", "Support Plan", "Data Migration"]
+        return rng.choice(items)
+    if field == "Vendor Address" or field == "Customer Address":
+        return f"{_gen_address(rng)}, {rng.choice(_CITIES)}"
+    if field == "Customer Name":
+        return _gen_full_name(rng)
+    if "PO Number" in field or "Number" in field or "ID" in field:
+        return f"INV-{rng.randint(100000, 999999)}"
+    if field == "Bank Name":
+        return rng.choice(_BANK_NAMES)
+    if "Account" in field:
+        return f"****{rng.randint(1000, 9999)}"
+    if "SWIFT" in field:
+        return f"{''.join(rng.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ', k=8))}"
+    if field == "Payment Terms":
+        return rng.choice(["NET-30", "NET-60", "Due on Receipt", "NET-15"])
+    if field == "Notes":
+        return "Thank you for your business."
+    if field == "Authorized Signature":
+        return _gen_full_name(rng)
+    if field == "Shipping" or field == "Discount":
+        return f"{currency} {rng.uniform(0, 500):.2f}"
+    return f"{currency} {rng.uniform(1, 1000):.2f}"
+
+
+def _receipt_field_val(
+    field: str, rng: random.Random, template: dict[str, Any],
+) -> str:
+    if "Price" in field or "Total" in field or "Tax" in field or "Subtotal" in field:
+        return f"${rng.uniform(0.99, 299.99):.2f}"
+    if "Date" in field:
+        return f"{rng.randint(1, 12):02d}/{rng.randint(1, 28):02d}/202{rng.randint(3, 6)}"
+    if "Time" in field:
+        return f"{rng.randint(6, 23):02d}:{rng.randint(0, 59):02d}"
+    if "Four" in field:
+        return f"****{rng.randint(1000, 9999)}"
+    if "Item" in field and "Price" not in field:
+        items = ["Organic Milk 1gal", "Whole Wheat Bread", "Chicken Breast 2lb",
+                 "AA Batteries 8pk", "Paper Towels 6-roll", "Coffee Beans 12oz",
+                 "Shampoo 16oz", "USB-C Cable 6ft", "LED Bulb 4pk"]
+        return rng.choice(items)
+    if field == "Store Name":
+        return template.get("store", "Store")
+    if field == "Store Address":
+        return f"{_gen_address(rng)}, {rng.choice(_CITIES)}"
+    if field == "Store Phone":
+        return _gen_phone(rng)
+    if field == "Cashier":
+        return _gen_full_name(rng)
+    if field == "Register Number":
+        return f"REG-{rng.randint(1, 20):02d}"
+    if field == "Authorization Code":
+        return f"{rng.randint(100000, 999999)}"
+    if field == "Payment Method":
+        return rng.choice(_PAYMENT_METHODS)
+    if field == "Return Policy":
+        return f"Returns accepted within {rng.choice([14, 30, 60, 90])} days with receipt."
+    return f"${rng.uniform(1, 100):.2f}"
+
+
+def _card_field_val(
+    field: str, rng: random.Random, template: dict[str, Any],
+) -> str:
+    if "Email" in field:
+        name = template.get("name", "John Doe").lower().replace(" ", ".")
+        name = name.replace("dr. ", "")
+        company = template.get("company", "co").lower().replace(" ", "")
+        return f"{name}@{company}.com"
+    if "Phone" in field or "Mobile" in field or "Fax" in field:
+        return _gen_phone(rng)
+    if "LinkedIn" in field:
+        slug = template.get("name", "johndoe").lower().replace(" ", "-")
+        return f"linkedin.com/in/{slug}"
+    if "Twitter" in field:
+        slug = template.get("name", "johndoe").lower().replace(" ", "")
+        return f"@{slug}"
+    if field == "Website":
+        company = template.get("company", "company").lower().replace(" ", "")
+        return f"www.{company}.com"
+    if field == "Department":
+        return rng.choice(_DEPARTMENTS)
+    if "Address" in field:
+        return _gen_address(rng)
+    if field == "City":
+        return rng.choice(_CITIES).split(",")[0]
+    if "State" in field:
+        return rng.choice(["CA", "NY", "TX", "WA", "MA", "IL", "CO", "FL"])
+    if "Zip" in field or "Postal" in field:
+        return str(rng.randint(10000, 99999))
+    if field == "Country":
+        return rng.choice(_COUNTRIES)
+    return _gen_full_name(rng)
+
+
+def _form_field_val(
+    field: str, rng: random.Random, template: dict[str, Any],
+) -> str:
+    if "Date" in field:
+        return f"202{rng.randint(3, 6)}-{rng.randint(1, 12):02d}-{rng.randint(1, 28):02d}"
+    if "Income" in field:
+        return f"${rng.randint(25000, 250000):,}"
+    if "SSN" in field or "Tax ID" in field:
+        return f"XXX-XX-{rng.randint(1000, 9999)}"
+    if "Checkbox" in field:
+        return "[X]" if rng.random() > 0.3 else "[ ]"
+    if "Count" in field:
+        return str(rng.randint(0, 5))
+    if "Name" in field and "Employer" not in field:
+        return _gen_full_name(rng)
+    if "Employer Name" in field:
+        employers = ["Acme Corp", "TechVenture Inc", "Metro Services LLC",
+                     "Pacific Holdings", "Summit Group"]
+        return rng.choice(employers)
+    if "Address" in field or "Employer Address" in field:
+        return f"{_gen_address(rng)}, {rng.choice(_CITIES)}"
+    if field == "Phone":
+        return _gen_phone(rng)
+    if field == "Email":
+        return f"{_gen_full_name(rng).lower().replace(' ', '.')}@email.com"
+    if field == "City":
+        return rng.choice(_CITIES).split(",")[0]
+    if field == "State":
+        return rng.choice(["CA", "NY", "TX", "WA", "MA"])
+    if "Zip" in field:
+        return str(rng.randint(10000, 99999))
+    if "Filing Status" in field:
+        return rng.choice(["Single", "Married Filing Jointly", "Head of Household"])
+    if "Signature" in field:
+        return _gen_full_name(rng)
+    if "Dropdown" in field:
+        return rng.choice(["CA", "NY", "TX", "WA", "FL"])
+    if "Text Area" in field:
+        return "No additional notes at this time."
+    if "Form Number" in field or "Number" in field:
+        return f"F-{rng.randint(1000, 9999)}"
+    if "Form Title" in field:
+        return template.get("title", "Form")
+    return _gen_full_name(rng)
+
+
 def _generate_text_content(
     subtype: str, fields: list[str], rng: random.Random, template: dict[str, Any],
 ) -> str:
-    """Build a text representation of the document."""
-    lines = [f"=== {subtype.upper()} ==="]
+    """Build a markdown representation of the document.
+
+    Uses markdown headings + bullet lists so the PDF renderer produces
+    properly structured pages with line breaks.
+    """
+    lines: list[str] = []
 
     if subtype == "invoice":
-        lines.append("INVOICE")
-        lines.append(f"From: {template.get('vendor', 'Vendor Co.')}")
-        lines.append(f"Style: {template.get('style', 'standard')}")
-        lines.append(f"Currency: {template.get('currency', 'USD')}")
+        vendor = template.get("vendor", "Vendor Co.")
+        lines.append(f"# INVOICE")
+        lines.append("")
+        lines.append(f"**From:** {vendor}")
         lines.append("")
         for field in fields:
-            if "Amount" in field or "Price" in field or "Total" in field:
-                val = f"{template.get('currency', 'USD')} {rng.uniform(10, 10000):.2f}"
-            elif "Date" in field:
-                val = f"202{rng.randint(3, 6)}-{rng.randint(1, 12):02d}-{rng.randint(1, 28):02d}"
-            elif "Number" in field or "ID" in field:
-                val = f"INV-{rng.randint(100000, 999999)}"
-            elif "Quantity" in field:
-                val = str(rng.randint(1, 100))
-            elif "Rate" in field:
-                val = f"{rng.uniform(5, 15):.1f}%"
-            else:
-                val = f"[{field} value]"
-            lines.append(f"  {field}: {val}")
+            val = _invoice_field_val(field, rng, template)
+            lines.append(f"- **{field}:** {val}")
 
     elif subtype == "receipt":
         store = template.get("store", "Store")
-        lines.append(f"  {store}")
-        lines.append(f"  {'=' * len(store)}")
+        lines.append(f"# {store}")
+        lines.append("")
         for field in fields:
-            if "Price" in field or "Total" in field or "Tax" in field or "Subtotal" in field:
-                val = f"${rng.uniform(0.99, 299.99):.2f}"
-            elif "Date" in field:
-                val = f"{rng.randint(1, 12):02d}/{rng.randint(1, 28):02d}/202{rng.randint(3, 6)}"
-            elif "Time" in field:
-                val = f"{rng.randint(6, 23):02d}:{rng.randint(0, 59):02d}"
-            elif "Four" in field:
-                val = f"****{rng.randint(1000, 9999)}"
-            elif "Item" in field and "Price" not in field:
-                items = [
-                    "Organic Milk 1gal", "Whole Wheat Bread", "Chicken Breast 2lb",
-                    "AA Batteries 8pk", "Paper Towels 6-roll", "Coffee Beans 12oz",
-                    "Shampoo 16oz", "USB-C Cable 6ft", "LED Bulb 4pk",
-                ]
-                val = rng.choice(items)
-            else:
-                val = f"[{field}]"
-            lines.append(f"  {field}: {val}")
+            val = _receipt_field_val(field, rng, template)
+            lines.append(f"- **{field}:** {val}")
 
     elif subtype == "business_card":
-        lines.append(f"  {template.get('name', 'John Doe')}")
-        lines.append(f"  {template.get('title', 'Manager')}")
-        lines.append(f"  {template.get('company', 'Company')}")
+        name = template.get("name", "John Doe")
+        title = template.get("title", "Manager")
+        company = template.get("company", "Company")
+        lines.append(f"# {name}")
+        lines.append(f"**{title}** | {company}")
         lines.append("")
         for field in fields:
             if field in ("Full Name", "Title", "Company"):
                 continue
-            if "Email" in field:
-                name = template.get("name", "John Doe").lower().replace(" ", ".").replace("dr. ", "")
-                val = f"{name}@{template.get('company', 'co').lower().replace(' ', '')}.com"
-            elif "Phone" in field or "Mobile" in field:
-                val = (
-                    f"+1 ({rng.randint(200, 999)}) "
-                    f"{rng.randint(200, 999)}-{rng.randint(1000, 9999)}"
-                )
-            elif "LinkedIn" in field:
-                slug = template.get("name", "johndoe").lower().replace(" ", "-")
-                val = f"linkedin.com/in/{slug}"
-            else:
-                val = f"[{field}]"
-            lines.append(f"  {field}: {val}")
+            val = _card_field_val(field, rng, template)
+            lines.append(f"- **{field}:** {val}")
 
     elif subtype == "form":
-        lines.append(f"  {template.get('title', 'Form')}")
-        lines.append(f"  Type: {template.get('type', 'general')}")
+        form_title = template.get("title", "Form")
+        lines.append(f"# {form_title}")
+        lines.append(f"*Type: {template.get('type', 'general')}*")
         lines.append("")
         for field in fields:
-            if "Date" in field:
-                val = f"202{rng.randint(3, 6)}-{rng.randint(1, 12):02d}-{rng.randint(1, 28):02d}"
-            elif "Income" in field:
-                val = f"${rng.randint(25000, 250000):,}"
-            elif "SSN" in field or "Tax ID" in field:
-                val = f"XXX-XX-{rng.randint(1000, 9999)}"
-            elif "Checkbox" in field:
-                val = "[X]" if rng.random() > 0.3 else "[ ]"
-            elif "Count" in field:
-                val = str(rng.randint(0, 5))
-            else:
-                val = f"[{field}]"
-            lines.append(f"  {field}: {val}")
+            val = _form_field_val(field, rng, template)
+            lines.append(f"- **{field}:** {val}")
 
     else:  # table
         title = template.get("title", "Data Table")
         rows = template.get("rows", 10)
         cols = min(template.get("cols", 4), len(fields))
-        lines.append(f"  {title}")
+        lines.append(f"# {title}")
         lines.append("")
         headers = fields[:cols]
-        lines.append("  | " + " | ".join(f"{h:>15}" for h in headers) + " |")
-        lines.append("  |" + "|".join("-" * 17 for _ in headers) + "|")
+        lines.append("| " + " | ".join(headers) + " |")
+        lines.append("| " + " | ".join("---" for _ in headers) + " |")
         for _ in range(min(rows, 20)):
             row_vals = []
             for h in headers:
-                if any(k in h.lower() for k in ("total", "amount", "price", "value")):
+                low = h.lower()
+                if any(k in low for k in ("total", "amount", "price", "value")):
                     row_vals.append(f"${rng.uniform(10, 9999):.2f}")
-                elif any(k in h.lower() for k in ("count", "row", "qty")):
+                elif any(k in low for k in ("count", "row", "qty")):
                     row_vals.append(str(rng.randint(1, 500)))
                 else:
-                    row_vals.append(f"[val_{rng.randint(1, 99)}]")
-            lines.append("  | " + " | ".join(f"{v:>15}" for v in row_vals) + " |")
+                    row_vals.append(rng.choice(_TABLE_TEXT_VALS))
+            lines.append("| " + " | ".join(row_vals) + " |")
 
     return "\n".join(lines)
 
@@ -361,6 +570,7 @@ class MultimodalExtractionGenerator(BaseInputGenerator):
         self.dry_run = True
         self._forced_modalities: dict[int, str] = {}
         self._batch_idx: int | None = None
+        self._image_output_dir: str | None = None
 
     def _pick_subtype(self, rng: random.Random) -> str:
         """Select document subtype with weighted distribution."""
@@ -441,30 +651,68 @@ class MultimodalExtractionGenerator(BaseInputGenerator):
 
         # Build content based on modality
         handwriting_present = False
+        image_path: str | None = None
+        input_id = self.make_id(profile, tier, idx)
+
         if modality == "text":
             content = _generate_text_content(subtype, fields, rng, template)
         elif modality == "image":
-            quality = edge_quality if edge_quality else resolution
-            content = _generate_image_placeholder(subtype, field_count, rng, template, quality)
+            # Generate the document text (used for both placeholder and real image)
+            doc_text = _generate_text_content(subtype, fields, rng, template)
             handwriting_present = rng.random() > 0.7
+
+            if not self.dry_run:
+                img_dir = Path(self._image_output_dir or "inputs/generated/images/w5")
+                img_path = img_dir / f"{input_id}.png"
+                _render_document_image(doc_text, img_path, rng, edge_quality)
+                image_path = str(img_path)
+                field_sample = rng.sample(fields, min(3, len(fields)))
+                content = (
+                    f"Extract all {field_count} fields from this {subtype}. "
+                    f"Include {', '.join(field_sample)}, and any other visible data."
+                )
+            else:
+                quality = edge_quality if edge_quality else resolution
+                content = _generate_image_placeholder(
+                    subtype, field_count, rng, template, quality,
+                )
         else:
-            # mixed
-            text_part = _generate_text_content(subtype, fields[: len(fields) // 2], rng, template)
-            quality = edge_quality if edge_quality else resolution
-            image_part = _generate_image_placeholder(
-                subtype, field_count - len(fields) // 2, rng, template, quality,
-            )
-            content = f"{text_part}\n\n--- IMAGE SECTION ---\n{image_part}"
+            # mixed: text part + image part
+            text_fields = fields[: len(fields) // 2]
+            image_fields = fields[len(fields) // 2 :]
+            text_part = _generate_text_content(subtype, text_fields, rng, template)
+            image_doc_text = _generate_text_content(subtype, image_fields, rng, template)
             handwriting_present = rng.random() > 0.8
 
-        # Pad/truncate content to fit the target token range for this tier+profile
-        ranges = _TOKEN_RANGES.get(profile, _TOKEN_RANGES["profiling"])
-        if tier in ranges:
-            tmin, tmax = ranges[tier]
-            content = self.pad_to_token_range(content, tmin, tmax, rng)
+            if not self.dry_run:
+                img_dir = Path(self._image_output_dir or "inputs/generated/images/w5")
+                img_path = img_dir / f"{input_id}.png"
+                _render_document_image(image_doc_text, img_path, rng, edge_quality)
+                image_path = str(img_path)
+                img_field_sample = rng.sample(image_fields, min(2, len(image_fields)))
+                content = (
+                    f"{text_part}\n\n"
+                    f"The attached image contains additional fields including "
+                    f"{', '.join(img_field_sample)}. Extract those as well."
+                )
+            else:
+                quality = edge_quality if edge_quality else resolution
+                image_part = _generate_image_placeholder(
+                    subtype, field_count - len(text_fields), rng, template, quality,
+                )
+                content = f"{text_part}\n\n--- IMAGE SECTION ---\n{image_part}"
+
+        # Pad/truncate text-only content to hit target token range.
+        # Image and mixed inputs skip padding — their cost driver is image
+        # resolution (vision tokens), not text length.
+        if modality == "text":
+            ranges = _TOKEN_RANGES.get(profile, _TOKEN_RANGES["profiling"])
+            if tier in ranges:
+                tmin, tmax = ranges[tier]
+                content = self.pad_to_token_range(content, tmin, tmax, rng)
 
         # Apply style shift for GT text-based inputs
-        if modality in ("text", "mixed"):
+        if modality == "text":
             content = self.apply_style_shift(content, profile)
 
         token_count = self.estimate_tokens(content)
@@ -485,6 +733,8 @@ class MultimodalExtractionGenerator(BaseInputGenerator):
             "document_subtype": subtype,
             "input": content,
         }
+        if image_path:
+            input_data["image_path"] = image_path
 
         return GeneratedInput(
             id=self.make_id(profile, tier, idx),

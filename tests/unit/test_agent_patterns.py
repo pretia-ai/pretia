@@ -7,15 +7,15 @@ import os
 import pytest
 
 from agentcost.collectors.base import StepRecord
-from agents.harness.run_workflow import load_prompts
-from agents.patterns.multi_turn import run_multi_turn
-from agents.patterns.rag_pipeline import run_rag_pipeline
-from agents.patterns.router import RouteConfig, run_router
-from agents.patterns.self_assessment_loop import (
+from bt_agents.harness.run_workflow import load_prompts
+from bt_agents.patterns.multi_turn import run_multi_turn
+from bt_agents.patterns.rag_pipeline import run_rag_pipeline
+from bt_agents.patterns.router import RouteConfig, run_router
+from bt_agents.patterns.self_assessment_loop import (
     LoopStepConfig,
     run_self_assessment_loop,
 )
-from agents.patterns.single_step import run_single_step
+from bt_agents.patterns.single_step import run_single_step
 
 # ---------------------------------------------------------------------------
 # Resolve prompts directory relative to project root

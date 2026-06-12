@@ -10,11 +10,12 @@ from pre_calibration.pre_calibration import CheckResult
 logger = logging.getLogger(__name__)
 
 BACKTESTING_MODELS = [
-    "claude-haiku-3",
-    "claude-3-5-sonnet-20241022",
-    "claude-3-5-haiku-20241022",
-    "gpt-4o-mini",
-    "gpt-4o",
+    "anthropic/claude-haiku-4-5",
+    "anthropic/claude-sonnet-4-6",
+    "deepseek/deepseek-chat",
+    "openai/gpt-4.1-nano",
+    "openai/gpt-4.1",
+    "gemini/gemini-2.5-flash",
 ]
 
 

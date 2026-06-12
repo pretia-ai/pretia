@@ -13,7 +13,7 @@ import pytest
 from agentcost.collectors.base import StepRecord
 from agentcost.store import ProfileStore, ProfilingSession
 
-from agents.harness.run_workflow import (
+from bt_agents.harness.run_workflow import (
     _detect_batch_patterns,
     _extract_run_metadata,
     _pricing_table_hash,

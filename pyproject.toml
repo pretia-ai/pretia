@@ -55,7 +55,7 @@ validation = [
     "scipy>=1.11.0",
     "scikit-learn>=1.3",
 ]
-agents = [
+bt-agents = [
     "litellm>=1.40",
 ]
 backtesting = [

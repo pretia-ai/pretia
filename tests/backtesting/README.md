@@ -1,6 +1,6 @@
 # AgentCost Backtesting Suite
 
-Validates the projection engine against 10 real-world workflow archetypes before v1 ships.
+Validates the projection engine against 13 real-world workflow archetypes. Backtesting is complete: 12/13 workflows project within 10% error, W5 (multimodal) recovers with `--traffic-mix` reweighting. Total backtest cost: $89.66.
 
 ## Philosophy
 
@@ -11,111 +11,103 @@ Every projection must satisfy three properties:
 2. **Directional accuracy** — most expensive step identified correctly
 3. **Useful range** — p95/p50 < 5x (tight enough to be actionable)
 
-## The 10 Workflows
+## The 13 Active Workflows
 
-| # | Archetype | Complexity | Loops | Models | Expected $/run |
-|---|-----------|-----------|-------|--------|----------------|
-| W1 | Support agent | Simple | No | Haiku 4.5, Sonnet 4.6 | $0.005–0.03 |
-| W2 | Support agent | Complex | Yes (1-15) | Haiku 4.5, Sonnet 4.6, Opus 4.7 | $0.08–0.60 |
-| W3 | Code review | Simple | No | Sonnet 4.6 | $0.02–0.08 |
-| W4 | Code review | Complex | Yes (1-8) | Sonnet 4.6, Opus 4.7 | $0.15–1.20 |
-| W5 | Data extraction | Simple | No | Haiku 4.5, Sonnet 4.6 | $0.005–0.04 |
-| W6 | Data extraction | Complex | Yes (1-5) | Sonnet 4.6, Opus 4.7 | $0.08–0.50 |
-| W7 | Research agent | Simple | No | Haiku 4.5, Sonnet 4.6 | $0.02–0.10 |
-| W8 | Research agent | Complex | Yes (1-6) | Sonnet 4.6, Opus 4.7 | $0.25–1.80 |
-| W9 | Sales (OpenAI) | Simple | No | GPT-4.1 Nano, GPT-4.1 | $0.005–0.03 |
-| W10 | Sales (mixed) | Complex | Yes (1-4) | Gemini Flash, GPT-4.1, Opus 4.7 | $0.10–0.70 |
+| # | Archetype | Complexity | Loops | Provider(s) |
+|---|-----------|-----------|-------|-------------|
+| W1 | Support agent | Simple | No | Anthropic |
+| W2 | Support agent | Complex | Yes | Anthropic |
+| W5 | Multimodal extraction | Simple | No | Anthropic |
+| W9 | Sales outreach (OpenAI) | Simple | No | OpenAI |
+| W11 | Support agent (Qwen) | Simple | No | Qwen |
+| W12 | Code review (DeepSeek) | Simple | No | DeepSeek |
+| W13 | Routing agent | Complex | No | Anthropic + OpenAI |
+| W14 | RAG pipeline (insurance) | Complex | No | Anthropic + OpenAI |
+| W15 | RAG pipeline (clinical) | Complex | No | Anthropic + OpenAI |
+| W16 | Map-reduce summarization | Complex | No | Anthropic |
+| W17 | Document processing | Complex | No | Anthropic + OpenAI |
+| W18 | Self-assessment loop | Complex | Yes | Anthropic |
+| W19 | Multi-turn conversation | Complex | Yes | Anthropic |
 
-W9 uses OpenAI exclusively to test cross-provider pricing accuracy. W10 mixes three providers (Google, OpenAI, Anthropic) to test multi-provider routing — a common production pattern.
+**Excluded:** W3, W4, W6, W7, W8, W10 (dropped during archetype refinement).
 
-## Running the Suite
+W5 requires `--traffic-mix` for accurate multimodal workflow projection. W11 tests Qwen provider with parallelism capped at 10 (Dashscope 240 RPM). W13 tests cross-provider routing.
 
-### API Keys Required
+## 3-Comparison Protocol (A/B/C)
 
-```bash
-export ANTHROPIC_API_KEY="sk-ant-..."   # W1-W8, W10
-export OPENAI_API_KEY="sk-..."          # W9, W10
-export GOOGLE_API_KEY="..."             # W10
-```
+Each workflow is validated via three comparisons:
 
-### Three Phases
+- **Comparison A** — 50 profiling runs projected against 200 ground-truth runs. Tests projection accuracy at the standard profiling sample size.
+- **Comparison B** — Same 50 profiling runs projected against 500 ground-truth runs. Tests whether accuracy holds at higher ground-truth volume.
+- **Comparison C** — 10 profiling runs projected against 200 ground-truth runs. Tests degradation at minimal profiling sample size.
 
-```bash
-# Phase 1: Synthetic profiles (20 + 100 runs × 10 workflows, ~$8)
-python tests/backtesting/run_backtesting.py --phase 1
+## Running
 
-# Phase 2: Ground truth (500 runs × 10 workflows, ~$750-950)
-python tests/backtesting/run_backtesting.py --phase 2
-
-# Phase 3: Score and report (no API calls, free)
-python tests/backtesting/run_backtesting.py --phase 3
-
-# All three phases
-python tests/backtesting/run_backtesting.py --all
-
-# Single workflow
-python tests/backtesting/run_backtesting.py --workflow W1 --phase 1
-
-# Resume interrupted run
-python tests/backtesting/run_backtesting.py --phase 2 --resume
-```
-
-### Install Dependencies
+### Prerequisites
 
 ```bash
 pip install agentcost[backtesting]
+
+export ANTHROPIC_API_KEY="sk-ant-..."
+export OPENAI_API_KEY="sk-..."
+export DASHSCOPE_API_KEY="sk-..."       # W11 (Qwen)
+export DEEPSEEK_API_KEY="sk-..."        # W12 (DeepSeek)
 ```
+
+### Pilot → Backtest Flow
+
+```bash
+# 1. Pre-flight validation (no API calls)
+python scripts/verify_backtest_readiness.py
+
+# 2. Pilot run (10 runs per workflow, ~$2)
+python tests/backtesting/run_pilot.py --all
+
+# 3. Full backtest (A/B/C comparisons, ~$90)
+python tests/backtesting/run_backtest.py --all
+
+# Single workflow
+python tests/backtesting/run_backtest.py --workflow W1
+
+# Dry run (no API calls)
+python tests/backtesting/run_backtest.py --workflow W1 --dry-run
+```
+
+### Budget Tracking
+
+`budget_tracker.py` tracks cumulative spend during the backtest. If 5 or more workflows fail Comparison A, execution halts (systemic engine problem detected).
 
 ## Interpreting Results
 
-Phase 3 produces a calibration report:
+Results are written to `tests/backtesting/results/backtest/` (gitignored).
 
-```
-Workflow         p50     p95 cov   Range    Top   Rank r   Verdict
-W1 support-sim   1.1x ✓  92% ✓   2.3x ✓    ✓    0.95 ✓    PASS
-W2 support-cplx  1.8x ✓  78% ⚠   4.1x ✓    ✓    0.82 ✓    WARN
-...
-Overall: 8 PASS, 2 WARN, 0 FAIL — LAUNCH GATE: ✅ PASSED
-```
-
-**Metrics:**
+**Metrics per comparison:**
 - **p50 ratio**: projected/actual p50 cost. Pass: 0.5–2.0x.
 - **p95 coverage**: fraction of ground truth runs below projected p95. Pass: ≥80%.
 - **Range ratio**: projected p95/p50 spread. Pass: <5x.
-- **Top step**: most expensive step matches. Pass: yes (co-dominant within 20% both count).
+- **Top step**: most expensive step matches. Pass: yes.
 - **Rank correlation**: Spearman r of step cost rankings. Pass: >0.8.
-- **Verdict**: FAIL if any metric fails; WARN if any warns; PASS otherwise.
-
-**Launch gate**: all 10 workflows must PASS or WARN on Synthetic-20.
-
-## Fixing Calibration Failures
-
-If a workflow fails:
-1. Check which metric failed (p50 ratio, top step, etc.)
-2. If p50 off → the projection engine may have wrong distributional assumptions. Check if Monte Carlo is triggering when it should.
-3. If top step wrong → check model pricing. A wrong price per token propagates.
-4. If p95 coverage low → projection is overconfident. The confidence tier should be lower.
-5. If range too wide → too much variance in the workflow. Consider flagging for users.
-
-## Opus 4.7 Tokenizer Note
-
-Opus 4.7 ships with a new tokenizer that generates up to 35% more tokens for the same input text compared to Opus 4.6. This means effective per-request cost can be significantly higher than the rate card suggests. W2, W4, W6, W8, and W10 all use Opus 4.7 in their review loops — the backtesting suite captures this real-world tokenizer effect.
-
-## Budget
-
-Ground truth profiling (Phase 2) costs ~$750-950 across all 10 workflows at 500 samples each. This is the most important pre-launch investment — a projection engine that gives wrong numbers is worse than no projection engine.
 
 ## File Structure
 
 ```
 tests/backtesting/
-├── workflows/          # 10 LangGraph workflow files
-│   ├── _shared.py      # Model helpers, canned data
-│   └── w01_..w10_*.py
-├── inputs/             # 500 JSONL inputs per workflow
-│   └── w01_..w10_realistic.jsonl
-├── results/            # Profiling results (gitignored except .gitkeep)
-├── configs.py          # BacktestConfig for all 10 workflows
-├── run_backtesting.py  # CLI runner
-└── README.md           # This file
+├── configs.py           # BacktestConfig for 13 active workflows
+├── run_backtest.py      # Main backtest runner (A/B/C comparisons)
+├── run_pilot.py         # 10-run pilot for smoke testing
+├── pilot_checks.py      # Runtime checks (cache-bust, step counts, etc.)
+├── budget_tracker.py    # Cumulative spend tracking + halt gates
+├── concurrency.py       # Per-provider parallelism limits
+├── dataset.py           # Dataset recording for reproducibility
+├── attribute_failure.py # Failure attribution analysis
+├── detector_validation.py # Pattern detector validation
+├── generate_report.py   # Report generation from results
+├── results/             # Output directory (gitignored)
+└── README.md            # This file
+
+bt_agents/
+├── workflows/           # 13 active workflow agents (w01-w19)
+├── patterns/            # Reusable workflow patterns
+├── harness/             # Execution infrastructure
+└── providers/           # LLM + embedding providers
 ```

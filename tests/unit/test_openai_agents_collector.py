@@ -44,6 +44,17 @@ from agentcost.collectors.openai_agents import (  # noqa: E402
     _extract_tool_name,
 )
 
+# Restore sys.modules so other test modules aren't affected by the mock.
+if _saved_agents is not None:
+    sys.modules["agents"] = _saved_agents
+else:
+    sys.modules.pop("agents", None)
+
+if _saved_agents_lifecycle is not None:
+    sys.modules["agents.lifecycle"] = _saved_agents_lifecycle
+else:
+    sys.modules.pop("agents.lifecycle", None)
+
 # ---------------------------------------------------------------------------
 # Mock helpers
 # ---------------------------------------------------------------------------
@@ -495,7 +506,7 @@ class TestCollect:
             return MockRunResult()
 
         with patch.object(
-            sys.modules["agents"].Runner,
+            _mock_agents.Runner,
             "run",
             side_effect=mock_run,
         ):
@@ -532,7 +543,7 @@ class TestCollect:
             return MockRunResult()
 
         with patch.object(
-            sys.modules["agents"].Runner,
+            _mock_agents.Runner,
             "run",
             side_effect=mock_run,
         ):
@@ -562,7 +573,7 @@ class TestCollect:
             )
 
         with patch.object(
-            sys.modules["agents"].Runner,
+            _mock_agents.Runner,
             "run",
             side_effect=mock_run,
         ):
@@ -585,7 +596,7 @@ class TestCollect:
             raise RuntimeError("API error")
 
         with patch.object(
-            sys.modules["agents"].Runner,
+            _mock_agents.Runner,
             "run",
             side_effect=mock_run,
         ):
@@ -618,7 +629,7 @@ class TestCollect:
             return MockRunResult()
 
         with patch.object(
-            sys.modules["agents"].Runner,
+            _mock_agents.Runner,
             "run",
             side_effect=mock_run,
         ):

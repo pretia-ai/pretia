@@ -54,3 +54,20 @@ inputs/generated/
 
 # Claude Code local config
 .claude/
+qwen-workspace-germany.csv
+qwen-workspace-singapore.csv
+
+# Backtesting results and datasets (regenerated on demand)
+tests/backtesting/results/
+tests/backtesting/dataset/
+
+# Pre-computed embedding corpora (regenerated via scripts/build_rag_corpus.py)
+pdfs/w14_corpus/
+pdfs/w15_corpus/
+pdfs/w17_corpus/
+
+# Archived design docs (local reference only)
+docs/archive/
+
+# Session handover notes
+HANDOVER.md

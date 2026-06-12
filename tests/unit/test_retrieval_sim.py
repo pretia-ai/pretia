@@ -7,7 +7,7 @@ import random
 
 import pytest
 
-from agents.harness.retrieval_sim import (
+from bt_agents.harness.retrieval_sim import (
     Corpus,
     CorpusChunk,
     RetrievedChunk,
@@ -17,7 +17,7 @@ from agents.harness.retrieval_sim import (
     load_corpus,
     retrieve,
 )
-from agents.providers.embeddings import _DEFAULT_EMBEDDING_DIM
+from bt_agents.providers.embeddings import _DEFAULT_EMBEDDING_DIM
 
 
 # ── cosine_similarity ────────────────────────────────────────────────────

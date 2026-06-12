@@ -28,16 +28,15 @@ _ALL_CONFIGS: list[BacktestConfig] = [
         complexity="complex",
         workflow_path="tests/backtesting/workflows/w02_support_complex.py",
         description=(
-            "Classify (Haiku) → retrieve → draft (Sonnet) → review loop (Opus, 1-15 iter) "
-            "→ format (Haiku)"
+            "Classify (DeepSeek Flash) → draft loop (DeepSeek Pro, 1-12 iter) "
+            "→ conditional review (DeepSeek Pro)"
         ),
         expected_models=[
-            get_anthropic_model("haiku"),
-            get_anthropic_model("sonnet"),
-            get_anthropic_model("opus"),
+            get_deepseek_model("flash"),
+            get_deepseek_model("pro"),
         ],
         has_loops=True,
-        expected_cost_range=(0.08, 0.60),
+        expected_cost_range=(0.005, 0.10),
     ),
     # W3 excluded from active suite — redundant with W4 (both code-review, W3 is simple-only)
     BacktestConfig(
@@ -51,17 +50,17 @@ _ALL_CONFIGS: list[BacktestConfig] = [
         expected_cost_range=(0.02, 0.08),
     ),
     BacktestConfig(
-        name="W4-codereview-complex",
-        archetype="code-review",
+        name="W4-compliance-review",
+        archetype="compliance-review",
         complexity="complex",
-        workflow_path="tests/backtesting/workflows/w04_codereview_complex.py",
+        workflow_path="bt_agents/workflows/w04.py",
         description=(
-            "Analyze (Sonnet) → identify issues (Opus) → suggest fixes (Opus) "
-            "→ self-review loop (Opus, 1-8 iter) → format (Sonnet)"
+            "Initial review (DeepSeek V4 Pro) → critique (Qwen Plus) "
+            "→ revision loop (DeepSeek V4 Pro, 1-8 pairs)"
         ),
-        expected_models=[get_anthropic_model("sonnet"), get_anthropic_model("opus")],
+        expected_models=[get_deepseek_model("pro"), get_qwen_model("plus")],
         has_loops=True,
-        expected_cost_range=(0.15, 1.20),
+        expected_cost_range=(0.005, 0.15),
     ),
     BacktestConfig(
         name="W5-extraction-simple",
@@ -171,9 +170,9 @@ _ALL_CONFIGS: list[BacktestConfig] = [
             "Parse document → extract fields → validate (all DeepSeek V4 Flash) "
             "— direct cost comparison with W5 (Anthropic)"
         ),
-        expected_models=[get_deepseek_model("flash")],
+        expected_models=[get_deepseek_model("pro")],
         has_loops=False,
-        expected_cost_range=(0.001, 0.01),
+        expected_cost_range=(0.001, 0.05),
     ),
     BacktestConfig(
         name="W13-routing-conditional",
@@ -193,9 +192,108 @@ _ALL_CONFIGS: list[BacktestConfig] = [
         has_loops=False,
         expected_cost_range=(0.001, 0.20),
     ),
+    BacktestConfig(
+        name="W14-simple-pdf-rag",
+        archetype="rag-pipeline",
+        complexity="complex",
+        workflow_path="bt_agents/workflows/w14.py",
+        description=(
+            "Upload PDF → extract text → chunk → embed (OpenAI) → query → "
+            "vector retrieve → generate structured JSON answer (Sonnet). "
+            "Tests retrieval size variance and cross-provider accounting."
+        ),
+        expected_models=[get_openai_model("nano"), get_anthropic_model("sonnet")],
+        has_loops=False,
+        expected_cost_range=(0.03, 0.65),
+    ),
+    BacktestConfig(
+        name="W15-multihop-rag",
+        archetype="rag-pipeline",
+        complexity="complex",
+        workflow_path="bt_agents/workflows/w15.py",
+        description=(
+            "PDF ingestion → query → retrieve → assess sufficiency (Gemini Flash) → "
+            "re-retrieve if insufficient (1-4 hops) → generate answer (DeepSeek V4). "
+            "Exercises all four cost model adjustments simultaneously."
+        ),
+        expected_models=[
+            get_openai_model("nano"),
+            get_gemini_model("flash"),
+            get_deepseek_model("pro"),
+        ],
+        has_loops=True,
+        expected_cost_range=(0.01, 0.55),
+    ),
+    BacktestConfig(
+        name="W16-map-reduce-pdf",
+        archetype="map-reduce",
+        complexity="complex",
+        workflow_path="bt_agents/workflows/w16.py",
+        description=(
+            "Upload long PDF → split into N sections (N varies 3-20) → "
+            "N parallel Haiku calls → Sonnet aggregation. "
+            "Tests fan-out with variable N and parallel execution."
+        ),
+        expected_models=[get_anthropic_model("haiku"), get_anthropic_model("sonnet")],
+        has_loops=False,
+        expected_cost_range=(0.02, 0.30),
+    ),
+    BacktestConfig(
+        name="W17-claims-agent",
+        archetype="claims-review",
+        complexity="complex",
+        workflow_path="bt_agents/workflows/w17.py",
+        description=(
+            "Intake + override check (Haiku) → policy retrieval (OpenAI embed) → "
+            "evaluate + decide (Sonnet JSON) → conditional routing (Haiku). "
+            "Real-world decision tree with multi-doc RAG and bimodal cost."
+        ),
+        expected_models=[
+            get_anthropic_model("haiku"),
+            get_openai_model("nano"),
+            get_anthropic_model("sonnet"),
+        ],
+        has_loops=False,
+        expected_cost_range=(0.005, 0.25),
+    ),
+    BacktestConfig(
+        name="W18-long-document",
+        archetype="document-processing",
+        complexity="simple",
+        workflow_path="bt_agents/workflows/w18.py",
+        description=(
+            "Single long PDF (50-100 pages) processed in one context window. "
+            "Summarization, QA, and key findings extraction via DeepSeek V4. "
+            "Tests long-context cost scaling (30K-100K input tokens)."
+        ),
+        expected_models=[get_deepseek_model("pro")],
+        has_loops=False,
+        expected_cost_range=(0.005, 0.09),
+    ),
+    BacktestConfig(
+        name="W19-multi-turn",
+        archetype="conversational",
+        complexity="complex",
+        workflow_path="bt_agents/workflows/w19.py",
+        description=(
+            "8-turn customer support conversation via DeepSeek V4. "
+            "Each turn accumulates full history as context. "
+            "Tests session accumulation and context growth across turns."
+        ),
+        expected_models=[get_deepseek_model("pro")],
+        has_loops=False,
+        expected_cost_range=(0.05, 0.65),
+    ),
 ]
 
-_EXCLUDED_NAMES = {"W3-codereview-simple", "W6-extraction-complex", "W7-research-simple"}
+_EXCLUDED_NAMES = {
+    "W3-codereview-simple",
+    "W4-compliance-review",
+    "W6-extraction-complex",
+    "W7-research-simple",
+    "W8-research-complex",
+    "W10-sales-mixed",
+}
 
 BACKTESTING_CONFIGS: list[BacktestConfig] = [
     c for c in _ALL_CONFIGS if c.name not in _EXCLUDED_NAMES

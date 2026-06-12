@@ -112,7 +112,7 @@ class TestActiveWorkflowCount:
     def test_count(self):
         from tests.backtesting.configs import BACKTESTING_CONFIGS
 
-        assert len(BACKTESTING_CONFIGS) == 10
+        assert len(BACKTESTING_CONFIGS) == 13
 
 
 # ---------------------------------------------------------------------------
