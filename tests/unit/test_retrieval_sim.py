@@ -7,6 +7,8 @@ import random
 
 import pytest
 
+pytest.importorskip("litellm")
+
 from bt_agents.harness.retrieval_sim import (
     _MOCK_EMBED_DIM,
     Corpus,

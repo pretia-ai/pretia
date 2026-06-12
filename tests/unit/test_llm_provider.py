@@ -9,6 +9,8 @@ from typing import Any
 
 import pytest
 
+pytest.importorskip("litellm")
+
 from bt_agents.providers.llm import (
     _CACHE_BUST_PLACEHOLDER,
     _MAX_RETRIES,

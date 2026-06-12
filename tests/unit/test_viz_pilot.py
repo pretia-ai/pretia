@@ -5,11 +5,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import matplotlib
+import pytest
+
+matplotlib = pytest.importorskip("matplotlib")
 
 matplotlib.use("Agg")
 
-from visualization.pilot.visualize_pilot import (
+from visualization.pilot.visualize_pilot import (  # noqa: E402
     generate_all_pilot_visuals,
     p1_infrastructure_check_matrix,
     p2_per_workflow_cost_distribution,

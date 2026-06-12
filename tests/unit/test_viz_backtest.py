@@ -7,7 +7,9 @@ import math
 import random
 from pathlib import Path
 
-import matplotlib
+import pytest
+
+matplotlib = pytest.importorskip("matplotlib")
 
 matplotlib.use("Agg")
 

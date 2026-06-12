@@ -6,6 +6,8 @@ import hashlib
 
 import pytest
 
+pytest.importorskip("litellm")
+
 from agentcost.collectors.base import StepRecord
 from bt_agents.harness.step_builder import build_embedding_step, build_llm_step
 from bt_agents.providers.embeddings import EmbeddingResponse

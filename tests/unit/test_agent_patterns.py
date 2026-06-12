@@ -6,6 +6,8 @@ import os
 
 import pytest
 
+pytest.importorskip("litellm")
+
 from agentcost.collectors.base import StepRecord
 from bt_agents.harness.run_workflow import load_prompts
 from bt_agents.patterns.multi_turn import run_multi_turn
