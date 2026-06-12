@@ -46,9 +46,7 @@ class TestSingleStepDryRun:
         assert len(records) == 1
         assert isinstance(records[0], StepRecord)
 
-    async def test_without_alternate_uses_primary_model(
-        self, w1_prompts: dict[str, str]
-    ) -> None:
+    async def test_without_alternate_uses_primary_model(self, w1_prompts: dict[str, str]) -> None:
         records = await run_single_step(
             input_text="Hi",
             system_prompt=w1_prompts["classify_respond"],
@@ -59,9 +57,7 @@ class TestSingleStepDryRun:
         )
         assert records[0].model == "claude-haiku-4-5"
 
-    async def test_routing_short_input_uses_primary(
-        self, w1_prompts: dict[str, str]
-    ) -> None:
+    async def test_routing_short_input_uses_primary(self, w1_prompts: dict[str, str]) -> None:
         """Input 'Hi' has len 2 -> chars/4 = 0, well below threshold 80."""
         records = await run_single_step(
             input_text="Hi",
@@ -75,9 +71,7 @@ class TestSingleStepDryRun:
         )
         assert records[0].model == "claude-haiku-4-5"
 
-    async def test_routing_long_input_uses_alternate(
-        self, w1_prompts: dict[str, str]
-    ) -> None:
+    async def test_routing_long_input_uses_alternate(self, w1_prompts: dict[str, str]) -> None:
         """Input of 400+ chars -> chars/4 >= 100 >= threshold 80 -> alternate model."""
         long_input = "x" * 400
         records = await run_single_step(
@@ -114,9 +108,7 @@ class TestMultiTurnDryRun:
     def w19_prompts(self) -> dict[str, str]:
         return load_prompts("W19", _PROMPTS_DIR)
 
-    async def test_three_turn_produces_three_records(
-        self, w19_prompts: dict[str, str]
-    ) -> None:
+    async def test_three_turn_produces_three_records(self, w19_prompts: dict[str, str]) -> None:
         records = await run_multi_turn(
             conversation_script=["Hello", "How are you?", "Goodbye"],
             system_prompt=w19_prompts["respond"],
@@ -127,9 +119,7 @@ class TestMultiTurnDryRun:
         )
         assert len(records) == 3
 
-    async def test_step_names_follow_turn_pattern(
-        self, w19_prompts: dict[str, str]
-    ) -> None:
+    async def test_step_names_follow_turn_pattern(self, w19_prompts: dict[str, str]) -> None:
         records = await run_multi_turn(
             conversation_script=["A", "B", "C"],
             system_prompt=w19_prompts["respond"],
@@ -142,9 +132,7 @@ class TestMultiTurnDryRun:
         assert records[1].step_name == "respond_turn_2"
         assert records[2].step_name == "respond_turn_3"
 
-    async def test_iteration_field_matches_turn_number(
-        self, w19_prompts: dict[str, str]
-    ) -> None:
+    async def test_iteration_field_matches_turn_number(self, w19_prompts: dict[str, str]) -> None:
         records = await run_multi_turn(
             conversation_script=["A", "B", "C"],
             system_prompt=w19_prompts["respond"],
@@ -157,9 +145,7 @@ class TestMultiTurnDryRun:
         assert records[1].iteration == 2
         assert records[2].iteration == 3
 
-    async def test_all_records_are_step_records(
-        self, w19_prompts: dict[str, str]
-    ) -> None:
+    async def test_all_records_are_step_records(self, w19_prompts: dict[str, str]) -> None:
         records = await run_multi_turn(
             conversation_script=["Hello"],
             system_prompt=w19_prompts["respond"],
@@ -182,9 +168,7 @@ class TestRouterDryRun:
     def w13_prompts(self) -> dict[str, str]:
         return load_prompts("W13", _PROMPTS_DIR)
 
-    async def test_produces_at_least_two_records(
-        self, w13_prompts: dict[str, str]
-    ) -> None:
+    async def test_produces_at_least_two_records(self, w13_prompts: dict[str, str]) -> None:
         routes = {
             "TIER_1": RouteConfig(
                 model="claude-haiku-4-5",
@@ -207,9 +191,7 @@ class TestRouterDryRun:
         )
         assert len(records) >= 2
 
-    async def test_first_record_is_classifier(
-        self, w13_prompts: dict[str, str]
-    ) -> None:
+    async def test_first_record_is_classifier(self, w13_prompts: dict[str, str]) -> None:
         routes = {
             "TIER_1": RouteConfig(
                 model="claude-haiku-4-5",
@@ -278,18 +260,14 @@ class TestSelfAssessmentLoopDryRun:
     def w2_prompts(self) -> dict[str, str]:
         return load_prompts("W2", _PROMPTS_DIR)
 
-    def _history_builder(
-        self, input_data: dict, history: list[dict], phase: str
-    ) -> list[dict]:
+    def _history_builder(self, input_data: dict, history: list[dict], phase: str) -> list[dict]:
         """Minimal history builder for tests."""
         parts = [f"Input: {input_data.get('input', '')}"]
         for item in history:
             parts.append(str(item))
         return [{"role": "user", "content": "\n".join(parts)}]
 
-    async def test_produces_at_least_two_records(
-        self, w2_prompts: dict[str, str]
-    ) -> None:
+    async def test_produces_at_least_two_records(self, w2_prompts: dict[str, str]) -> None:
         """Initial step + at least 1 loop iteration."""
         records = await run_self_assessment_loop(
             input_data={"input": "test"},
@@ -316,9 +294,7 @@ class TestSelfAssessmentLoopDryRun:
         )
         assert len(records) >= 2
 
-    async def test_loop_terminates_on_parse_failure(
-        self, w2_prompts: dict[str, str]
-    ) -> None:
+    async def test_loop_terminates_on_parse_failure(self, w2_prompts: dict[str, str]) -> None:
         """dry_run returns '{"dry_run": true}' which lacks the termination
         field 'confidence'. The first loop iteration will parse successfully
         but not meet threshold, so the loop continues. However, every
@@ -351,9 +327,7 @@ class TestSelfAssessmentLoopDryRun:
         # 1 initial + 3 loop iterations = 4
         assert len(records) == 4
 
-    async def test_first_record_is_initial_step(
-        self, w2_prompts: dict[str, str]
-    ) -> None:
+    async def test_first_record_is_initial_step(self, w2_prompts: dict[str, str]) -> None:
         records = await run_self_assessment_loop(
             input_data={"input": "test"},
             prompts=w2_prompts,
@@ -379,9 +353,7 @@ class TestSelfAssessmentLoopDryRun:
         )
         assert records[0].step_name == "intake_classify"
 
-    async def test_all_records_are_step_records(
-        self, w2_prompts: dict[str, str]
-    ) -> None:
+    async def test_all_records_are_step_records(self, w2_prompts: dict[str, str]) -> None:
         records = await run_self_assessment_loop(
             input_data={"input": "test"},
             prompts=w2_prompts,
@@ -420,9 +392,7 @@ class TestRAGPipelineDryRun:
     def w14_prompts(self) -> dict[str, str]:
         return load_prompts("W14", _PROMPTS_DIR)
 
-    async def test_produces_exactly_two_records(
-        self, w14_prompts: dict[str, str]
-    ) -> None:
+    async def test_produces_exactly_two_records(self, w14_prompts: dict[str, str]) -> None:
         records = await run_rag_pipeline(
             query="What is covered under inpatient care?",
             prompts=w14_prompts,
@@ -438,9 +408,7 @@ class TestRAGPipelineDryRun:
         )
         assert len(records) == 2
 
-    async def test_first_record_is_retrieval(
-        self, w14_prompts: dict[str, str]
-    ) -> None:
+    async def test_first_record_is_retrieval(self, w14_prompts: dict[str, str]) -> None:
         records = await run_rag_pipeline(
             query="test query",
             prompts=w14_prompts,
@@ -458,9 +426,7 @@ class TestRAGPipelineDryRun:
         assert records[0].step_name == "embed_query"
         assert records[0].output_tokens == 0
 
-    async def test_second_record_is_generation(
-        self, w14_prompts: dict[str, str]
-    ) -> None:
+    async def test_second_record_is_generation(self, w14_prompts: dict[str, str]) -> None:
         records = await run_rag_pipeline(
             query="test query",
             prompts=w14_prompts,

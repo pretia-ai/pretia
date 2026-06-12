@@ -47,12 +47,24 @@ def _load_dotenv() -> None:
             if key and key not in os.environ:
                 os.environ[key] = value
 
+
 logger = logging.getLogger(__name__)
 
 _GROUND_TRUTH_N: dict[str, int] = {
-    "W1": 200, "W2": 300, "W4": 500, "W5": 220, "W9": 200,
-    "W11": 200, "W12": 200, "W13": 300, "W14": 300, "W15": 300,
-    "W16": 300, "W17": 300, "W18": 300, "W19": 300,
+    "W1": 200,
+    "W2": 300,
+    "W4": 500,
+    "W5": 220,
+    "W9": 200,
+    "W11": 200,
+    "W12": 200,
+    "W13": 300,
+    "W14": 300,
+    "W15": 300,
+    "W16": 300,
+    "W17": 300,
+    "W18": 300,
+    "W19": 300,
 }
 
 _PROFILING_N = 50
@@ -135,9 +147,7 @@ def _generate_inputs(
                         if hasattr(gen, "dry_run"):
                             gen.dry_run = dry_run
                         if hasattr(gen, "_image_output_dir"):
-                            gen._image_output_dir = (
-                                f"{results_dir}/images/{workflow_id.lower()}"
-                            )
+                            gen._image_output_dir = f"{results_dir}/images/{workflow_id.lower()}"
                         batch = gen.generate_batch(profile, n)
                         return [inp.to_dict() for inp in batch]
     except Exception as exc:
@@ -149,9 +159,7 @@ def _generate_inputs(
     ]
 
 
-def _inputs_to_dicts(
-    inputs: list[dict[str, Any]], dry_run: bool
-) -> list[dict[str, Any]]:
+def _inputs_to_dicts(inputs: list[dict[str, Any]], dry_run: bool) -> list[dict[str, Any]]:
     """Convert generated inputs to the format expected by run_batch."""
     result = []
     for inp in inputs:
@@ -193,10 +201,7 @@ def _compute_step_costs(all_records: list[list[Any]]) -> dict[str, float]:
                 step_counts[r.step_name] = step_counts.get(r.step_name, 0) + 1
             except Exception:
                 pass
-    return {
-        name: step_totals[name] / step_counts[name]
-        for name in step_totals
-    }
+    return {name: step_totals[name] / step_counts[name] for name in step_totals}
 
 
 def _reweight_runs(
@@ -299,9 +304,7 @@ def _compute_cost_input_correlations(
     # Pearson r between token count and cost
     mean_c = sum(costs) / n
     mean_t = sum(tokens) / n
-    cov = sum(
-        (c - mean_c) * (t - mean_t) for c, t in zip(costs, tokens, strict=True)
-    ) / n
+    cov = sum((c - mean_c) * (t - mean_t) for c, t in zip(costs, tokens, strict=True)) / n
     std_c = math.sqrt(sum((c - mean_c) ** 2 for c in costs) / n)
     std_t = math.sqrt(sum((t - mean_t) ** 2 for t in tokens) / n)
     if std_c > 0 and std_t > 0:
@@ -342,12 +345,14 @@ async def _run_comparison(
     if profiling_records is None:
         prof_raw = _generate_inputs(workflow_id, _PROFILING_N, "profiling", seed=42)
         profiling_inputs = _inputs_to_dicts(prof_raw, dry_run)
-        profiling_records = await run_batch(
-            workflow_id, profiling_inputs, prompts, parallel
-        )
+        profiling_records = await run_batch(workflow_id, profiling_inputs, prompts, parallel)
         save_results(
-            workflow_id, profiling_records, str(results_dir),
-            inputs=profiling_inputs, prompts=prompts, backtest_profile="profiling",
+            workflow_id,
+            profiling_records,
+            str(results_dir),
+            inputs=profiling_inputs,
+            prompts=prompts,
+            backtest_profile="profiling",
         )
 
     profiling_stats = compute_stats(profiling_records)
@@ -356,9 +361,7 @@ async def _run_comparison(
     # --- Ground truth runs ---
     if comparison == "C":
         # Comparison C: no new API calls — reweight profiling runs
-        input_tiers = [
-            inp.get("tier", "easy") for inp in (profiling_inputs or [])
-        ]
+        input_tiers = [inp.get("tier", "easy") for inp in (profiling_inputs or [])]
         resampled = _reweight_runs(profiling_records, input_tiers)
         gt_stats = compute_stats(resampled)
         gt_costs = _compute_run_costs(resampled)
@@ -370,8 +373,11 @@ async def _run_comparison(
         gt_input_dicts = _inputs_to_dicts(gt_raw, dry_run)
         gt_records = await run_batch(workflow_id, gt_input_dicts, prompts, parallel)
         save_results(
-            workflow_id, gt_records, str(results_dir),
-            inputs=gt_input_dicts, prompts=prompts,
+            workflow_id,
+            gt_records,
+            str(results_dir),
+            inputs=gt_input_dicts,
+            prompts=prompts,
             backtest_profile=f"ground_truth_{comparison.lower()}",
         )
         gt_stats = compute_stats(gt_records)
@@ -396,9 +402,7 @@ async def _run_comparison(
     result["detected_patterns"] = [p.to_dict() for p in patterns]
 
     # --- Per-step costs ---
-    result["step_costs"] = {
-        name: ss.cost.mean for name, ss in gt_stats.step_stats.items()
-    }
+    result["step_costs"] = {name: ss.cost.mean for name, ss in gt_stats.step_stats.items()}
 
     if comparison == "B" and profiling_inputs:
         result["drift_config"] = {
@@ -409,6 +413,7 @@ async def _run_comparison(
         }
     if comparison == "C":
         from inputs.generators._base import GROUND_TRUTH_WEIGHTS
+
         result["traffic_mix"] = list(GROUND_TRUTH_WEIGHTS.values())
 
     return result, profiling_records, profiling_inputs, profiling_stats
@@ -446,6 +451,7 @@ def _build_workflow_result(
     recovery_pct = None
     if scores.get("A") and scores.get("B") and scores.get("C"):
         from agentcost.validation.suite import _compute_recovery
+
         if not scores["B"].passes:
             recovery_pct = _compute_recovery(scores["A"], scores["B"], scores["C"])
 
@@ -454,12 +460,18 @@ def _build_workflow_result(
     comp_b = comparisons.get("B", comparisons.get("A", {}))
     if comp_b.get("detected_patterns"):
         from agentcost.projection.patterns import DetectedPattern
+
         for pd in comp_b["detected_patterns"]:
             try:
-                patterns_for_detection.append(DetectedPattern(**{
-                    k: v for k, v in pd.items()
-                    if k in DetectedPattern.__dataclass_fields__
-                }))
+                patterns_for_detection.append(
+                    DetectedPattern(
+                        **{
+                            k: v
+                            for k, v in pd.items()
+                            if k in DetectedPattern.__dataclass_fields__
+                        }
+                    )
+                )
             except Exception:
                 pass
 
@@ -470,11 +482,15 @@ def _build_workflow_result(
     step_stats_dict = {}
     if profiling_stats and profiling_stats.step_stats:
         for name, ss in profiling_stats.step_stats.items():
-            step_stats_dict[name] = ss.to_dict() if hasattr(ss, "to_dict") else {
-                "step_name": ss.step_name,
-                "model": ss.model,
-                "cost": {"mean": ss.cost.mean, "p50": ss.cost.p50, "p95": ss.cost.p95},
-            }
+            step_stats_dict[name] = (
+                ss.to_dict()
+                if hasattr(ss, "to_dict")
+                else {
+                    "step_name": ss.step_name,
+                    "model": ss.model,
+                    "cost": {"mean": ss.cost.mean, "p50": ss.cost.p50, "p95": ss.cost.p95},
+                }
+            )
 
     # Step costs from best available comparison
     step_costs = {}
@@ -548,11 +564,13 @@ def _build_dataset_record(
 
         for i, cost in enumerate(run_costs):
             inp = inputs[i] if i < len(inputs) else {}
-            per_run_meta.append({
-                "input_tier": inp.get("tier", "unknown"),
-                "token_count": inp.get("token_count", 0),
-                "total_cost": cost,
-            })
+            per_run_meta.append(
+                {
+                    "input_tier": inp.get("tier", "unknown"),
+                    "token_count": inp.get("token_count", 0),
+                    "total_cost": cost,
+                }
+            )
 
         workflows_data[wf_id] = {
             "pattern_type": WORKFLOW_GROUPS.get(wf_id, "linear"),
@@ -570,20 +588,23 @@ def _build_dataset_record(
         DetectorResult,
         compute_detector_rates,
     )
+
     all_detector_results = []
     for wf_result in all_results.values():
         dr = wf_result.get("detector_results", {})
         for det_name, det_data in dr.items():
             if isinstance(det_data, dict):
-                all_detector_results.append(DetectorResult(
-                    workflow=wf_result.get("workflow_name", ""),
-                    detector=det_name,
-                    fired=det_data.get("fired", False),
-                    expected=det_data.get("expected", False),
-                    classification=det_data.get("classification", "TN"),
-                    raw_statistic=det_data.get("raw_statistic"),
-                    threshold=det_data.get("threshold"),
-                ))
+                all_detector_results.append(
+                    DetectorResult(
+                        workflow=wf_result.get("workflow_name", ""),
+                        detector=det_name,
+                        fired=det_data.get("fired", False),
+                        expected=det_data.get("expected", False),
+                        classification=det_data.get("classification", "TN"),
+                        raw_statistic=det_data.get("raw_statistic"),
+                        threshold=det_data.get("threshold"),
+                    )
+                )
     rates = compute_detector_rates(all_detector_results)
 
     return {
@@ -613,17 +634,21 @@ def _build_dataset_record(
 @click.option("--workflow", type=str, default=None, help="Single workflow (e.g., 'W1').")
 @click.option("--all", "run_all", is_flag=True, default=False, help="Run all 14 workflows.")
 @click.option(
-    "--comparison", type=str, default="all",
+    "--comparison",
+    type=str,
+    default="all",
     help="Which comparison: A, B, C, or all (default: all).",
 )
 @click.option("--dry-run", is_flag=True, default=False, help="Validate without API calls.")
 @click.option(
-    "--results-dir", type=click.Path(),
+    "--results-dir",
+    type=click.Path(),
     default="tests/backtesting/results/backtest",
     help="Output directory.",
 )
 @click.option(
-    "--pilot-dir", type=click.Path(),
+    "--pilot-dir",
+    type=click.Path(),
     default="tests/backtesting/results/pilot",
     help="Pilot results directory.",
 )
@@ -667,9 +692,7 @@ def main(
     else:
         workflow_ids = [workflow.upper()]
 
-    comparisons_to_run = (
-        ["A", "B", "C"] if comparison.upper() == "ALL" else [comparison.upper()]
-    )
+    comparisons_to_run = ["A", "B", "C"] if comparison.upper() == "ALL" else [comparison.upper()]
 
     budget = BudgetTracker(limit=budget_limit)
 
@@ -693,12 +716,20 @@ def main(
         async def _one(wf_id: str) -> tuple[str, dict[str, Any], Any, Any, Any]:
             cfg = _config_for_workflow(wf_id)
             pr, pi = prof_data.get(wf_id, (None, None))
-            wf_parallel = (
-                parallel if parallel > 1 else get_parallel_for_workflow(wf_id)
+            wf_parallel = parallel if parallel > 1 else get_parallel_for_workflow(wf_id)
+            return (
+                wf_id,
+                *await _run_comparison(
+                    wf_id,
+                    comp,
+                    cfg,
+                    pr,
+                    pi,
+                    out_dir,
+                    dry_run,
+                    wf_parallel,
+                ),
             )
-            return (wf_id, *await _run_comparison(
-                wf_id, comp, cfg, pr, pi, out_dir, dry_run, wf_parallel,
-            ))
 
         results = await asyncio.gather(
             *[_one(wf_id) for wf_id in group],
@@ -717,7 +748,8 @@ def main(
         click.echo("=== Comparison A (no drift) ===")
         a_scores: dict[str, bool] = {}
         eligible_a = [
-            wf for wf in workflow_ids
+            wf
+            for wf in workflow_ids
             if _config_for_workflow(wf) is not None
             and not (resume and (out_dir / f"{wf.lower()}_comparison_A.json").exists())
             and (dry_run or _check_pilot_gate(pilot_path, wf))
@@ -726,9 +758,7 @@ def main(
 
         for group_idx, group in enumerate(groups_a):
             click.echo(f"  Group {group_idx + 1}/{len(groups_a)}: [{', '.join(group)}]")
-            group_results = asyncio.run(
-                _run_comparison_group(group, "A", {})
-            )
+            group_results = asyncio.run(_run_comparison_group(group, "A", {}))
 
             for wf_id, comp_result, _prof_rec, prof_inp, _prof_st in group_results:
                 cost = sum(comp_result.get("profiling_run_costs", [])) + sum(
@@ -760,20 +790,17 @@ def main(
     if "B" in comparisons_to_run:
         click.echo("\n=== Comparison B (drifted) ===")
         eligible_b = [
-            wf for wf in workflow_ids
+            wf
+            for wf in workflow_ids
             if _config_for_workflow(wf) is not None
             and not (resume and (out_dir / f"{wf.lower()}_comparison_B.json").exists())
         ]
         groups_b = build_concurrent_groups(eligible_b)
-        prof_data_b = {
-            wf: (None, all_inputs.get(wf)) for wf in eligible_b
-        }
+        prof_data_b = {wf: (None, all_inputs.get(wf)) for wf in eligible_b}
 
         for group_idx, group in enumerate(groups_b):
             click.echo(f"  Group {group_idx + 1}/{len(groups_b)}: [{', '.join(group)}]")
-            group_results = asyncio.run(
-                _run_comparison_group(group, "B", prof_data_b)
-            )
+            group_results = asyncio.run(_run_comparison_group(group, "B", prof_data_b))
 
             for wf_id, comp_result, *_ in group_results:
                 cost = sum(comp_result.get("ground_truth_run_costs", []))
@@ -820,8 +847,14 @@ def main(
 
             comp_result, _, _, _ = asyncio.run(
                 _run_comparison(
-                    wf_id, "C", config, None, all_inputs.get(wf_id),
-                    out_dir, dry_run, parallel,
+                    wf_id,
+                    "C",
+                    config,
+                    None,
+                    all_inputs.get(wf_id),
+                    out_dir,
+                    dry_run,
+                    parallel,
                 )
             )
             # C costs $0
@@ -842,9 +875,7 @@ def main(
         if not wf_comparisons:
             continue
 
-        wf_result = _build_workflow_result(
-            wf_id, wf_comparisons, None, []
-        )
+        wf_result = _build_workflow_result(wf_id, wf_comparisons, None, [])
         all_results[wf_id] = wf_result
 
         result_path = out_dir / f"{wf_id.lower()}_comparison_all.json"
@@ -866,7 +897,10 @@ def main(
         from tests.backtesting.dataset import save_backtest_run
 
         dataset_record = _build_dataset_record(
-            all_results, all_comparisons, all_inputs, budget,
+            all_results,
+            all_comparisons,
+            all_inputs,
+            budget,
         )
         ds_path = save_backtest_run(dataset_record)
         click.echo(f"  Dataset record: {ds_path}")
@@ -876,13 +910,14 @@ def main(
     # --- Summary ---
     passing = [wf for wf, r in all_results.items() if r.get("failure_attribution") is None]
     reweight = [
-        wf for wf, r in all_results.items()
+        wf
+        for wf, r in all_results.items()
         if r.get("failure_attribution", {}) and r["failure_attribution"].get("bucket") == 2
     ]
     unresolved = [
-        wf for wf, r in all_results.items()
-        if r.get("failure_attribution", {})
-        and r["failure_attribution"].get("bucket") in (1, 3)
+        wf
+        for wf, r in all_results.items()
+        if r.get("failure_attribution", {}) and r["failure_attribution"].get("bucket") in (1, 3)
     ]
 
     click.echo("\n=== Summary ===")

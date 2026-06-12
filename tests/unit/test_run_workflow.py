@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import json
 import os
-import tempfile
 
 import pytest
 from click.exceptions import UsageError
@@ -29,8 +27,22 @@ class TestLoadAgent:
         assert hasattr(agent, "execute")
 
     def test_all_14_workflows_valid(self):
-        for wid in ["W1", "W2", "W4", "W5", "W9", "W11", "W12", "W13",
-                     "W14", "W15", "W16", "W17", "W18", "W19"]:
+        for wid in [
+            "W1",
+            "W2",
+            "W4",
+            "W5",
+            "W9",
+            "W11",
+            "W12",
+            "W13",
+            "W14",
+            "W15",
+            "W16",
+            "W17",
+            "W18",
+            "W19",
+        ]:
             agent = load_agent(wid)
             assert hasattr(agent, "execute"), f"{wid} agent missing execute method"
 

@@ -107,8 +107,7 @@ def validate_detectors(
 
     if wf_key not in EXPECTED_DETECTORS:
         logger.warning(
-            "Workflow %s (key=%s) not in EXPECTED_DETECTORS; "
-            "defaulting all expectations to False",
+            "Workflow %s (key=%s) not in EXPECTED_DETECTORS; defaulting all expectations to False",
             workflow_id,
             wf_key,
         )

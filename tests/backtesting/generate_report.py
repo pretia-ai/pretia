@@ -164,9 +164,7 @@ def main(
         click.echo(f"Backtest results not found at {backtest_path}.", err=True)
         sys.exit(1)
 
-    formats = (
-        ["dashboard", "narrative", "json", "pdf"] if fmt == "all" else [fmt]
-    )
+    formats = ["dashboard", "narrative", "json", "pdf"] if fmt == "all" else [fmt]
 
     # Generate plots first (needed by dashboard and PDF)
     pilot_plots_dir = out_path / "plots" / "pilot"

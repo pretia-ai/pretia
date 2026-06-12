@@ -15,13 +15,13 @@ if "pdfs.generators.rendering" not in sys.modules:
     _placeholder.__path__ = ["pdfs/generators/rendering"]
     sys.modules["pdfs.generators.rendering"] = _placeholder
 
+import pytest
+
 from pdfs.generators.rendering.text_renderer import (
     DEFAULT_LAYOUT,
     PageLayout,
     markdown_to_html,
 )
-
-import pytest
 
 
 class TestPageLayout:

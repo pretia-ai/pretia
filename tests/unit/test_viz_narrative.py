@@ -5,8 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from visualization.narrative.generate_narrative import (
     _compute_detector_assessment,
     _compute_drift_analysis,
@@ -292,40 +290,42 @@ class TestNarrative:
         # Create workflows where all fail B with similar degradation amounts
         workflows = []
         for wf_name in ["W1", "W5", "W9", "W11", "W12", "W18"]:
-            workflows.append({
-                "workflow_name": wf_name,
-                "comparisons": {
-                    "A": {
-                        "score": {
-                            "workflow_name": wf_name,
-                            "comparison": "A",
-                            "mean_error_pct": 5.0,
-                            "p75_error_pct": 8.0,
-                            "ci_coverage_pct": 90.0,
-                            "monthly_error_pct": 5.0,
-                            "cvar95_error_pct": 15.0,
-                            "passes": True,
-                            "failures": [],
-                        }
+            workflows.append(
+                {
+                    "workflow_name": wf_name,
+                    "comparisons": {
+                        "A": {
+                            "score": {
+                                "workflow_name": wf_name,
+                                "comparison": "A",
+                                "mean_error_pct": 5.0,
+                                "p75_error_pct": 8.0,
+                                "ci_coverage_pct": 90.0,
+                                "monthly_error_pct": 5.0,
+                                "cvar95_error_pct": 15.0,
+                                "passes": True,
+                                "failures": [],
+                            }
+                        },
+                        "B": {
+                            "score": {
+                                "workflow_name": wf_name,
+                                "comparison": "B",
+                                "mean_error_pct": 25.0,
+                                "p75_error_pct": 30.0,
+                                "ci_coverage_pct": 70.0,
+                                "monthly_error_pct": 25.0,
+                                "cvar95_error_pct": 45.0,
+                                "passes": False,
+                                "failures": ["Mean error exceeds target"],
+                            }
+                        },
+                        "C": None,
                     },
-                    "B": {
-                        "score": {
-                            "workflow_name": wf_name,
-                            "comparison": "B",
-                            "mean_error_pct": 25.0,
-                            "p75_error_pct": 30.0,
-                            "ci_coverage_pct": 70.0,
-                            "monthly_error_pct": 25.0,
-                            "cvar95_error_pct": 45.0,
-                            "passes": False,
-                            "failures": ["Mean error exceeds target"],
-                        }
-                    },
-                    "C": None,
-                },
-                "detected_patterns": [],
-                "step_costs": {"step_a": 0.01},
-            })
+                    "detected_patterns": [],
+                    "step_costs": {"step_a": 0.01},
+                }
+            )
 
         results_dir = tmp_path / "results"
         _write_backtest_results(results_dir, workflows)

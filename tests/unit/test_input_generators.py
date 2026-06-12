@@ -21,7 +21,7 @@ _PROJECT_ROOT = str(Path(__file__).resolve().parents[2])
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-from inputs.generators._base import (
+from inputs.generators._base import (  # noqa: E402
     GROUND_TRUTH_WEIGHTS,
     PROFILING_WEIGHTS,
     BaseInputGenerator,
@@ -40,7 +40,13 @@ class _StubGenerator(BaseInputGenerator):
     dirty_types = ["typos"]
 
     def generate_single(
-        self, tier, profile, rng, idx, is_dirty=False, dirty_type=None,
+        self,
+        tier,
+        profile,
+        rng,
+        idx,
+        is_dirty=False,
+        dirty_type=None,
     ):
         return GeneratedInput(
             id=self.make_id(profile, tier, idx),
@@ -126,8 +132,15 @@ class TestBaseAllocations:
         gen = _StubGenerator(seed=42)
         inputs = gen.generate_batch("profiling", 10)
         required_attrs = [
-            "id", "workflow", "profile", "tier", "token_count",
-            "is_dirty", "dirty_type", "structural_descriptor", "input_data",
+            "id",
+            "workflow",
+            "profile",
+            "tier",
+            "token_count",
+            "is_dirty",
+            "dirty_type",
+            "structural_descriptor",
+            "input_data",
         ]
         for inp in inputs:
             for attr in required_attrs:
@@ -342,9 +355,7 @@ class TestW19SessionDepth:
             inputs = w19_gen.generate_batch(profile, 50)
             for inp in inputs:
                 turns = inp.input_data["turns"]
-                assert len(turns) == 8, (
-                    f"{inp.id}: expected 8 turns, got {len(turns)}"
-                )
+                assert len(turns) == 8, f"{inp.id}: expected 8 turns, got {len(turns)}"
 
     def test_w19_turns_non_empty(self, w19_gen):
         """No turn should be empty."""
@@ -412,8 +423,14 @@ class TestW17Claims:
         """Every W17 input_data should have the expected claim keys."""
         inputs = w17_gen.generate_batch("profiling", 50)
         required_keys = {
-            "claim_id", "member_id", "member_status", "claim_type",
-            "provider", "diagnosis_code", "procedure_code", "claimed_amount",
+            "claim_id",
+            "member_id",
+            "member_status",
+            "claim_type",
+            "provider",
+            "diagnosis_code",
+            "procedure_code",
+            "claimed_amount",
             "service_date",
         }
         for inp in inputs:
@@ -452,7 +469,7 @@ class TestW1W11Sharing:
         w11_mod = importlib.import_module("inputs.generators.w11_support_qwen")
         w1 = w1_mod.W01SupportSimpleGenerator(seed=42).generate_batch("profiling", 50)
         w11 = w11_mod.W11SupportQwenGenerator(seed=42).generate_batch("profiling", 50)
-        for a, b in zip(w1, w11):
+        for a, b in zip(w1, w11, strict=True):
             assert a.input_data == b.input_data
 
     def test_w11_workflow_field_is_w11(self):
@@ -635,13 +652,26 @@ class TestGeneratedInputDataclass:
     def test_to_dict_contains_exactly_expected_keys(self):
         """to_dict() should contain exactly the 9 expected keys."""
         inp = GeneratedInput(
-            id="x", workflow="W", profile="p", tier="t",
-            token_count=1, is_dirty=False, dirty_type=None,
-            structural_descriptor={}, input_data={},
+            id="x",
+            workflow="W",
+            profile="p",
+            tier="t",
+            token_count=1,
+            is_dirty=False,
+            dirty_type=None,
+            structural_descriptor={},
+            input_data={},
         )
         expected_keys = {
-            "id", "workflow", "profile", "tier", "token_count",
-            "is_dirty", "dirty_type", "structural_descriptor", "input_data",
+            "id",
+            "workflow",
+            "profile",
+            "tier",
+            "token_count",
+            "is_dirty",
+            "dirty_type",
+            "structural_descriptor",
+            "input_data",
         }
         assert set(inp.to_dict().keys()) == expected_keys
 
@@ -695,9 +725,14 @@ class TestEmptyDirtyTypes:
             def generate_single(self, tier, profile, rng, idx, is_dirty=False, dirty_type=None):
                 return GeneratedInput(
                     id=self.make_id(profile, tier, idx),
-                    workflow="CLEAN", profile=profile, tier=tier,
-                    token_count=50, is_dirty=is_dirty, dirty_type=dirty_type,
-                    structural_descriptor={}, input_data={"input": "clean"},
+                    workflow="CLEAN",
+                    profile=profile,
+                    tier=tier,
+                    token_count=50,
+                    is_dirty=is_dirty,
+                    dirty_type=dirty_type,
+                    structural_descriptor={},
+                    input_data={"input": "clean"},
                 )
 
         gen = CleanGenerator(seed=42)

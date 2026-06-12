@@ -1,16 +1,36 @@
 """Tests for visualization color palette and detector classification."""
+
 from __future__ import annotations
+
 import re
+
 from visualization.colors import (
-    WORKFLOW_GROUPS, GROUP_COLORS, COMPARISON_COLORS,
-    DETECTOR_MATRIX_COLORS, EXPECTED_DETECTORS,
-    workflow_color, classify_detector_result,
+    EXPECTED_DETECTORS,
+    GROUP_COLORS,
+    WORKFLOW_GROUPS,
+    classify_detector_result,
+    workflow_color,
 )
 
 
 class TestWorkflowGroups:
     def test_all_14_workflows_have_group(self):
-        expected = {"W1","W2","W4","W5","W9","W11","W12","W13","W14","W15","W16","W17","W18","W19"}
+        expected = {
+            "W1",
+            "W2",
+            "W4",
+            "W5",
+            "W9",
+            "W11",
+            "W12",
+            "W13",
+            "W14",
+            "W15",
+            "W16",
+            "W17",
+            "W18",
+            "W19",
+        }
         assert set(WORKFLOW_GROUPS.keys()) == expected
 
     def test_group_colors_are_distinct(self):

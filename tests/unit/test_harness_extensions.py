@@ -5,14 +5,12 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
 import pytest
 
 from agentcost.collectors.base import StepRecord
 from agentcost.store import ProfileStore, ProfilingSession
-
 from bt_agents.harness.run_workflow import (
     _detect_batch_patterns,
     _extract_run_metadata,
@@ -51,33 +49,36 @@ def multi_step_records() -> list[list[StepRecord]]:
     """Five runs, each with one StepRecord."""
     records = []
     for i in range(5):
-        records.append([
-            StepRecord(
-                step_name="classify_respond",
-                step_type="llm",
-                model="claude-haiku-4-5",
-                input_tokens=300 + i * 10,
-                output_tokens=40 + i * 5,
-                context_size=600 + i * 10,
-                tool_definitions_tokens=0,
-                system_prompt_hash="abc123",
-                system_prompt_tokens=280,
-                output_format="text",
-                is_retry=False,
-                iteration=1,
-                parent_step=None,
-                duration_ms=200 + i * 20,
-                timestamp=datetime(2026, 6, 1, 12, i, 0, tzinfo=UTC),
-            )
-        ])
+        records.append(
+            [
+                StepRecord(
+                    step_name="classify_respond",
+                    step_type="llm",
+                    model="claude-haiku-4-5",
+                    input_tokens=300 + i * 10,
+                    output_tokens=40 + i * 5,
+                    context_size=600 + i * 10,
+                    tool_definitions_tokens=0,
+                    system_prompt_hash="abc123",
+                    system_prompt_tokens=280,
+                    output_format="text",
+                    is_retry=False,
+                    iteration=1,
+                    parent_step=None,
+                    duration_ms=200 + i * 20,
+                    timestamp=datetime(2026, 6, 1, 12, i, 0, tzinfo=UTC),
+                )
+            ]
+        )
     return records
 
 
 @pytest.fixture
 def sample_prompts() -> dict[str, str]:
+    suffix = "{{CACHE_BUST_SUFFIX}}"
     return {
-        "classify_respond": "You are a helpful support agent.\n<!-- session: {{CACHE_BUST_SUFFIX}} -->",
-        "research_draft_loop": "You are an analyst.\n<!-- session: {{CACHE_BUST_SUFFIX}} -->",
+        "classify_respond": f"You are a helpful support agent.\n<!-- session: {suffix} -->",
+        "research_draft_loop": f"You are an analyst.\n<!-- session: {suffix} -->",
     }
 
 
@@ -85,7 +86,11 @@ def sample_prompts() -> dict[str, str]:
 def sample_inputs() -> list[dict[str, Any]]:
     return [
         {"input": "short question", "tier": "easy", "structural_descriptor": {"tokens": 20}},
-        {"input": "a longer more complex question", "tier": "medium", "structural_descriptor": {"tokens": 50}},
+        {
+            "input": "a longer more complex question",
+            "tier": "medium",
+            "structural_descriptor": {"tokens": 50},
+        },
         {"input": "very detailed question", "tier": "hard"},
         {"input": "simple", "_dry_run": True},
         {"input": "another simple one"},
@@ -288,7 +293,10 @@ class TestSaveResults:
 
     def test_includes_per_run_metadata(self, multi_step_records, tmp_path, sample_inputs):
         filepath = save_results(
-            "W1", multi_step_records, str(tmp_path), inputs=sample_inputs,
+            "W1",
+            multi_step_records,
+            str(tmp_path),
+            inputs=sample_inputs,
         )
         data = json.loads(filepath.read_text())
         run0 = data["runs"][0]
@@ -317,7 +325,10 @@ class TestSaveResults:
 
     def test_includes_backtest_profile(self, multi_step_records, tmp_path):
         filepath = save_results(
-            "W1", multi_step_records, str(tmp_path), backtest_profile="profiling",
+            "W1",
+            multi_step_records,
+            str(tmp_path),
+            backtest_profile="profiling",
         )
         data = json.loads(filepath.read_text())
         assert data["backtest_profile"] == "profiling"
@@ -330,7 +341,10 @@ class TestSaveResults:
 
     def test_includes_prompt_hashes(self, multi_step_records, tmp_path, sample_prompts):
         filepath = save_results(
-            "W1", multi_step_records, str(tmp_path), prompts=sample_prompts,
+            "W1",
+            multi_step_records,
+            str(tmp_path),
+            prompts=sample_prompts,
         )
         data = json.loads(filepath.read_text())
         assert "prompt_hashes" in data
@@ -359,7 +373,10 @@ class TestSaveResults:
 
     def test_decisions_dict_present(self, multi_step_records, tmp_path, sample_inputs):
         filepath = save_results(
-            "W1", multi_step_records, str(tmp_path), inputs=sample_inputs,
+            "W1",
+            multi_step_records,
+            str(tmp_path),
+            inputs=sample_inputs,
         )
         data = json.loads(filepath.read_text())
         for run in data["runs"]:
@@ -382,25 +399,27 @@ class TestDetectBatchPatterns:
         assert patterns == []
 
     def test_dry_run_records_dont_crash(self):
-        records = [[
-            StepRecord(
-                step_name="test",
-                step_type="llm",
-                model="claude-haiku-4-5",
-                input_tokens=0,
-                output_tokens=0,
-                context_size=0,
-                tool_definitions_tokens=0,
-                system_prompt_hash="x",
-                system_prompt_tokens=0,
-                output_format="json",
-                is_retry=False,
-                iteration=1,
-                parent_step=None,
-                duration_ms=0,
-                timestamp=datetime(2026, 6, 1, tzinfo=UTC),
-            )
-        ]]
+        records = [
+            [
+                StepRecord(
+                    step_name="test",
+                    step_type="llm",
+                    model="claude-haiku-4-5",
+                    input_tokens=0,
+                    output_tokens=0,
+                    context_size=0,
+                    tool_definitions_tokens=0,
+                    system_prompt_hash="x",
+                    system_prompt_tokens=0,
+                    output_format="json",
+                    is_retry=False,
+                    iteration=1,
+                    parent_step=None,
+                    duration_ms=0,
+                    timestamp=datetime(2026, 6, 1, tzinfo=UTC),
+                )
+            ]
+        ]
         patterns = _detect_batch_patterns(records)
         assert isinstance(patterns, list)
 
@@ -408,13 +427,17 @@ class TestDetectBatchPatterns:
 class TestSaveAsSession:
     def test_creates_file(self, multi_step_records, tmp_path):
         filepath = save_as_session(
-            "W1", multi_step_records, storage_dir=str(tmp_path),
+            "W1",
+            multi_step_records,
+            storage_dir=str(tmp_path),
         )
         assert filepath.exists()
 
     def test_loadable_by_profile_store(self, multi_step_records, tmp_path):
         filepath = save_as_session(
-            "W1", multi_step_records, storage_dir=str(tmp_path),
+            "W1",
+            multi_step_records,
+            storage_dir=str(tmp_path),
         )
         store = ProfileStore(storage_dir=tmp_path)
         session = store.load(filepath)
@@ -425,7 +448,9 @@ class TestSaveAsSession:
 
     def test_session_runs_contain_step_records(self, multi_step_records, tmp_path):
         filepath = save_as_session(
-            "W1", multi_step_records, storage_dir=str(tmp_path),
+            "W1",
+            multi_step_records,
+            storage_dir=str(tmp_path),
         )
         store = ProfileStore(storage_dir=tmp_path)
         session = store.load(filepath)
@@ -435,7 +460,8 @@ class TestSaveAsSession:
 
     def test_session_metadata_has_backtest_fields(self, multi_step_records, tmp_path):
         filepath = save_as_session(
-            "W1", multi_step_records,
+            "W1",
+            multi_step_records,
             backtest_profile="profiling",
             storage_dir=str(tmp_path),
         )
@@ -447,7 +473,9 @@ class TestSaveAsSession:
 
     def test_session_has_python_version(self, multi_step_records, tmp_path):
         filepath = save_as_session(
-            "W1", multi_step_records, storage_dir=str(tmp_path),
+            "W1",
+            multi_step_records,
+            storage_dir=str(tmp_path),
         )
         store = ProfileStore(storage_dir=tmp_path)
         session = store.load(filepath)
@@ -455,7 +483,8 @@ class TestSaveAsSession:
 
     def test_session_has_workflow_hash(self, multi_step_records, tmp_path, sample_prompts):
         filepath = save_as_session(
-            "W1", multi_step_records,
+            "W1",
+            multi_step_records,
             prompts=sample_prompts,
             storage_dir=str(tmp_path),
         )
@@ -466,7 +495,9 @@ class TestSaveAsSession:
 
     def test_session_input_mode_is_backtesting(self, multi_step_records, tmp_path):
         filepath = save_as_session(
-            "W1", multi_step_records, storage_dir=str(tmp_path),
+            "W1",
+            multi_step_records,
+            storage_dir=str(tmp_path),
         )
         store = ProfileStore(storage_dir=tmp_path)
         session = store.load(filepath)
@@ -474,7 +505,8 @@ class TestSaveAsSession:
 
     def test_session_prompt_hashes_stored(self, multi_step_records, tmp_path, sample_prompts):
         filepath = save_as_session(
-            "W1", multi_step_records,
+            "W1",
+            multi_step_records,
             prompts=sample_prompts,
             storage_dir=str(tmp_path),
         )
@@ -488,7 +520,9 @@ class TestSaveAsSession:
         from agentcost.projection.stats import compute_stats
 
         filepath = save_as_session(
-            "W1", multi_step_records, storage_dir=str(tmp_path),
+            "W1",
+            multi_step_records,
+            storage_dir=str(tmp_path),
         )
         store = ProfileStore(storage_dir=tmp_path)
         session = store.load(filepath)
@@ -498,7 +532,9 @@ class TestSaveAsSession:
 
     def test_list_sessions_finds_saved(self, multi_step_records, tmp_path):
         save_as_session(
-            "W1", multi_step_records, storage_dir=str(tmp_path),
+            "W1",
+            multi_step_records,
+            storage_dir=str(tmp_path),
         )
         store = ProfileStore(storage_dir=tmp_path)
         sessions = store.list_sessions("W1")
@@ -513,7 +549,11 @@ class TestEndToEndWithDryRun:
         inputs = [
             {"input": "Help me reset my password", "tier": "easy", "_dry_run": True},
             {"input": "Billing issue with my account", "tier": "medium", "_dry_run": True},
-            {"input": "Complex API integration question about webhooks", "tier": "hard", "_dry_run": True},
+            {
+                "input": "Complex API integration question about webhooks",
+                "tier": "hard",
+                "_dry_run": True,
+            },
         ]
         agent = load_agent("W1")
         all_records = []
@@ -522,8 +562,12 @@ class TestEndToEndWithDryRun:
             all_records.append(records)
 
         results_path = save_results(
-            "W1", all_records, str(tmp_path / "results"),
-            inputs=inputs, prompts=prompts, backtest_profile="profiling",
+            "W1",
+            all_records,
+            str(tmp_path / "results"),
+            inputs=inputs,
+            prompts=prompts,
+            backtest_profile="profiling",
         )
         data = json.loads(results_path.read_text())
         assert data["runs"][0]["metadata"]["input_tier"] == "easy"
@@ -533,8 +577,10 @@ class TestEndToEndWithDryRun:
         assert "detected_patterns" in data
 
         session_path = save_as_session(
-            "W1", all_records,
-            prompts=prompts, backtest_profile="profiling",
+            "W1",
+            all_records,
+            prompts=prompts,
+            backtest_profile="profiling",
             storage_dir=str(tmp_path / "sessions"),
         )
         store = ProfileStore(storage_dir=tmp_path / "sessions")
@@ -543,5 +589,6 @@ class TestEndToEndWithDryRun:
         assert session.input_mode == "backtesting"
 
         from agentcost.projection.stats import compute_stats
+
         stats = compute_stats(session.runs)
         assert stats.total_runs == 3

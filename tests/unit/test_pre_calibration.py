@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
-
-import pytest
 
 from pre_calibration.pre_calibration import CheckResult, PreCalibrationReport, run_pre_calibration
 
@@ -29,9 +26,7 @@ class TestPreCalibrationReport:
         report = PreCalibrationReport(
             timestamp="2026-06-07T00:00:00+00:00",
             checks={
-                "test": CheckResult(
-                    name="test", status="PASS", details={"k": "v"}, blocking=True
-                )
+                "test": CheckResult(name="test", status="PASS", details={"k": "v"}, blocking=True)
             },
             blocking_failures=[],
             warnings=[],
@@ -48,9 +43,7 @@ class TestPreCalibrationReport:
     def test_serializable_to_json(self):
         report = PreCalibrationReport(
             timestamp="2026-06-07T00:00:00+00:00",
-            checks={
-                "test": CheckResult(name="test", status="PASS", details={}, blocking=True)
-            },
+            checks={"test": CheckResult(name="test", status="PASS", details={}, blocking=True)},
             blocking_failures=[],
             warnings=[],
             proceed_to_pilot=True,
@@ -143,7 +136,7 @@ class TestOrchestratorIntegration:
 
     async def test_saves_output(self, tmp_path):
         output = tmp_path / "report.json"
-        report = await run_pre_calibration(
+        await run_pre_calibration(
             prompts_dir=tmp_path / "prompts",
             inputs_dir=tmp_path / "inputs",
             pdfs_dir=tmp_path / "pdfs",

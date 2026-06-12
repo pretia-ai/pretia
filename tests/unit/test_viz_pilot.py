@@ -8,8 +8,6 @@ from pathlib import Path
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import pytest
 
 from visualization.pilot.visualize_pilot import (
     generate_all_pilot_visuals,
@@ -47,10 +45,7 @@ def _write_pilot_data(results_dir: Path, workflows: list[str]) -> None:
         data = {
             "metadata": {
                 "stats": {
-                    "run_stats": [
-                        {"total_cost": c, "run_index": i}
-                        for i, c in enumerate(costs)
-                    ],
+                    "run_stats": [{"total_cost": c, "run_index": i} for i, c in enumerate(costs)],
                 }
             }
         }

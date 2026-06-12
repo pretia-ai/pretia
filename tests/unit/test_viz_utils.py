@@ -1,8 +1,8 @@
 """Tests for visualization utility functions."""
+
 from __future__ import annotations
-import json
-from pathlib import Path
-from visualization.utils import discover_results, save_figure, add_caption, format_workflow_label
+
+from visualization.utils import add_caption, discover_results, format_workflow_label, save_figure
 
 
 class TestDiscoverResults:
@@ -35,8 +35,10 @@ class TestDiscoverResults:
 class TestSaveFigure:
     def test_creates_png_and_pdf(self, tmp_path):
         import matplotlib
+
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
+
         fig, ax = plt.subplots()
         ax.plot([1, 2, 3])
         paths = save_figure(fig, tmp_path, "test_fig")
@@ -47,12 +49,14 @@ class TestSaveFigure:
 
     def test_creates_output_dir(self, tmp_path):
         import matplotlib
+
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
+
         fig, ax = plt.subplots()
         ax.plot([1, 2])
         nested = tmp_path / "sub" / "dir"
-        paths = save_figure(fig, nested, "nested_fig", formats=("png",))
+        save_figure(fig, nested, "nested_fig", formats=("png",))
         plt.close(fig)
         assert nested.exists()
         assert (nested / "nested_fig.png").exists()
@@ -61,8 +65,10 @@ class TestSaveFigure:
 class TestAddCaption:
     def test_adds_text(self):
         import matplotlib
+
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
+
         fig, ax = plt.subplots()
         add_caption(fig, "This is a test caption.")
         texts = [t.get_text() for t in fig.texts]

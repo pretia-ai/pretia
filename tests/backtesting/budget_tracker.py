@@ -79,7 +79,8 @@ class BudgetTracker:
         Returns (should_stop, message).
         """
         failed = [
-            name for name, score in scores.items()
+            name
+            for name, score in scores.items()
             if not (score if isinstance(score, bool) else score.get("passed", True))
         ]
         if len(failed) >= 5:
@@ -109,7 +110,8 @@ class BudgetTracker:
         """
         cheap_scores = {name: score for name, score in scores.items() if name in _CHEAP_WORKFLOWS}
         failed = [
-            name for name, score in cheap_scores.items()
+            name
+            for name, score in cheap_scores.items()
             if not (score if isinstance(score, bool) else score.get("passed", True))
         ]
         if failed:

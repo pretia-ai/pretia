@@ -18,14 +18,14 @@ if "pdfs.generators.rendering" not in sys.modules:
     _placeholder.__path__ = ["pdfs/generators/rendering"]
     sys.modules["pdfs.generators.rendering"] = _placeholder
 
+import pytest
+
 from pdfs.generators.rendering.pdf_assembler import (
-    PDFDescriptor,
     PageSource,
+    PDFDescriptor,
     load_descriptor,
     write_descriptor,
 )
-
-import pytest
 
 
 class TestPDFDescriptorRoundTrip:

@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import random
-import sys
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -12,7 +10,6 @@ import pytest
 # Pillow must be installed (it's in the pdf-generation extra).
 # Previous code mocked PIL here, but that corrupts PIL for matplotlib
 # when pytest collects all tests together.
-
 from pdfs.generators.rendering.chart_renderer import ChartSpec  # noqa: E402
 from pdfs.generators.rendering.scan_simulator import (  # noqa: E402
     ScanParams,

@@ -48,9 +48,7 @@ class TestTableToHtml:
         assert "<table" in html
 
     def test_html_escapes_content(self):
-        table = TableData(
-            headers=["Col"], rows=[["<script>alert('xss')</script>"]]
-        )
+        table = TableData(headers=["Col"], rows=[["<script>alert('xss')</script>"]])
         html = table_to_html(table)
         assert "<script>" not in html
         assert "&lt;script&gt;" in html

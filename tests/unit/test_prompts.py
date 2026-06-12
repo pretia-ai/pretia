@@ -178,8 +178,7 @@ class TestCostCriticalAnnotations:
             if entry["cost_critical_elements"]:
                 content = prompt_files[entry["file_path"]]
                 assert "COST-CRITICAL" in content, (
-                    f"{entry['file_path']}: has cost-critical elements "
-                    f"but no annotation in file"
+                    f"{entry['file_path']}: has cost-critical elements but no annotation in file"
                 )
 
     def test_annotation_count_gte_elements(self, manifest, prompt_files):
@@ -190,8 +189,7 @@ class TestCostCriticalAnnotations:
             count = content.count("COST-CRITICAL")
             expected = len(entry["cost_critical_elements"])
             assert count >= expected, (
-                f"{entry['file_path']}: {count} annotations < "
-                f"{expected} declared elements"
+                f"{entry['file_path']}: {count} annotations < {expected} declared elements"
             )
 
 
@@ -234,8 +232,7 @@ class TestOutputFormatConsistency:
                 continue
             content = prompt_files[entry["file_path"]]
             assert extra in content, (
-                f"{entry['file_path']}: non-Anthropic JSON-output file "
-                f"missing extra enforcement"
+                f"{entry['file_path']}: non-Anthropic JSON-output file missing extra enforcement"
             )
 
 
@@ -397,9 +394,7 @@ class TestPromptParseability:
         for entry in manifest["prompts"]:
             content = prompt_files[entry["file_path"]]
             for i, line in enumerate(content.splitlines(), 1):
-                assert "```" not in line, (
-                    f"{entry['file_path']}:{i}: markdown code fence found"
-                )
+                assert "```" not in line, f"{entry['file_path']}:{i}: markdown code fence found"
 
     def test_embedded_json_schemas_are_valid(self, manifest, prompt_files):
         for entry in manifest["prompts"]:
@@ -416,8 +411,7 @@ class TestPromptParseability:
                 except json.JSONDecodeError:
                     continue
             assert parsed_any, (
-                f"{entry['file_path']}: no parseable JSON block found in "
-                f"JSON-output prompt"
+                f"{entry['file_path']}: no parseable JSON block found in JSON-output prompt"
             )
 
     def test_no_unresolved_template_variables(self, manifest, prompt_files):
@@ -443,6 +437,4 @@ class TestPromptParseability:
             content = prompt_files[entry["file_path"]]
             for i, line in enumerate(content.splitlines(), 1):
                 if line and line != line.rstrip():
-                    assert False, (
-                        f"{entry['file_path']}:{i}: trailing whitespace"
-                    )
+                    raise AssertionError(f"{entry['file_path']}:{i}: trailing whitespace")

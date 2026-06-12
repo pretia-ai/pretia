@@ -84,9 +84,7 @@ def check_cache_bust(
     """Verify cache busting is effective for DeepSeek/Anthropic providers."""
     flat = _flat_records(all_records)
     cache_relevant = [
-        r
-        for r in flat
-        if "deepseek" in r.model.lower() or "claude" in r.model.lower()
+        r for r in flat if "deepseek" in r.model.lower() or "claude" in r.model.lower()
     ]
 
     if not cache_relevant:
@@ -140,9 +138,7 @@ def check_template_substitution(
     for idx, inp in enumerate(inputs):
         for key, value in inp.items():
             if isinstance(value, str) and ("{{" in value or "}}" in value):
-                found.append(
-                    {"location": f"input[{idx}].{key}", "value": value[:200]}
-                )
+                found.append({"location": f"input[{idx}].{key}", "value": value[:200]})
 
     flat = _flat_records(all_records)
     for r in flat:
@@ -380,9 +376,7 @@ def check_output_schema(
             blocking=True,
         )
 
-    truncated_count = sum(
-        1 for r in json_steps if r.output_truncated is True
-    )
+    truncated_count = sum(1 for r in json_steps if r.output_truncated is True)
     truncated_pct = truncated_count / json_step_count
 
     if truncated_pct > 0.20:
@@ -551,9 +545,7 @@ def check_routing_ratio(
         step_names = {r.step_name.lower() for r in run}
         if keywords:
             # Build a signature from which keywords appear in step names.
-            sig = frozenset(
-                kw for kw in keywords if any(kw in sn for sn in step_names)
-            )
+            sig = frozenset(kw for kw in keywords if any(kw in sn for sn in step_names))
         else:
             sig = frozenset(step_names)
         path_signatures.append(sig)
@@ -675,20 +667,18 @@ def check_detector_preactivation(
 
     for detector in active_detectors:
         if detector == "context_growth":
-            prereqs_met[detector], prereq_details[detector] = (
-                _check_context_growth_prereq(all_records)
+            prereqs_met[detector], prereq_details[detector] = _check_context_growth_prereq(
+                all_records
             )
         elif detector == "loop_count_variance":
-            prereqs_met[detector], prereq_details[detector] = (
-                _check_loop_variance_prereq(all_records)
+            prereqs_met[detector], prereq_details[detector] = _check_loop_variance_prereq(
+                all_records
             )
         elif detector == "bimodality":
-            prereqs_met[detector], prereq_details[detector] = (
-                _check_bimodality_prereq(all_records)
-            )
+            prereqs_met[detector], prereq_details[detector] = _check_bimodality_prereq(all_records)
         elif detector == "step_count_variance":
-            prereqs_met[detector], prereq_details[detector] = (
-                _check_step_count_variance_prereq(all_records)
+            prereqs_met[detector], prereq_details[detector] = _check_step_count_variance_prereq(
+                all_records
             )
         elif detector == "high_token_variance":
             prereqs_met[detector] = True

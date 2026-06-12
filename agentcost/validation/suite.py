@@ -202,9 +202,7 @@ def attribute_failure(
             recommended_action="Use --traffic-mix to specify production distribution weights.",
         )
 
-    recovery_pct = (
-        _compute_recovery(score_a, score_b, score_c) if score_c is not None else 0.0
-    )
+    recovery_pct = _compute_recovery(score_a, score_b, score_c) if score_c is not None else 0.0
     if score_c is not None and recovery_pct >= 50.0:
         return FailureAttribution(
             workflow_name=workflow_name,

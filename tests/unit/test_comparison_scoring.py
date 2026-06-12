@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from agentcost.projection.stats import (
     PercentileStats,
     ProfilingStats,
@@ -11,14 +9,14 @@ from agentcost.projection.stats import (
     StepStats,
 )
 from agentcost.validation.scoring import (
-    ComparisonScore,
     _COMPARISON_TARGETS,
+    ComparisonScore,
     score_comparison,
 )
 from agentcost.validation.suite import (
     FailureAttribution,
-    attribute_failure,
     _compute_recovery,
+    attribute_failure,
 )
 
 
@@ -45,9 +43,7 @@ def _ps(
 def _step(name: str, cost_mean: float = 0.01) -> StepStats:
     cost_ps = _ps(cost_mean, cost_mean * 0.95, cost_mean * 1.15, cost_mean * 1.7, cost_mean * 0.3)
     tok = _ps(300, 280, 340, 450, 80)
-    itr = PercentileStats(
-        min=1, max=1, mean=1, std=0, p50=1, p75=1, p90=1, p95=1, p99=1
-    )
+    itr = PercentileStats(min=1, max=1, mean=1, std=0, p50=1, p75=1, p90=1, p95=1, p99=1)
     return StepStats(
         step_name=name,
         step_type="llm",
@@ -79,7 +75,9 @@ def _make_stats(
     }
     cpr = _ps(cost_mean, cost_p50, cost_p75, cost_p95)
     if run_costs is None:
-        run_costs = [cost_mean * (0.8 + 0.4 * i / max(total_runs - 1, 1)) for i in range(total_runs)]
+        run_costs = [
+            cost_mean * (0.8 + 0.4 * i / max(total_runs - 1, 1)) for i in range(total_runs)
+        ]
     run_stats = [
         RunStats(
             run_index=i,
@@ -105,8 +103,9 @@ def _make_stats(
 class TestScoreComparisonNoDriftPass:
     def test_passes_when_accurate(self):
         proj = _make_stats(cost_mean=0.030, cost_p50=0.028, cost_p75=0.035, cost_p95=0.048)
-        gt = _make_stats(cost_mean=0.031, cost_p50=0.029, cost_p75=0.036, cost_p95=0.050,
-                         total_runs=200)
+        gt = _make_stats(
+            cost_mean=0.031, cost_p50=0.029, cost_p75=0.036, cost_p95=0.050, total_runs=200
+        )
         score = score_comparison(proj, gt, "W1", "A")
         assert score.passes
         assert score.comparison == "A"
@@ -158,10 +157,14 @@ class TestComparisonScoreSerialization:
 class TestFailureAttributionBucket1:
     def test_a_fails_returns_bucket_1(self):
         score_a = ComparisonScore(
-            workflow_name="W1", comparison="A",
-            mean_error_pct=25.0, p75_error_pct=30.0,
-            ci_coverage_pct=60.0, monthly_error_pct=25.0,
-            cvar95_error_pct=50.0, passes=False,
+            workflow_name="W1",
+            comparison="A",
+            mean_error_pct=25.0,
+            p75_error_pct=30.0,
+            ci_coverage_pct=60.0,
+            monthly_error_pct=25.0,
+            cvar95_error_pct=50.0,
+            passes=False,
             failures=["Mean error 25.0% exceeds 10% target"],
         )
         result = attribute_failure("W1", score_a, None, None)
@@ -178,23 +181,35 @@ class TestFailureAttributionBucket1:
 class TestFailureAttributionBucket2:
     def test_a_pass_b_fail_c_recovers(self):
         score_a = ComparisonScore(
-            workflow_name="W13", comparison="A",
-            mean_error_pct=7.0, p75_error_pct=11.0,
-            ci_coverage_pct=89.0, monthly_error_pct=6.5,
-            cvar95_error_pct=18.0, passes=True,
+            workflow_name="W13",
+            comparison="A",
+            mean_error_pct=7.0,
+            p75_error_pct=11.0,
+            ci_coverage_pct=89.0,
+            monthly_error_pct=6.5,
+            cvar95_error_pct=18.0,
+            passes=True,
         )
         score_b = ComparisonScore(
-            workflow_name="W13", comparison="B",
-            mean_error_pct=22.0, p75_error_pct=28.0,
-            ci_coverage_pct=72.0, monthly_error_pct=21.0,
-            cvar95_error_pct=45.0, passes=False,
+            workflow_name="W13",
+            comparison="B",
+            mean_error_pct=22.0,
+            p75_error_pct=28.0,
+            ci_coverage_pct=72.0,
+            monthly_error_pct=21.0,
+            cvar95_error_pct=45.0,
+            passes=False,
             failures=["Mean error 22.0% exceeds 20% target"],
         )
         score_c = ComparisonScore(
-            workflow_name="W13", comparison="C",
-            mean_error_pct=9.0, p75_error_pct=14.0,
-            ci_coverage_pct=86.0, monthly_error_pct=8.5,
-            cvar95_error_pct=22.0, passes=True,
+            workflow_name="W13",
+            comparison="C",
+            mean_error_pct=9.0,
+            p75_error_pct=14.0,
+            ci_coverage_pct=86.0,
+            monthly_error_pct=8.5,
+            cvar95_error_pct=22.0,
+            passes=True,
         )
         result = attribute_failure("W13", score_a, score_b, score_c)
         assert result is not None
@@ -206,23 +221,35 @@ class TestFailureAttributionBucket2:
 class TestFailureAttributionBucket3:
     def test_a_pass_b_fail_c_no_recovery(self):
         score_a = ComparisonScore(
-            workflow_name="W19", comparison="A",
-            mean_error_pct=8.0, p75_error_pct=12.0,
-            ci_coverage_pct=87.0, monthly_error_pct=7.5,
-            cvar95_error_pct=20.0, passes=True,
+            workflow_name="W19",
+            comparison="A",
+            mean_error_pct=8.0,
+            p75_error_pct=12.0,
+            ci_coverage_pct=87.0,
+            monthly_error_pct=7.5,
+            cvar95_error_pct=20.0,
+            passes=True,
         )
         score_b = ComparisonScore(
-            workflow_name="W19", comparison="B",
-            mean_error_pct=35.0, p75_error_pct=40.0,
-            ci_coverage_pct=55.0, monthly_error_pct=34.0,
-            cvar95_error_pct=60.0, passes=False,
+            workflow_name="W19",
+            comparison="B",
+            mean_error_pct=35.0,
+            p75_error_pct=40.0,
+            ci_coverage_pct=55.0,
+            monthly_error_pct=34.0,
+            cvar95_error_pct=60.0,
+            passes=False,
             failures=["Mean error 35.0% exceeds 20% target"],
         )
         score_c = ComparisonScore(
-            workflow_name="W19", comparison="C",
-            mean_error_pct=30.0, p75_error_pct=36.0,
-            ci_coverage_pct=60.0, monthly_error_pct=29.0,
-            cvar95_error_pct=55.0, passes=False,
+            workflow_name="W19",
+            comparison="C",
+            mean_error_pct=30.0,
+            p75_error_pct=36.0,
+            ci_coverage_pct=60.0,
+            monthly_error_pct=29.0,
+            cvar95_error_pct=55.0,
+            passes=False,
             failures=["Mean error 30.0% exceeds 20% target"],
         )
         result = attribute_failure("W19", score_a, score_b, score_c)
@@ -235,16 +262,24 @@ class TestFailureAttributionBucket3:
 class TestFailureAttributionAllPass:
     def test_a_and_b_pass_returns_none(self):
         score_a = ComparisonScore(
-            workflow_name="W1", comparison="A",
-            mean_error_pct=5.0, p75_error_pct=8.0,
-            ci_coverage_pct=92.0, monthly_error_pct=5.0,
-            cvar95_error_pct=15.0, passes=True,
+            workflow_name="W1",
+            comparison="A",
+            mean_error_pct=5.0,
+            p75_error_pct=8.0,
+            ci_coverage_pct=92.0,
+            monthly_error_pct=5.0,
+            cvar95_error_pct=15.0,
+            passes=True,
         )
         score_b = ComparisonScore(
-            workflow_name="W1", comparison="B",
-            mean_error_pct=12.0, p75_error_pct=18.0,
-            ci_coverage_pct=80.0, monthly_error_pct=11.0,
-            cvar95_error_pct=30.0, passes=True,
+            workflow_name="W1",
+            comparison="B",
+            mean_error_pct=12.0,
+            p75_error_pct=18.0,
+            ci_coverage_pct=80.0,
+            monthly_error_pct=11.0,
+            cvar95_error_pct=30.0,
+            passes=True,
         )
         result = attribute_failure("W1", score_a, score_b, None)
         assert result is None
@@ -253,44 +288,68 @@ class TestFailureAttributionAllPass:
 class TestComputeRecovery:
     def test_full_recovery(self):
         score_a = ComparisonScore(
-            workflow_name="W1", comparison="A",
-            mean_error_pct=5.0, p75_error_pct=8.0,
-            ci_coverage_pct=90.0, monthly_error_pct=5.0,
-            cvar95_error_pct=15.0, passes=True,
+            workflow_name="W1",
+            comparison="A",
+            mean_error_pct=5.0,
+            p75_error_pct=8.0,
+            ci_coverage_pct=90.0,
+            monthly_error_pct=5.0,
+            cvar95_error_pct=15.0,
+            passes=True,
         )
         score_b = ComparisonScore(
-            workflow_name="W1", comparison="B",
-            mean_error_pct=25.0, p75_error_pct=30.0,
-            ci_coverage_pct=65.0, monthly_error_pct=24.0,
-            cvar95_error_pct=50.0, passes=False,
+            workflow_name="W1",
+            comparison="B",
+            mean_error_pct=25.0,
+            p75_error_pct=30.0,
+            ci_coverage_pct=65.0,
+            monthly_error_pct=24.0,
+            cvar95_error_pct=50.0,
+            passes=False,
         )
         score_c = ComparisonScore(
-            workflow_name="W1", comparison="C",
-            mean_error_pct=5.0, p75_error_pct=8.0,
-            ci_coverage_pct=90.0, monthly_error_pct=5.0,
-            cvar95_error_pct=15.0, passes=True,
+            workflow_name="W1",
+            comparison="C",
+            mean_error_pct=5.0,
+            p75_error_pct=8.0,
+            ci_coverage_pct=90.0,
+            monthly_error_pct=5.0,
+            cvar95_error_pct=15.0,
+            passes=True,
         )
         recovery = _compute_recovery(score_a, score_b, score_c)
         assert recovery == 100.0
 
     def test_no_recovery(self):
         score_a = ComparisonScore(
-            workflow_name="W1", comparison="A",
-            mean_error_pct=5.0, p75_error_pct=8.0,
-            ci_coverage_pct=90.0, monthly_error_pct=5.0,
-            cvar95_error_pct=15.0, passes=True,
+            workflow_name="W1",
+            comparison="A",
+            mean_error_pct=5.0,
+            p75_error_pct=8.0,
+            ci_coverage_pct=90.0,
+            monthly_error_pct=5.0,
+            cvar95_error_pct=15.0,
+            passes=True,
         )
         score_b = ComparisonScore(
-            workflow_name="W1", comparison="B",
-            mean_error_pct=25.0, p75_error_pct=30.0,
-            ci_coverage_pct=65.0, monthly_error_pct=24.0,
-            cvar95_error_pct=50.0, passes=False,
+            workflow_name="W1",
+            comparison="B",
+            mean_error_pct=25.0,
+            p75_error_pct=30.0,
+            ci_coverage_pct=65.0,
+            monthly_error_pct=24.0,
+            cvar95_error_pct=50.0,
+            passes=False,
         )
         score_c = ComparisonScore(
-            workflow_name="W1", comparison="C",
-            mean_error_pct=26.0, p75_error_pct=31.0,
-            ci_coverage_pct=64.0, monthly_error_pct=25.0,
-            cvar95_error_pct=51.0, passes=False,
+            workflow_name="W1",
+            comparison="C",
+            mean_error_pct=26.0,
+            p75_error_pct=31.0,
+            ci_coverage_pct=64.0,
+            monthly_error_pct=25.0,
+            cvar95_error_pct=51.0,
+            passes=False,
         )
         recovery = _compute_recovery(score_a, score_b, score_c)
         assert recovery == 0.0

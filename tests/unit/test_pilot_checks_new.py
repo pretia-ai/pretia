@@ -144,10 +144,16 @@ class TestCheckTierSeparation:
         # W1 is a linear workflow, threshold = 2.0
         # Create two runs with different token counts to produce different costs
         cheap_record = replace(
-            sample_record, model="claude-haiku-4-5", input_tokens=100, output_tokens=20,
+            sample_record,
+            model="claude-haiku-4-5",
+            input_tokens=100,
+            output_tokens=20,
         )
         expensive_record = replace(
-            sample_record, model="claude-haiku-4-5", input_tokens=2000, output_tokens=500,
+            sample_record,
+            model="claude-haiku-4-5",
+            input_tokens=2000,
+            output_tokens=500,
         )
         records = [[cheap_record], [expensive_record]]
         result = check_tier_separation("W1-support-simple", records)
@@ -180,7 +186,10 @@ class TestCheckCostPlausibility:
         # A claude-haiku-3 record with 340 input + 45 output tokens produces a small cost.
         # Create records whose cost falls within the plausibility bounds.
         record = replace(
-            sample_record, model="claude-haiku-4-5", input_tokens=5000, output_tokens=1000,
+            sample_record,
+            model="claude-haiku-4-5",
+            input_tokens=5000,
+            output_tokens=1000,
         )
         records = [[record]]
         config = BacktestConfig(
@@ -427,9 +436,7 @@ class TestRunPilotChecks:
         }
         assert check_names == expected_names
 
-    def test_run_pilot_checks_layer_classification(
-        self, sample_record: StepRecord
-    ) -> None:
+    def test_run_pilot_checks_layer_classification(self, sample_record: StepRecord) -> None:
         """Layer 1 checks should be blocking, Layer 2 should not."""
         records = [[sample_record]]
         inputs: list[dict[str, Any]] = [{"query": "test"}]

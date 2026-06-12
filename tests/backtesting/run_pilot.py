@@ -44,6 +44,7 @@ def _load_dotenv() -> None:
             if key and key not in os.environ:
                 os.environ[key] = value
 
+
 logger = logging.getLogger(__name__)
 
 _PILOT_N = 10
@@ -93,9 +94,7 @@ def _check_pre_calibration_gate(report_path: Path) -> bool:
         click.echo("Pre-calibration report has blocking failures:", err=True)
         for failure in report.get("blocking_failures", []):
             click.echo(f"  BLOCKED: {failure}", err=True)
-        click.echo(
-            "Fix pre-calibration issues before running the pilot.", err=True
-        )
+        click.echo("Fix pre-calibration issues before running the pilot.", err=True)
         return False
 
     click.echo("Pre-calibration gate: PASSED")
@@ -145,9 +144,7 @@ def _generate_pilot_inputs(
                         if hasattr(gen, "dry_run"):
                             gen.dry_run = dry_run
                         if hasattr(gen, "_image_output_dir"):
-                            gen._image_output_dir = (
-                                f"{results_dir}/images/{workflow_id.lower()}"
-                            )
+                            gen._image_output_dir = f"{results_dir}/images/{workflow_id.lower()}"
                         batch = gen.generate_batch("profiling", n)
                         return [inp.to_dict() for inp in batch]
     except Exception as exc:
@@ -208,8 +205,10 @@ async def _run_pilot_workflow(
 
     # Generate inputs
     inputs = _generate_pilot_inputs(
-        workflow_id, _PILOT_N,
-        dry_run=dry_run, results_dir=str(results_dir),
+        workflow_id,
+        _PILOT_N,
+        dry_run=dry_run,
+        results_dir=str(results_dir),
     )
     if dry_run:
         for inp in inputs:
@@ -261,9 +260,7 @@ async def _run_pilot_workflow(
 
     # Run pilot checks
     try:
-        check_results = run_pilot_checks(
-            workflow_id, all_records, input_dicts, config
-        )
+        check_results = run_pilot_checks(workflow_id, all_records, input_dicts, config)
 
         layer1_results = {}
         layer2_results = {}
@@ -424,8 +421,7 @@ def main(
 
     if blocked_workflows:
         click.echo(
-            f"\n{len(blocked_workflows)} workflow(s) blocked: "
-            f"{', '.join(blocked_workflows)}"
+            f"\n{len(blocked_workflows)} workflow(s) blocked: {', '.join(blocked_workflows)}"
         )
         click.echo("Fix infrastructure issues before running the backtest.")
         sys.exit(1)

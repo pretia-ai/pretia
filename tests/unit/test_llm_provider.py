@@ -9,15 +9,14 @@ from types import SimpleNamespace
 import pytest
 
 from bt_agents.providers.llm import (
-    LLMResponse,
     _CACHE_BUST_PLACEHOLDER,
+    LLMResponse,
     _extract_cache_tokens,
     _extract_tool_calls,
     _substitute_cache_bust,
     _to_litellm_model,
     call_model,
 )
-
 
 # ---------------------------------------------------------------------------
 # _substitute_cache_bust
@@ -76,7 +75,9 @@ class TestToLitellmModel:
     def test_gpt_5_4_nano(self) -> None:
         assert _to_litellm_model("gpt-5.4-nano") == "openai/gpt-5.4-nano"
 
-    def test_unknown_model_falls_through_with_warning(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_unknown_model_falls_through_with_warning(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
         """Model in MODEL_PRICING but absent from LITELLM_MODEL_MAP logs a
         warning and returns the canonical name directly."""
         # "gpt-4o" exists in MODEL_PRICING but has no LITELLM_MODEL_MAP entry
@@ -147,11 +148,7 @@ class TestExtractToolCalls:
             ),
         )
         response = SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(tool_calls=[tool_call])
-                )
-            ]
+            choices=[SimpleNamespace(message=SimpleNamespace(tool_calls=[tool_call]))]
         )
         result = _extract_tool_calls(response)
         assert len(result) == 1
@@ -163,11 +160,7 @@ class TestExtractToolCalls:
     def test_response_without_tool_calls(self) -> None:
         """Response with no tool_calls returns an empty list."""
         response = SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(tool_calls=None)
-                )
-            ]
+            choices=[SimpleNamespace(message=SimpleNamespace(tool_calls=None))]
         )
         assert _extract_tool_calls(response) == []
 

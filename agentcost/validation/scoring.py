@@ -504,15 +504,11 @@ def score_comparison(
     else:
         ci_coverage = 0.0
     if ci_coverage < targets["ci_coverage"]:
-        failures.append(
-            f"CI coverage {ci_coverage:.0f}% below {targets['ci_coverage']}% target"
-        )
+        failures.append(f"CI coverage {ci_coverage:.0f}% below {targets['ci_coverage']}% target")
 
     gt_monthly = gt_mean * traffic * 30
     proj_monthly = proj_mean * traffic * 30
-    monthly_error = (
-        abs(proj_monthly - gt_monthly) / gt_monthly * 100 if gt_monthly > 0 else 0.0
-    )
+    monthly_error = abs(proj_monthly - gt_monthly) / gt_monthly * 100 if gt_monthly > 0 else 0.0
     if monthly_error > targets["monthly_error"]:
         failures.append(
             f"Monthly error {monthly_error:.1f}% exceeds {targets['monthly_error']}% target"

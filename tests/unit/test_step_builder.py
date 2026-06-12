@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import replace
 
 import pytest
 
@@ -11,7 +10,6 @@ from agentcost.collectors.base import StepRecord
 from bt_agents.harness.step_builder import build_embedding_step, build_llm_step
 from bt_agents.providers.embeddings import EmbeddingResponse
 from bt_agents.providers.llm import LLMResponse
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -42,7 +40,11 @@ def mock_llm_response_with_tools() -> LLMResponse:
         model="claude-sonnet-4-6",
         finish_reason="length",
         tool_calls=[
-            {"id": "call_1", "type": "function", "function": {"name": "search", "arguments": "{}"}},
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "search", "arguments": "{}"},
+            },
             {"id": "call_2", "type": "function", "function": {"name": "read", "arguments": "{}"}},
         ],
     )
@@ -203,9 +205,7 @@ class TestBuildLlmStep:
         )
         assert record.output_truncated is None
 
-    def test_output_tool_call_count(
-        self, mock_llm_response_with_tools: LLMResponse
-    ) -> None:
+    def test_output_tool_call_count(self, mock_llm_response_with_tools: LLMResponse) -> None:
         """output_tool_call_count counts tool_calls in the response."""
         record = build_llm_step(
             step_name="tools",

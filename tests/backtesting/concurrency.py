@@ -91,7 +91,8 @@ def build_concurrent_groups(workflow_ids: list[str]) -> list[list[str]]:
 
     logger.info(
         "Built %d concurrent groups from %d workflows: %s",
-        len(groups), len(normalized),
+        len(groups),
+        len(normalized),
         [f"[{', '.join(g)}]" for g in groups],
     )
     return groups

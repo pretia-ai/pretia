@@ -1,4 +1,5 @@
 """Tests for backtest visualizations (B1-B10)."""
+
 from __future__ import annotations
 
 import json
@@ -27,14 +28,25 @@ from visualization.backtest.visualize_backtest import (  # noqa: E402
     generate_all_backtest_visuals,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 _WORKFLOW_NAMES = [
-    "W1", "W2", "W4", "W5", "W9", "W11", "W12", "W13",
-    "W14", "W15", "W16", "W17", "W18", "W19",
+    "W1",
+    "W2",
+    "W4",
+    "W5",
+    "W9",
+    "W11",
+    "W12",
+    "W13",
+    "W14",
+    "W15",
+    "W16",
+    "W17",
+    "W18",
+    "W19",
 ]
 
 
@@ -62,18 +74,16 @@ def _make_comparison_data(
     drift_factor: float = 1.0,
 ) -> dict:
     profiling_costs = [base_cost + rng.gauss(0, base_cost * 0.2) for _ in range(n_profiling)]
-    gt_costs = [
-        (base_cost * drift_factor) + rng.gauss(0, base_cost * 0.2) for _ in range(n_gt)
-    ]
+    gt_costs = [(base_cost * drift_factor) + rng.gauss(0, base_cost * 0.2) for _ in range(n_gt)]
     # Ensure no negatives
     profiling_costs = [max(0.001, c) for c in profiling_costs]
     gt_costs = [max(0.001, c) for c in gt_costs]
     ci_lo = sorted(profiling_costs)[int(len(profiling_costs) * 0.05)]
     ci_hi = sorted(profiling_costs)[int(len(profiling_costs) * 0.95)]
-    proj_cvar = sum(sorted(profiling_costs)[int(len(profiling_costs) * 0.95):]) / max(
+    proj_cvar = sum(sorted(profiling_costs)[int(len(profiling_costs) * 0.95) :]) / max(
         1, len(profiling_costs) - int(len(profiling_costs) * 0.95)
     )
-    actual_cvar = sum(sorted(gt_costs)[int(len(gt_costs) * 0.95):]) / max(
+    actual_cvar = sum(sorted(gt_costs)[int(len(gt_costs) * 0.95) :]) / max(
         1, len(gt_costs) - int(len(gt_costs) * 0.95)
     )
     return {
@@ -110,17 +120,19 @@ def _make_workflow_data(
         },
     }
     if include_bimodality:
-        data["detected_patterns"].append({
-            "pattern_type": "bimodality",
-            "step_name": "_workflow_",
-            "severity": "warning",
-            "evidence": {},
-            "description": "Bimodal distribution detected.",
-            "gmm_means": [math.log(base_cost * 0.5), math.log(base_cost * 2.0)],
-            "gmm_stds": [0.3, 0.25],
-            "gmm_weights": [0.4, 0.6],
-            "bimodal_bic_delta": 15.0,
-        })
+        data["detected_patterns"].append(
+            {
+                "pattern_type": "bimodality",
+                "step_name": "_workflow_",
+                "severity": "warning",
+                "evidence": {},
+                "description": "Bimodal distribution detected.",
+                "gmm_means": [math.log(base_cost * 0.5), math.log(base_cost * 2.0)],
+                "gmm_stds": [0.3, 0.25],
+                "gmm_weights": [0.4, 0.6],
+                "bimodal_bic_delta": 15.0,
+            }
+        )
     return data
 
 
@@ -143,9 +155,7 @@ def _write_backtest_data(
     all_data: list[dict] = []
 
     for wf in workflows:
-        data = _make_workflow_data(
-            wf, rng, include_bimodality=wf in include_bimodality_for
-        )
+        data = _make_workflow_data(wf, rng, include_bimodality=wf in include_bimodality_for)
         # Filter comparisons
         data["comparisons"] = {k: v for k, v in data["comparisons"].items() if k in comparisons}
         fpath = results_dir / f"{wf}.json"
@@ -190,9 +200,7 @@ class TestB3DriftBars:
     def test_b3_drift_bars_three_per_workflow(self, tmp_path):
         """Verify 3 comparison bars per workflow when comparison='all'."""
         output_dir = tmp_path / "output"
-        data = _write_backtest_data(
-            tmp_path / "results", workflows=["W1", "W2", "W4"]
-        )
+        data = _write_backtest_data(tmp_path / "results", workflows=["W1", "W2", "W4"])
         paths = b3_drift_impact_grouped_bars(data, output_dir, comparison="all")
         assert len(paths) >= 1
         assert all(p.exists() for p in paths)

@@ -8,17 +8,15 @@ import random
 import pytest
 
 from bt_agents.harness.retrieval_sim import (
+    _MOCK_EMBED_DIM,
     Corpus,
-    CorpusChunk,
     RetrievedChunk,
     _build_mock_corpus,
-    _MOCK_EMBED_DIM,
     cosine_similarity,
     load_corpus,
     retrieve,
 )
 from bt_agents.providers.embeddings import _DEFAULT_EMBEDDING_DIM
-
 
 # ── cosine_similarity ────────────────────────────────────────────────────
 
@@ -88,18 +86,12 @@ class TestBuildMockCorpus:
         corpus = _build_mock_corpus()
         for chunk in corpus.chunks:
             assert chunk.text.strip(), f"Chunk {chunk.chunk_id} has empty text"
-            assert chunk.document_name.strip(), (
-                f"Chunk {chunk.chunk_id} has empty document_name"
-            )
+            assert chunk.document_name.strip(), f"Chunk {chunk.chunk_id} has empty document_name"
 
     def test_provider_metadata_present(self) -> None:
         """All 10 mock chunks carry metadata['provider']."""
         corpus = _build_mock_corpus()
-        providers = [
-            c.metadata["provider"]
-            for c in corpus.chunks
-            if "provider" in c.metadata
-        ]
+        providers = [c.metadata["provider"] for c in corpus.chunks if "provider" in c.metadata]
         assert len(providers) == 10
 
 
@@ -118,9 +110,7 @@ class TestRetrieve:
         """Use the first chunk's embedding as the query for predictable results."""
         return corpus.chunks[0].embedding
 
-    def test_top_k_returns_exact_count(
-        self, query_embedding: list[float], corpus: Corpus
-    ) -> None:
+    def test_top_k_returns_exact_count(self, query_embedding: list[float], corpus: Corpus) -> None:
         """top_k=3 returns exactly 3 results."""
         results = retrieve(query_embedding, corpus, top_k=3)
         assert len(results) == 3
@@ -134,16 +124,12 @@ class TestRetrieve:
         similarities = [r.similarity for r in results]
         assert similarities == sorted(similarities, reverse=True)
 
-    def test_top_k_exceeds_corpus_size(
-        self, query_embedding: list[float], corpus: Corpus
-    ) -> None:
+    def test_top_k_exceeds_corpus_size(self, query_embedding: list[float], corpus: Corpus) -> None:
         """top_k larger than the corpus returns all chunks without crashing."""
         results = retrieve(query_embedding, corpus, top_k=999)
         assert len(results) == len(corpus.chunks)
 
-    def test_filter_fn_provider_aetna(
-        self, query_embedding: list[float], corpus: Corpus
-    ) -> None:
+    def test_filter_fn_provider_aetna(self, query_embedding: list[float], corpus: Corpus) -> None:
         """Filtering for provider=='aetna' returns only the 2 aetna chunks."""
         results = retrieve(
             query_embedding,

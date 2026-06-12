@@ -266,9 +266,7 @@ def _run_pre_calibration() -> bool:
     try:
         from pre_calibration.pre_calibration import run_pre_calibration
 
-        report = asyncio.run(
-            run_pre_calibration(output=RESULTS_DIR / "pre_calibration.json")
-        )
+        report = asyncio.run(run_pre_calibration(output=RESULTS_DIR / "pre_calibration.json"))
         if report.proceed_to_pilot:
             click.echo("Pre-calibration: PASSED")
             return True
