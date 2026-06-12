@@ -79,19 +79,21 @@ class TestComparisonAGate:
         assert "1 failure(s)" in msg
 
     def test_check_comparison_a_gate_stop(self) -> None:
-        """3 or more failures returns (True, message)."""
+        """5 or more failures returns (True, message)."""
         tracker = BudgetTracker(limit=10.0)
         scores = {
             "W1-support-simple": {"passed": False},
+            "W2-support-complex": {"passed": False},
             "W9-sales-openai": {"passed": False},
             "W11-support-qwen": {"passed": False},
-            "W12-extraction-deepseek": {"passed": True},
+            "W12-extraction-deepseek": {"passed": False},
+            "W13-routing-agent": {"passed": True},
         }
 
         should_stop, msg = tracker.check_comparison_a_gate(scores)
 
         assert should_stop is True
-        assert "3 workflows failed" in msg
+        assert "5 workflows failed" in msg
         assert "Systemic engine problem" in msg
 
 

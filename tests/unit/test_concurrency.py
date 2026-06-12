@@ -24,9 +24,8 @@ class TestGetParallelForWorkflow:
         expected = min(PROVIDER_PARALLEL[p] for p in providers)
         assert result == expected
 
-    def test_openai_is_most_constrained(self) -> None:
-        assert get_parallel_for_workflow("W9") == PROVIDER_PARALLEL["openai"]
-        assert PROVIDER_PARALLEL["openai"] <= PROVIDER_PARALLEL["anthropic"]
+    def test_w9_uses_override(self) -> None:
+        assert get_parallel_for_workflow("W9") == 15  # WORKFLOW_PARALLEL_OVERRIDE
 
     def test_handles_suffix(self) -> None:
         assert get_parallel_for_workflow("W1-support-simple") == get_parallel_for_workflow("W1")

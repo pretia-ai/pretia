@@ -329,9 +329,9 @@ class TestCheckW19HistoryAccumulation:
         assert result.status == "PASS"
 
     def test_fail_with_flat_history(self, sample_record: StepRecord) -> None:
-        """W19 with flat input tokens should FAIL."""
+        """W19 with flat input tokens (ratio < 1.3) should FAIL."""
         first = replace(sample_record, input_tokens=100)
-        last = replace(sample_record, input_tokens=200)  # ratio = 2.0 < 5.0
+        last = replace(sample_record, input_tokens=120)  # ratio = 1.2 < 1.3
         records = [[first, last]]
         result = check_w19_history_accumulation("W19-multi-turn", records)
 
