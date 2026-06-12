@@ -760,13 +760,14 @@ def main(
             click.echo(f"  Group {group_idx + 1}/{len(groups_a)}: [{', '.join(group)}]")
             group_results = asyncio.run(_run_comparison_group(group, "A", {}))
 
-            for wf_id, comp_result, _prof_rec, prof_inp, _prof_st in group_results:
+            for wf_id, comp_result, prof_rec, prof_inp, _prof_st in group_results:
                 cost = sum(comp_result.get("profiling_run_costs", [])) + sum(
                     comp_result.get("ground_truth_run_costs", [])
                 )
                 budget.record(wf_id, "A", cost)
                 all_comparisons.setdefault(wf_id, {})["A"] = comp_result
                 all_inputs[wf_id] = prof_inp or []
+                all_results[wf_id] = prof_rec
 
                 passed = comp_result.get("score", {}).get("passes", False)
                 a_scores[wf_id] = passed
@@ -796,7 +797,7 @@ def main(
             and not (resume and (out_dir / f"{wf.lower()}_comparison_B.json").exists())
         ]
         groups_b = build_concurrent_groups(eligible_b)
-        prof_data_b = {wf: (None, all_inputs.get(wf)) for wf in eligible_b}
+        prof_data_b = {wf: (all_results.get(wf), all_inputs.get(wf)) for wf in eligible_b}
 
         for group_idx, group in enumerate(groups_b):
             click.echo(f"  Group {group_idx + 1}/{len(groups_b)}: [{', '.join(group)}]")

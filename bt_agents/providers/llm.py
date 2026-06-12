@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -45,7 +46,24 @@ LITELLM_MODEL_MAP: dict[str, str] = {
 
 _CACHE_BUST_PLACEHOLDER = "{{CACHE_BUST_SUFFIX}}"
 
-_RETRY_DELAYS = [1.0, 2.0, 4.0]
+_MAX_RETRIES = 3
+_MAX_RETRIES_RATE_LIMIT = 5
+
+
+def _retry_delay(attempt: int) -> float:
+    """Exponential backoff with jitter to avoid thundering herd."""
+    base = min(2**attempt, 30)
+    jitter = random.uniform(0, base * 0.5)
+    return base + jitter
+
+
+def _is_rate_limit_error(exc: Exception) -> bool:
+    """Detect rate-limit errors (HTTP 429 or provider-specific messages)."""
+    msg = str(exc).lower()
+    if "429" in msg or "rate limit" in msg or "rate_limit" in msg:
+        return True
+    status = getattr(exc, "status_code", None)
+    return status == 429
 
 
 class LLMCallError(Exception):
@@ -192,7 +210,8 @@ async def call_model(
         kwargs["temperature"] = temperature
 
     last_exc: Exception | None = None
-    for attempt, delay in enumerate(_RETRY_DELAYS):
+    max_attempts = _MAX_RETRIES
+    for attempt in range(max_attempts):
         try:
             start = time.monotonic()
             response = await acompletion(**kwargs)
@@ -200,18 +219,20 @@ async def call_model(
             break
         except Exception as exc:
             last_exc = exc
+            if _is_rate_limit_error(exc):
+                max_attempts = _MAX_RETRIES_RATE_LIMIT
             logger.warning(
                 "LLM call attempt %d/%d failed for %s: %s",
                 attempt + 1,
-                len(_RETRY_DELAYS),
+                max_attempts,
                 canonical,
                 exc,
             )
-            if attempt < len(_RETRY_DELAYS) - 1:
-                await asyncio.sleep(delay)
+            if attempt < max_attempts - 1:
+                await asyncio.sleep(_retry_delay(attempt))
     else:
         raise LLMCallError(
-            f"All {len(_RETRY_DELAYS)} attempts failed for {canonical}"
+            f"All {max_attempts} attempts failed for {canonical}"
         ) from last_exc
 
     usage = getattr(response, "usage", None)

@@ -90,9 +90,6 @@ Issues = "https://github.com/agentcost/agentcost/issues"
 [tool.hatch.build.targets.wheel]
 packages = ["agentcost"]
 
-[tool.hatch.build.targets.wheel.force-include]
-"agentcost/models" = "agentcost/models"
-
 [tool.ruff]
 line-length = 99
 target-version = "py311"
