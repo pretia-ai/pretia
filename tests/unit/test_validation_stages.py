@@ -93,14 +93,19 @@ class TestStage3Calibration:
         mock_report.p95_coverage_pct = 80.0
 
         with (
-            patch("scripts.validate.generate_all_synthetic_workflows", return_value=mock_workflows,
-                  create=True),
-            patch("tests.synthetic.generators.generate_all_synthetic_workflows",
-                  return_value=mock_workflows),
-            patch("tests.synthetic.runner.run_synthetic_calibration",
-                  return_value=mock_results),
-            patch("tests.synthetic.calibration.compute_calibration_report",
-                  return_value=mock_report),
+            patch(
+                "scripts.validate.generate_all_synthetic_workflows",
+                return_value=mock_workflows,
+                create=True,
+            ),
+            patch(
+                "tests.synthetic.generators.generate_all_synthetic_workflows",
+                return_value=mock_workflows,
+            ),
+            patch("tests.synthetic.runner.run_synthetic_calibration", return_value=mock_results),
+            patch(
+                "tests.synthetic.calibration.compute_calibration_report", return_value=mock_report
+            ),
         ):
             result = run_stage_3()
 
@@ -120,8 +125,9 @@ class TestStage3Calibration:
         with (
             patch("tests.synthetic.generators.generate_all_synthetic_workflows", return_value=[]),
             patch("tests.synthetic.runner.run_synthetic_calibration", return_value=[]),
-            patch("tests.synthetic.calibration.compute_calibration_report",
-                  return_value=mock_report),
+            patch(
+                "tests.synthetic.calibration.compute_calibration_report", return_value=mock_report
+            ),
         ):
             result = run_stage_3()
 
@@ -132,9 +138,12 @@ class TestStage3Calibration:
     def test_import_error_warns(self) -> None:
         from scripts.validate import run_stage_3
 
-        with patch.dict("sys.modules", {
-            "tests.synthetic.generators": None,
-        }):
+        with patch.dict(
+            "sys.modules",
+            {
+                "tests.synthetic.generators": None,
+            },
+        ):
             with patch("builtins.__import__", side_effect=ImportError("no module")):
                 result = run_stage_3()
 

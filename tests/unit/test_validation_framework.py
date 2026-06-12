@@ -15,22 +15,16 @@ from scripts._validation_types import (
 
 class TestCheckResult:
     def test_fail_and_blocking_blocks(self):
-        cr = CheckResult(
-            name="test", status=CheckStatus.FAIL, details={}, blocking=True
-        )
+        cr = CheckResult(name="test", status=CheckStatus.FAIL, details={}, blocking=True)
         assert cr.status == CheckStatus.FAIL
         assert cr.blocking is True
 
     def test_warn_does_not_block(self):
-        cr = CheckResult(
-            name="test", status=CheckStatus.WARN, details={}, blocking=True
-        )
+        cr = CheckResult(name="test", status=CheckStatus.WARN, details={}, blocking=True)
         assert cr.status != CheckStatus.FAIL
 
     def test_fail_non_blocking_does_not_block(self):
-        cr = CheckResult(
-            name="test", status=CheckStatus.FAIL, details={}, blocking=False
-        )
+        cr = CheckResult(name="test", status=CheckStatus.FAIL, details={}, blocking=False)
         assert not cr.blocking
 
     def test_to_dict(self):
@@ -49,15 +43,11 @@ class TestCheckResult:
         assert d["check_id"] == "2.1"
 
     def test_to_dict_omits_none_check_id(self):
-        cr = CheckResult(
-            name="test", status=CheckStatus.PASS, details={}, blocking=False
-        )
+        cr = CheckResult(name="test", status=CheckStatus.PASS, details={}, blocking=False)
         assert "check_id" not in cr.to_dict()
 
     def test_frozen(self):
-        cr = CheckResult(
-            name="test", status=CheckStatus.PASS, details={}, blocking=True
-        )
+        cr = CheckResult(name="test", status=CheckStatus.PASS, details={}, blocking=True)
         try:
             cr.name = "other"  # type: ignore[misc]
             raise AssertionError("Should not allow mutation")
@@ -102,9 +92,7 @@ class TestStageResult:
         assert sr.warnings == ["w"]
 
     def test_to_dict(self):
-        checks = (
-            CheckResult("a", CheckStatus.PASS, {}, blocking=True),
-        )
+        checks = (CheckResult("a", CheckStatus.PASS, {}, blocking=True),)
         sr = StageResult(stage=1, name="Data Readiness", checks=checks, duration_s=1.234)
         d = sr.to_dict()
         assert d["stage"] == 1
@@ -184,13 +172,9 @@ class TestRunValidation:
     def test_short_circuits_on_blocking_failure(self):
         from scripts.validate import run_validation
 
-        fail_checks = (
-            CheckResult("bad", CheckStatus.FAIL, {}, blocking=True),
-        )
+        fail_checks = (CheckResult("bad", CheckStatus.FAIL, {}, blocking=True),)
         fail_stage = StageResult(stage=1, name="Data", checks=fail_checks, duration_s=0.1)
-        pass_checks = (
-            CheckResult("ok", CheckStatus.PASS, {}, blocking=True),
-        )
+        pass_checks = (CheckResult("ok", CheckStatus.PASS, {}, blocking=True),)
         pass_stage = StageResult(stage=2, name="Infra", checks=pass_checks, duration_s=0.1)
 
         with (
