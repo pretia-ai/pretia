@@ -260,22 +260,24 @@ def _run_phase_4() -> None:
 
 
 def _run_pre_calibration() -> bool:
-    """Run pre-calibration checks. Returns True if pilot can proceed."""
-    import asyncio
-
+    """Run validation stages 1-3. Returns True if backtest can proceed."""
     try:
-        from pre_calibration.pre_calibration import run_pre_calibration
+        from scripts.validate import run_validation
 
-        report = asyncio.run(run_pre_calibration(output=RESULTS_DIR / "pre_calibration.json"))
-        if report.proceed_to_pilot:
-            click.echo("Pre-calibration: PASSED")
+        report = run_validation(
+            skip_live=True,
+            output=RESULTS_DIR / "validation.json",
+        )
+        if report.passed:
+            click.echo(f"Validation: PASSED (stage {report.max_passed_stage})")
             return True
-        click.echo("Pre-calibration: BLOCKED")
-        for f in report.blocking_failures:
-            click.echo(f"  Failure: {f}")
+        click.echo("Validation: BLOCKED")
+        for stage in report.stages:
+            for fail in stage.blocking_failures:
+                click.echo(f"  Stage {stage.stage}: {fail}")
         return False
     except Exception as exc:
-        click.echo(f"Pre-calibration error: {exc}", err=True)
+        click.echo(f"Validation error: {exc}", err=True)
         return False
 
 

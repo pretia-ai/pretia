@@ -77,8 +77,54 @@ def _wf_id(name: str) -> str:
     return name.split("-")[0].upper()
 
 
+def _check_validation_gate(
+    report_path: Path | None = None,
+    min_stage: int = 3,
+) -> bool:
+    """Verify scripts/validate.py passed at least the required stage.
+
+    Falls back to legacy pilot_report.json if validation.json is missing.
+    """
+    if report_path is None:
+        report_path = Path(__file__).resolve().parents[2] / "reports" / "validation.json"
+
+    if report_path.exists():
+        report = json.loads(report_path.read_text())
+        max_stage = report.get("max_passed_stage", 0)
+        if max_stage >= min_stage:
+            click.echo(f"Validation gate: PASSED (stage {max_stage})")
+            return True
+        click.echo(
+            f"Validation only passed through stage {max_stage} (need {min_stage}+).\n"
+            "Fix issues and re-run: python scripts/validate.py",
+            err=True,
+        )
+        for stage_data in report.get("stages", []):
+            for fail in stage_data.get("blocking_failures", []):
+                click.echo(f"  BLOCKED: Stage {stage_data['stage']} / {fail}", err=True)
+        return False
+
+    # Fallback: legacy pilot report
+    pilot_path = Path(__file__).resolve().parent / "results" / "pilot" / "pilot_report.json"
+    if pilot_path.exists():
+        click.echo("Using legacy pilot_report.json (run scripts/validate.py for unified gate).")
+        pilot = json.loads(pilot_path.read_text())
+        blocked = pilot.get("blocked_workflows", [])
+        if blocked:
+            click.echo(f"Pilot had blocked workflows: {blocked}", err=True)
+            return False
+        return True
+
+    click.echo(
+        "No validation report found.\n"
+        "Run: python scripts/validate.py --output reports/validation.json",
+        err=True,
+    )
+    return False
+
+
 def _check_pilot_gate(pilot_dir: Path, workflow_id: str) -> bool:
-    """Verify pilot report exists and workflow passed Layer 1 checks."""
+    """Legacy: verify pilot report for a specific workflow. Use _check_validation_gate instead."""
     report_path = pilot_dir / "pilot_report.json"
     if not report_path.exists():
         click.echo(
@@ -752,7 +798,7 @@ def main(
             for wf in workflow_ids
             if _config_for_workflow(wf) is not None
             and not (resume and (out_dir / f"{wf.lower()}_comparison_A.json").exists())
-            and (dry_run or _check_pilot_gate(pilot_path, wf))
+            and (dry_run or _check_validation_gate())
         ]
         groups_a = build_concurrent_groups(eligible_a)
 
