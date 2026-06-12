@@ -5,14 +5,20 @@ from __future__ import annotations
 import asyncio
 import logging
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
 from bt_agents.providers.llm import (
     _CACHE_BUST_PLACEHOLDER,
+    _MAX_RETRIES,
+    _MAX_RETRIES_RATE_LIMIT,
+    LLMCallError,
     LLMResponse,
     _extract_cache_tokens,
     _extract_tool_calls,
+    _is_rate_limit_error,
+    _retry_delay,
     _substitute_cache_bust,
     _to_litellm_model,
     call_model,
@@ -208,3 +214,150 @@ class TestCallModelDryRun:
         assert resp.input_tokens == 0
         assert resp.output_tokens == 0
         assert resp.model == "claude-haiku-4-5"
+
+
+# ---------------------------------------------------------------------------
+# _retry_delay — exponential backoff with jitter
+# ---------------------------------------------------------------------------
+
+
+class TestRetryDelay:
+    def test_monotonically_increasing_base(self) -> None:
+        """Base delay doubles each attempt (before jitter)."""
+        for attempt in range(6):
+            delay = _retry_delay(attempt)
+            base = min(2**attempt, 30)
+            assert base <= delay <= base * 1.5
+
+    def test_capped_at_30(self) -> None:
+        """Base never exceeds 30s even at high attempt counts."""
+        for _ in range(20):
+            delay = _retry_delay(10)
+            assert delay <= 45.0  # 30 base + 15 max jitter
+
+    def test_jitter_adds_variance(self) -> None:
+        """Repeated calls at the same attempt produce different delays."""
+        delays = {_retry_delay(2) for _ in range(50)}
+        assert len(delays) > 1
+
+
+# ---------------------------------------------------------------------------
+# _is_rate_limit_error
+# ---------------------------------------------------------------------------
+
+
+class TestIsRateLimitError:
+    def test_429_in_message(self) -> None:
+        assert _is_rate_limit_error(Exception("Error 429: Too Many Requests"))
+
+    def test_rate_limit_phrase(self) -> None:
+        assert _is_rate_limit_error(Exception("rate limit exceeded"))
+
+    def test_status_code_attribute(self) -> None:
+        exc = Exception("throttled")
+        exc.status_code = 429  # type: ignore[attr-defined]
+        assert _is_rate_limit_error(exc)
+
+    def test_non_rate_limit(self) -> None:
+        assert not _is_rate_limit_error(Exception("connection timeout"))
+
+    def test_500_not_rate_limit(self) -> None:
+        exc = Exception("server error")
+        exc.status_code = 500  # type: ignore[attr-defined]
+        assert not _is_rate_limit_error(exc)
+
+
+# ---------------------------------------------------------------------------
+# call_model retry behavior
+# ---------------------------------------------------------------------------
+
+
+class TestCallModelRetry:
+    def test_retries_on_transient_error(self) -> None:
+        """call_model retries up to _MAX_RETRIES on non-rate-limit errors."""
+        attempts = []
+
+        async def fake_acompletion(**kwargs: Any) -> None:
+            attempts.append(1)
+            raise Exception("connection reset")
+
+        import unittest.mock
+
+        with (
+            unittest.mock.patch("bt_agents.providers.llm.acompletion", fake_acompletion),
+            unittest.mock.patch("bt_agents.providers.llm._retry_delay", return_value=0.0),
+            pytest.raises(LLMCallError, match=f"All {_MAX_RETRIES} attempts"),
+        ):
+            asyncio.run(
+                call_model(
+                    "claude-haiku-4-5",
+                    "prompt",
+                    [{"role": "user", "content": "hi"}],
+                )
+            )
+        assert len(attempts) == _MAX_RETRIES
+
+    def test_rate_limit_gets_more_retries(self) -> None:
+        """Rate-limit errors expand max attempts to _MAX_RETRIES_RATE_LIMIT."""
+        attempts = []
+
+        async def fake_acompletion(**kwargs: Any) -> None:
+            attempts.append(1)
+            raise Exception("429 rate limit exceeded")
+
+        import unittest.mock
+
+        with (
+            unittest.mock.patch("bt_agents.providers.llm.acompletion", fake_acompletion),
+            unittest.mock.patch("bt_agents.providers.llm._retry_delay", return_value=0.0),
+            pytest.raises(LLMCallError, match=f"All {_MAX_RETRIES_RATE_LIMIT} attempts"),
+        ):
+            asyncio.run(
+                call_model(
+                    "claude-haiku-4-5",
+                    "prompt",
+                    [{"role": "user", "content": "hi"}],
+                )
+            )
+        assert len(attempts) == _MAX_RETRIES_RATE_LIMIT
+
+    def test_succeeds_after_transient_failure(self) -> None:
+        """call_model returns successfully after a transient failure."""
+        call_count = []
+
+        async def fake_acompletion(**kwargs: Any) -> SimpleNamespace:
+            call_count.append(1)
+            if len(call_count) == 1:
+                raise Exception("transient error")
+            return SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        message=SimpleNamespace(content="ok", tool_calls=None),
+                        finish_reason="stop",
+                    )
+                ],
+                usage=SimpleNamespace(
+                    prompt_tokens=10,
+                    completion_tokens=5,
+                    prompt_cache_hit_tokens=0,
+                    cache_creation_input_tokens=0,
+                    cache_read_input_tokens=0,
+                    total_tokens=15,
+                ),
+            )
+
+        import unittest.mock
+
+        with (
+            unittest.mock.patch("bt_agents.providers.llm.acompletion", fake_acompletion),
+            unittest.mock.patch("bt_agents.providers.llm._retry_delay", return_value=0.0),
+        ):
+            resp = asyncio.run(
+                call_model(
+                    "claude-haiku-4-5",
+                    "prompt",
+                    [{"role": "user", "content": "hi"}],
+                )
+            )
+        assert len(call_count) == 2
+        assert resp.content == "ok"

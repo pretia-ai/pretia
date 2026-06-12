@@ -211,7 +211,8 @@ async def call_model(
 
     last_exc: Exception | None = None
     max_attempts = _MAX_RETRIES
-    for attempt in range(max_attempts):
+    attempt = 0
+    while attempt < max_attempts:
         try:
             start = time.monotonic()
             response = await acompletion(**kwargs)
@@ -228,8 +229,9 @@ async def call_model(
                 canonical,
                 exc,
             )
-            if attempt < max_attempts - 1:
-                await asyncio.sleep(_retry_delay(attempt))
+            attempt += 1
+            if attempt < max_attempts:
+                await asyncio.sleep(_retry_delay(attempt - 1))
     else:
         raise LLMCallError(
             f"All {max_attempts} attempts failed for {canonical}"
