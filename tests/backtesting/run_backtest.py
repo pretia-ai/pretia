@@ -730,7 +730,6 @@ def main(
 
     out_dir = Path(results_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    pilot_path = Path(pilot_dir)
 
     # Determine workflows
     if run_all:
