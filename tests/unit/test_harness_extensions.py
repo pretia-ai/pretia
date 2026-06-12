@@ -9,9 +9,15 @@ from typing import Any
 
 import pytest
 
-from agentcost.collectors.base import StepRecord
-from agentcost.store import ProfileStore, ProfilingSession
-from bt_agents.harness.run_workflow import (
+_has_litellm = True
+try:
+    import litellm  # noqa: F401
+except ModuleNotFoundError:
+    _has_litellm = False
+
+from agentcost.collectors.base import StepRecord  # noqa: E402
+from agentcost.store import ProfileStore, ProfilingSession  # noqa: E402
+from bt_agents.harness.run_workflow import (  # noqa: E402
     _detect_batch_patterns,
     _extract_run_metadata,
     _pricing_table_hash,
@@ -541,6 +547,10 @@ class TestSaveAsSession:
         assert len(sessions) >= 1
 
 
+@pytest.mark.skipif(
+    not _has_litellm,
+    reason="litellm not installed",
+)
 class TestEndToEndWithDryRun:
     """Integration: dry-run W1 → save_results → save_as_session → load → compute_stats."""
 

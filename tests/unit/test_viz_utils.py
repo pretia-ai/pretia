@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from visualization.utils import add_caption, discover_results, format_workflow_label, save_figure
 
 
@@ -34,7 +36,7 @@ class TestDiscoverResults:
 
 class TestSaveFigure:
     def test_creates_png_and_pdf(self, tmp_path):
-        import matplotlib
+        matplotlib = pytest.importorskip("matplotlib")
 
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
@@ -48,7 +50,7 @@ class TestSaveFigure:
         assert (tmp_path / "test_fig.pdf").exists()
 
     def test_creates_output_dir(self, tmp_path):
-        import matplotlib
+        matplotlib = pytest.importorskip("matplotlib")
 
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
@@ -64,7 +66,7 @@ class TestSaveFigure:
 
 class TestAddCaption:
     def test_adds_text(self):
-        import matplotlib
+        matplotlib = pytest.importorskip("matplotlib")
 
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt

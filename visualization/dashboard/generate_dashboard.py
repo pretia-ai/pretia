@@ -1289,6 +1289,39 @@ def generate_dashboard(
     has_pilot = bool(pilot_embed and pilot_plots_dir)
     has_backtest = bool(backtest_embed and backtest_plots_dir)
 
+    pilot_tab = (
+        '<a class=\'tab\' onclick="scrollToSection(\'pilot-plots\', this)">Pilot Plots</a>'
+        if has_pilot
+        else ""
+    )
+    backtest_tab = (
+        '<a class=\'tab\' onclick="scrollToSection(\'backtest-plots\', this)">Backtest Plots</a>'
+        if has_backtest
+        else ""
+    )
+    pilot_section = (
+        "<div id='pilot-plots' class='section'><details open>"
+        '<summary style="cursor:pointer;">'
+        '<h2 style="display:inline;">Pilot Visualizations (P1-P6)</h2></summary>'
+        '<p class="section-desc">Static plots from the 10-run pilot calibration.'
+        " Click to expand/collapse.</p>"
+        + pilot_embed
+        + "</details></div>"
+        if has_pilot
+        else ""
+    )
+    backtest_section = (
+        "<div id='backtest-plots' class='section'><details>"
+        '<summary style="cursor:pointer;">'
+        '<h2 style="display:inline;">Backtest Visualizations (B1-B10)</h2></summary>'
+        '<p class="section-desc">Static plots from the full backtest across all 3 comparisons.'
+        " Click to expand/collapse.</p>"
+        + backtest_embed
+        + "</details></div>"
+        if has_backtest
+        else ""
+    )
+
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1328,8 +1361,8 @@ h2 {{ margin: 0 0 4px; font-size: 18px; color: #343a40; }}
 <!-- Tab Navigation -->
 <div class="tab-bar">
   <a class="tab active" onclick="scrollToSection('summary', this)">Summary</a>
-  {"<a class='tab' onclick=\"scrollToSection('pilot-plots', this)\">Pilot Plots</a>" if has_pilot else ""}
-  {"<a class='tab' onclick=\"scrollToSection('backtest-plots', this)\">Backtest Plots</a>" if has_backtest else ""}
+  {pilot_tab}
+  {backtest_tab}
   <a class="tab" onclick="scrollToSection('results', this)">Results</a>
   <a class="tab" onclick="scrollToSection('analytics', this)">Analytics</a>
   <a class="tab" onclick="scrollToSection('explorer', this)">Explorer</a>
@@ -1370,9 +1403,9 @@ h2 {{ margin: 0 0 4px; font-size: 18px; color: #343a40; }}
 {findings_html}
 </div>
 
-{"<div id='pilot-plots' class='section'><details open><summary style=\"cursor:pointer;\"><h2 style=\"display:inline;\">Pilot Visualizations (P1-P6)</h2></summary><p class=\"section-desc\">Static plots from the 10-run pilot calibration. Click to expand/collapse.</p>" + pilot_embed + "</details></div>" if has_pilot else ""}
+{pilot_section}
 
-{"<div id='backtest-plots' class='section'><details><summary style=\"cursor:pointer;\"><h2 style=\"display:inline;\">Backtest Visualizations (B1-B10)</h2></summary><p class=\"section-desc\">Static plots from the full backtest across all 3 comparisons. Click to expand/collapse.</p>" + backtest_embed + "</details></div>" if has_backtest else ""}
+{backtest_section}
 
 <!-- D2: Results Table -->
 <div id="results" class="section">

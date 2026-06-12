@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 
 import pytest
+
+pytest.importorskip("litellm")
 from click.exceptions import UsageError
 
 from bt_agents.harness.run_workflow import load_agent, load_inputs, load_prompts
