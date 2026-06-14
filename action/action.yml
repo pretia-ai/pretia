@@ -1,1 +1,58 @@
-# AgentCost GitHub Action — Sprint 5
+name: "AgentCost — Pre-deployment Cost Analysis"
+description: >
+  Analyze AI agent workflow costs on every PR. Diff-only mode (default) runs
+  static analysis in seconds at zero cost. Full profile mode runs the actual
+  workflow (~5 min, ~$2) for distributional projections and recommendations.
+
+branding:
+  icon: "dollar-sign"
+  color: "green"
+
+inputs:
+  workflow_path:
+    description: "Path to the agent workflow Python file."
+    required: true
+  baseline_path:
+    description: "Path to the saved baseline JSON file."
+    required: false
+    default: ".agentcost/baseline.json"
+  mode:
+    description: "Analysis mode: 'diff' (static, free) or 'profile' (full, ~$2)."
+    required: false
+    default: "diff"
+  framework:
+    description: "Framework override: auto, langgraph, openai, qwen, generic."
+    required: false
+    default: "auto"
+  daily_volume:
+    description: "Daily run volume for cost projection."
+    required: false
+    default: "1000"
+  post_comment:
+    description: "Whether to post a PR comment with the results."
+    required: false
+    default: "true"
+  cost_threshold:
+    description: >
+      Fail the check if cost increase exceeds this percentage.
+      Leave empty to disable threshold checking.
+    required: false
+    default: ""
+
+outputs:
+  score:
+    description: "Optimization score (0-100). Only set in profile mode."
+  projected_cost:
+    description: "Projected monthly cost at p50."
+  cost_delta:
+    description: "Absolute cost change vs baseline."
+  delta_pct:
+    description: "Percentage cost change vs baseline."
+  rec_count:
+    description: "Number of optimization recommendations."
+  report_path:
+    description: "Path to the generated HTML report (profile mode only)."
+
+runs:
+  using: "docker"
+  image: "Dockerfile"

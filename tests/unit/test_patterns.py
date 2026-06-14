@@ -20,24 +20,27 @@ def _make_record(
     context_size: int = 100,
     iteration: int = 1,
     duration_ms: int = 500,
+    **kwargs: object,
 ) -> StepRecord:
-    return StepRecord(
-        step_name=step_name,
-        step_type="llm",
-        model=model,
-        input_tokens=input_tokens,
-        output_tokens=output_tokens,
-        context_size=context_size,
-        tool_definitions_tokens=0,
-        system_prompt_hash="abc123",
-        system_prompt_tokens=50,
-        output_format="text",
-        is_retry=False,
-        iteration=iteration,
-        parent_step=None,
-        duration_ms=duration_ms,
-        timestamp=datetime(2026, 5, 25, 12, 0, 0, tzinfo=UTC),
-    )
+    defaults: dict[str, object] = {
+        "step_name": step_name,
+        "step_type": "llm",
+        "model": model,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "context_size": context_size,
+        "tool_definitions_tokens": 0,
+        "system_prompt_hash": "abc123",
+        "system_prompt_tokens": 50,
+        "output_format": "text",
+        "is_retry": False,
+        "iteration": iteration,
+        "parent_step": None,
+        "duration_ms": duration_ms,
+        "timestamp": datetime(2026, 5, 25, 12, 0, 0, tzinfo=UTC),
+    }
+    defaults.update(kwargs)
+    return StepRecord(**defaults)
 
 
 def _simple_cost_fn(model: str, inp: int, out: int) -> float:
@@ -780,3 +783,319 @@ class TestGmmParametersStored:
         assert len(p.gmm_means) == 2
         assert len(p.gmm_stds) == 2
         assert len(p.gmm_weights) == 2
+
+
+# ---------------------------------------------------------------------------
+# Cache utilization opportunity tests (Pattern #7)
+# ---------------------------------------------------------------------------
+
+
+class TestCacheUtilizationDetected:
+    def test_low_cache_hit_fires_warning(self):
+        runs = []
+        for _ in range(5):
+            run = [
+                _make_record(
+                    "summarize",
+                    model="claude-sonnet-4-6",
+                    cache_hit_tokens=10,
+                    cache_miss_tokens=1990,
+                ),
+            ]
+            runs.append(run)
+        patterns = detect_patterns(runs, compute_stats(runs, _simple_cost_fn))
+        cu = [p for p in patterns if p.pattern_type == "cache_utilization_opportunity"]
+        assert len(cu) == 1
+        assert cu[0].severity == "warning"
+        assert cu[0].evidence["cache_hit_ratio"] < 0.1
+        assert cu[0].evidence["model"] == "claude-sonnet-4-6"
+        assert cu[0].evidence["total_cache_miss_tokens"] > 0
+
+
+class TestCacheUtilizationNotDetectedHighHitRate:
+    def test_high_cache_no_detection(self):
+        runs = []
+        for _ in range(5):
+            run = [
+                _make_record(
+                    "summarize",
+                    model="claude-sonnet-4-6",
+                    cache_hit_tokens=1500,
+                    cache_miss_tokens=500,
+                ),
+            ]
+            runs.append(run)
+        patterns = detect_patterns(runs, compute_stats(runs, _simple_cost_fn))
+        cu = [p for p in patterns if p.pattern_type == "cache_utilization_opportunity"]
+        assert len(cu) == 0
+
+
+class TestCacheUtilizationNotDetectedNoCacheFields:
+    def test_no_cache_fields_no_detection(self):
+        runs = [[_make_record("summarize", model="claude-sonnet-4-6")] for _ in range(5)]
+        patterns = detect_patterns(runs, compute_stats(runs, _simple_cost_fn))
+        cu = [p for p in patterns if p.pattern_type == "cache_utilization_opportunity"]
+        assert len(cu) == 0
+
+
+class TestCacheUtilizationNotDetectedUnsupportedModel:
+    def test_unsupported_model_no_detection(self):
+        runs = []
+        for _ in range(5):
+            run = [
+                _make_record(
+                    "summarize",
+                    model="gpt-4o",
+                    cache_hit_tokens=10,
+                    cache_miss_tokens=1990,
+                ),
+            ]
+            runs.append(run)
+        patterns = detect_patterns(runs, compute_stats(runs, _simple_cost_fn))
+        cu = [p for p in patterns if p.pattern_type == "cache_utilization_opportunity"]
+        assert len(cu) == 0
+
+
+class TestCacheUtilizationEdgeCaseZeroTokens:
+    def test_zero_tokens_no_detection(self):
+        runs = []
+        for _ in range(5):
+            run = [
+                _make_record(
+                    "summarize",
+                    model="claude-sonnet-4-6",
+                    cache_hit_tokens=0,
+                    cache_miss_tokens=0,
+                ),
+            ]
+            runs.append(run)
+        patterns = detect_patterns(runs, compute_stats(runs, _simple_cost_fn))
+        cu = [p for p in patterns if p.pattern_type == "cache_utilization_opportunity"]
+        assert len(cu) == 0
+
+
+# ---------------------------------------------------------------------------
+# Zero-execution step tests (Pattern #12)
+# ---------------------------------------------------------------------------
+
+
+class TestZeroExecutionStepDetected:
+    def test_missing_step_fires_warning(self):
+        runs = [
+            [_make_record("step_a"), _make_record("step_b")],
+            [_make_record("step_a"), _make_record("step_b")],
+        ]
+        graph_steps = ["step_a", "step_b", "step_c"]
+        patterns = detect_patterns(
+            runs,
+            compute_stats(runs, _simple_cost_fn),
+            graph_steps=graph_steps,
+        )
+        zes = [p for p in patterns if p.pattern_type == "zero_execution_step"]
+        assert len(zes) == 1
+        assert zes[0].step_name == "step_c"
+        assert zes[0].severity == "warning"
+        assert zes[0].evidence["total_runs"] == 2
+
+
+class TestZeroExecutionStepNotDetectedAllPresent:
+    def test_all_steps_present(self):
+        runs = [
+            [
+                _make_record("step_a"),
+                _make_record("step_b"),
+                _make_record("step_c"),
+            ],
+        ]
+        graph_steps = ["step_a", "step_b", "step_c"]
+        patterns = detect_patterns(
+            runs,
+            compute_stats(runs, _simple_cost_fn),
+            graph_steps=graph_steps,
+        )
+        zes = [p for p in patterns if p.pattern_type == "zero_execution_step"]
+        assert len(zes) == 0
+
+
+class TestZeroExecutionStepNoGraphSteps:
+    def test_no_graph_info_no_detection(self):
+        runs = [[_make_record("step_a")]]
+        patterns = detect_patterns(runs, compute_stats(runs, _simple_cost_fn))
+        zes = [p for p in patterns if p.pattern_type == "zero_execution_step"]
+        assert len(zes) == 0
+
+
+class TestZeroExecutionStepMultipleMissing:
+    def test_multiple_missing(self):
+        runs = [[_make_record("step_a")]] * 3
+        graph_steps = ["step_a", "step_b", "step_c", "step_d"]
+        patterns = detect_patterns(
+            runs,
+            compute_stats(runs, _simple_cost_fn),
+            graph_steps=graph_steps,
+        )
+        zes = [p for p in patterns if p.pattern_type == "zero_execution_step"]
+        assert len(zes) == 3
+        missing_names = {p.step_name for p in zes}
+        assert missing_names == {"step_b", "step_c", "step_d"}
+
+
+class TestZeroExecutionStepEmptyRuns:
+    def test_empty_runs(self):
+        patterns = detect_patterns([], graph_steps=["step_a"])
+        assert patterns == []
+
+
+# ---------------------------------------------------------------------------
+# Output token budget tests (Pattern #15)
+# ---------------------------------------------------------------------------
+
+
+class TestOutputBudgetTooLoose:
+    def test_budget_too_loose_fires_warning(self):
+        runs = []
+        for _ in range(10):
+            run = [
+                _make_record(
+                    "generate",
+                    output_tokens=200,
+                    max_tokens_setting=4096,
+                ),
+            ]
+            runs.append(run)
+        patterns = detect_patterns(runs, compute_stats(runs, _simple_cost_fn))
+        otb = [
+            p
+            for p in patterns
+            if p.pattern_type == "output_token_budget"
+            and p.evidence.get("budget_issue") == "too_loose"
+        ]
+        assert len(otb) == 1
+        assert otb[0].severity == "warning"
+        assert otb[0].evidence["max_tokens_setting"] == 4096
+        assert otb[0].evidence["median_output_tokens"] == 200
+        assert "suggested_max_tokens" in otb[0].evidence
+
+
+class TestOutputBudgetPossibleTruncation:
+    def test_truncation_fires_warning(self):
+        runs = []
+        for _ in range(10):
+            run = [
+                _make_record(
+                    "generate",
+                    output_tokens=950,
+                    max_tokens_setting=1000,
+                ),
+            ]
+            runs.append(run)
+        patterns = detect_patterns(runs, compute_stats(runs, _simple_cost_fn))
+        otb = [
+            p
+            for p in patterns
+            if p.pattern_type == "output_token_budget"
+            and p.evidence.get("budget_issue") == "possible_truncation"
+        ]
+        assert len(otb) == 1
+        assert otb[0].severity == "warning"
+
+
+class TestOutputBudgetNotDetectedReasonableSetting:
+    def test_reasonable_budget_no_detection(self):
+        runs = []
+        for _ in range(10):
+            run = [
+                _make_record(
+                    "generate",
+                    output_tokens=200,
+                    max_tokens_setting=500,
+                ),
+            ]
+            runs.append(run)
+        patterns = detect_patterns(runs, compute_stats(runs, _simple_cost_fn))
+        otb = [p for p in patterns if p.pattern_type == "output_token_budget"]
+        assert len(otb) == 0
+
+
+class TestOutputBudgetNotDetectedNoMaxTokens:
+    def test_no_max_tokens_no_detection(self):
+        runs = [[_make_record("generate", output_tokens=200)] for _ in range(10)]
+        patterns = detect_patterns(runs, compute_stats(runs, _simple_cost_fn))
+        otb = [p for p in patterns if p.pattern_type == "output_token_budget"]
+        assert len(otb) == 0
+
+
+class TestOutputBudgetSuggestedRounding:
+    def test_suggested_rounds_to_256(self):
+        runs = []
+        for _ in range(20):
+            run = [
+                _make_record(
+                    "generate",
+                    output_tokens=100,
+                    max_tokens_setting=4096,
+                ),
+            ]
+            runs.append(run)
+        patterns = detect_patterns(runs, compute_stats(runs, _simple_cost_fn))
+        otb = [
+            p
+            for p in patterns
+            if p.pattern_type == "output_token_budget"
+            and p.evidence.get("budget_issue") == "too_loose"
+        ]
+        assert len(otb) == 1
+        suggested = otb[0].evidence["suggested_max_tokens"]
+        assert suggested % 256 == 0
+
+
+class TestOutputBudgetSingleRecord:
+    def test_single_record_with_max_tokens(self):
+        runs = [
+            [
+                _make_record(
+                    "generate",
+                    output_tokens=100,
+                    max_tokens_setting=4096,
+                )
+            ]
+        ]
+        patterns = detect_patterns(runs, compute_stats(runs, _simple_cost_fn))
+        otb = [p for p in patterns if p.pattern_type == "output_token_budget"]
+        assert len(otb) == 1
+        assert otb[0].evidence["budget_issue"] == "too_loose"
+
+
+# ---------------------------------------------------------------------------
+# Integration: all 3 new detectors wired in
+# ---------------------------------------------------------------------------
+
+
+class TestNewDetectorsIntegration:
+    def test_all_new_detectors_wired_in(self):
+        runs = []
+        for _ in range(5):
+            run = [
+                _make_record(
+                    "cached_step",
+                    model="claude-sonnet-4-6",
+                    cache_hit_tokens=5,
+                    cache_miss_tokens=995,
+                ),
+                _make_record(
+                    "budgeted_step",
+                    output_tokens=100,
+                    max_tokens_setting=8192,
+                ),
+            ]
+            runs.append(run)
+        graph_steps = ["cached_step", "budgeted_step", "phantom_step"]
+        patterns = detect_patterns(
+            runs,
+            compute_stats(runs, _simple_cost_fn),
+            graph_steps=graph_steps,
+        )
+        types = {p.pattern_type for p in patterns}
+        assert "cache_utilization_opportunity" in types
+        assert "zero_execution_step" in types
+        assert "output_token_budget" in types

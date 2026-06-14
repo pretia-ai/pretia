@@ -6,6 +6,7 @@ import functools
 import hashlib
 import logging
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -216,15 +217,20 @@ class GenericCollector(BaseCollector):
         self,
         workflow: Any,
         inputs: list[str],
+        on_run_complete: Callable[[int, int, list[StepRecord]], None] | None = None,
     ) -> list[list[StepRecord]]:
         """Run the workflow on each input and return one StepRecord list per run.
 
         Assumes the workflow is an async callable that uses ``self.step()`` internally.
         """
         runs: list[list[StepRecord]] = []
-        for inp in inputs:
+        total = len(inputs)
+        for i, inp in enumerate(inputs):
             self.new_run()
             await workflow(inp)
-            runs.append(list(self._current_run))
+            run_records = list(self._current_run)
+            runs.append(run_records)
+            if on_run_complete is not None:
+                on_run_complete(i, total, run_records)
         self._runs = runs
         return runs

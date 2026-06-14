@@ -8,6 +8,7 @@ import pytest
 
 from agentcost.inputs.generator import (
     _GENERATION_PROMPT_TEMPLATE,
+    _extract_workflow_context,
     _parse_response,
     generate_inputs,
 )
@@ -102,7 +103,7 @@ class TestProviderDetection:
             "agentcost.inputs.generator._try_import",
             side_effect=lambda n: anthropic_sdk if n == "anthropic" else openai_sdk,
         ):
-            result = await generate_inputs("You are a bot.", n=2)
+            result = await generate_inputs("You are a bot.", n=2, model="claude-haiku-4-5")
 
         anthropic_sdk.AsyncAnthropic.assert_called_once()
         openai_sdk.AsyncOpenAI.assert_not_called()
@@ -196,7 +197,7 @@ class TestProviderDetection:
         assert len(result) == 2
 
     @pytest.mark.asyncio
-    async def test_deepseek_provider_priority(self, monkeypatch):
+    async def test_anthropic_over_deepseek_for_claude_model(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
         monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-ds-test")
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
@@ -208,7 +209,7 @@ class TestProviderDetection:
             "agentcost.inputs.generator._try_import",
             side_effect=lambda n: anthropic_sdk if n == "anthropic" else openai_sdk,
         ):
-            await generate_inputs("You are a bot.", n=2)
+            await generate_inputs("You are a bot.", n=2, model="claude-haiku-4-5")
 
         anthropic_sdk.AsyncAnthropic.assert_called_once()
         openai_sdk.AsyncOpenAI.assert_not_called()
@@ -231,3 +232,57 @@ class TestMetaPrompt:
 
     def test_mentions_one_per_line(self):
         assert "one per line" in _GENERATION_PROMPT_TEMPLATE.lower()
+
+
+# ---------------------------------------------------------------------------
+# Workflow context extraction
+# ---------------------------------------------------------------------------
+
+
+class TestExtractWorkflowContext:
+    def test_extracts_class_docstring(self):
+        src = (
+            "class SupportAgent:\n"
+            '    """Handle customer support inquiries for a SaaS product."""\n'
+            "    pass\n"
+        )
+        ctx = _extract_workflow_context(src)
+        assert "SupportAgent" in ctx
+        assert "customer support" in ctx
+
+    def test_extracts_function_docstring(self):
+        src = (
+            "def classify_intent(query: str) -> str:\n"
+            '    """Classify user query into one of predefined categories."""\n'
+            "    pass\n"
+        )
+        ctx = _extract_workflow_context(src)
+        assert "classify_intent" in ctx
+        assert "Classify" in ctx
+
+    def test_extracts_type_annotations(self):
+        src = "def process(query: str, context: list[str]) -> dict[str, float]:\n    pass\n"
+        ctx = _extract_workflow_context(src)
+        assert "query: str" in ctx
+        assert "context: list[str]" in ctx
+
+    def test_empty_source(self):
+        assert _extract_workflow_context("") == ""
+
+    def test_no_docstrings_or_annotations(self):
+        src = "x = 42\ny = 'hello'\n"
+        assert _extract_workflow_context(src) == ""
+
+    def test_syntax_error(self):
+        src = "def broken(\n"
+        assert _extract_workflow_context(src) == ""
+
+    def test_async_function(self):
+        src = (
+            "async def run_agent(input_text: str) -> str:\n"
+            '    """Run the main agent pipeline."""\n'
+            "    pass\n"
+        )
+        ctx = _extract_workflow_context(src)
+        assert "run_agent" in ctx
+        assert "Run the main agent" in ctx

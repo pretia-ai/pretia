@@ -35,6 +35,12 @@ class ProfilingSession:
     profiling_start_time: str | None = None
     profiling_end_time: str | None = None
     inter_request_delay_ms: int | None = None
+    # v3 identity + cost metadata
+    workflow_id: str | None = None
+    run_id: str | None = None
+    framework: str | None = None
+    agentcost_version: str | None = None
+    profiling_cost: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a JSON-compatible dict."""
@@ -55,6 +61,11 @@ class ProfilingSession:
             "profiling_start_time": self.profiling_start_time,
             "profiling_end_time": self.profiling_end_time,
             "inter_request_delay_ms": self.inter_request_delay_ms,
+            "workflow_id": self.workflow_id,
+            "run_id": self.run_id,
+            "framework": self.framework,
+            "agentcost_version": self.agentcost_version,
+            "profiling_cost": self.profiling_cost,
         }
 
     @classmethod
@@ -77,6 +88,11 @@ class ProfilingSession:
             profiling_start_time=data.get("profiling_start_time"),
             profiling_end_time=data.get("profiling_end_time"),
             inter_request_delay_ms=data.get("inter_request_delay_ms"),
+            workflow_id=data.get("workflow_id"),
+            run_id=data.get("run_id"),
+            framework=data.get("framework"),
+            agentcost_version=data.get("agentcost_version"),
+            profiling_cost=data.get("profiling_cost"),
         )
 
 

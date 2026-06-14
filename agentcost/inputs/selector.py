@@ -123,7 +123,7 @@ def _auto_detect(system_prompt: str | None) -> InputSelection:
         return InputSelection(
             mode="auto-generate",
             inputs=[],
-            message=("Defaulting to auto-generate 20 synthetic inputs from the system prompt."),
+            message=("Defaulting to auto-generate 50 synthetic inputs from the system prompt."),
         )
 
     return InputSelection(

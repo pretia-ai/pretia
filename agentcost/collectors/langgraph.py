@@ -7,6 +7,7 @@ import hashlib
 import json
 import logging
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -290,15 +291,18 @@ class LangGraphCollector(BaseCollector):
         self,
         workflow: Any,
         inputs: list[str],
+        on_run_complete: Callable[[int, int, list[StepRecord]], None] | None = None,
     ) -> list[list[StepRecord]]:
         """Run the workflow on each input with an injected callback handler.
 
         Args:
             workflow: A LangGraph compiled graph (or any object with ainvoke/invoke).
             inputs: Input strings to run the workflow on.
+            on_run_complete: Optional callback after each run.
         """
         runs: list[list[StepRecord]] = []
-        for inp in inputs:
+        total = len(inputs)
+        for i, inp in enumerate(inputs):
             handler = AgentCostCallbackHandler()
             config: dict[str, Any] = {"callbacks": [handler]}
             payload: Any = inp if isinstance(inp, dict) else {"input": inp}
@@ -312,5 +316,8 @@ class LangGraphCollector(BaseCollector):
                 runs.append([])
                 continue
 
-            runs.append(list(handler.records))
+            run_records = list(handler.records)
+            runs.append(run_records)
+            if on_run_complete is not None:
+                on_run_complete(i, total, run_records)
         return runs

@@ -139,3 +139,112 @@ def test_loaded_session_step_records_are_step_record_instances(tmp_path, sample_
 def test_default_storage_dir():
     store = ProfileStore()
     assert store.storage_dir == Path(".agentcost")
+
+
+# ---------------------------------------------------------------------------
+# v3 metadata enrichment fields
+# ---------------------------------------------------------------------------
+
+
+class TestMetadataEnrichment:
+    def test_new_fields_default_to_none(self):
+        session = _session(profiled_at=datetime(2026, 5, 20, tzinfo=UTC))
+        assert session.workflow_id is None
+        assert session.run_id is None
+        assert session.framework is None
+        assert session.agentcost_version is None
+        assert session.profiling_cost is None
+
+    def test_new_fields_serialize_roundtrip(self, tmp_path, sample_record):
+        store = ProfileStore(storage_dir=tmp_path)
+        session = ProfilingSession(
+            workflow_name="test-agent",
+            workflow_hash="abc123",
+            profiled_at=datetime(2026, 5, 20, 14, 30, 0, tzinfo=UTC),
+            sample_size=10,
+            input_mode="single",
+            runs=[[sample_record]],
+            metadata={},
+            workflow_id="test-agent",
+            run_id="550e8400-e29b-41d4-a716-446655440000",
+            framework="langgraph",
+            agentcost_version="0.1.0",
+            profiling_cost=1.84,
+        )
+        path = store.save(session)
+        loaded = store.load(path)
+        assert loaded.workflow_id == "test-agent"
+        assert loaded.run_id == "550e8400-e29b-41d4-a716-446655440000"
+        assert loaded.framework == "langgraph"
+        assert loaded.agentcost_version == "0.1.0"
+        assert loaded.profiling_cost == 1.84
+
+    def test_backward_compat_missing_new_fields(self):
+        data = {
+            "workflow_name": "old-agent",
+            "workflow_hash": "abc",
+            "profiled_at": "2026-01-01T00:00:00+00:00",
+            "sample_size": 5,
+            "input_mode": "single",
+            "runs": [],
+            "metadata": {},
+        }
+        session = ProfilingSession.from_dict(data)
+        assert session.workflow_id is None
+        assert session.run_id is None
+        assert session.framework is None
+        assert session.agentcost_version is None
+        assert session.profiling_cost is None
+
+    def test_new_fields_in_to_dict_output(self):
+        session = ProfilingSession(
+            workflow_name="test",
+            workflow_hash="abc",
+            profiled_at=datetime(2026, 1, 1, tzinfo=UTC),
+            sample_size=1,
+            input_mode="single",
+            runs=[],
+            metadata={},
+            workflow_id="my-workflow",
+            run_id="uuid-here",
+            framework="generic",
+            agentcost_version="0.1.0",
+            profiling_cost=2.50,
+        )
+        d = session.to_dict()
+        assert d["workflow_id"] == "my-workflow"
+        assert d["run_id"] == "uuid-here"
+        assert d["framework"] == "generic"
+        assert d["agentcost_version"] == "0.1.0"
+        assert d["profiling_cost"] == 2.50
+
+    def test_profiling_cost_accepts_float(self):
+        session = ProfilingSession(
+            workflow_name="test",
+            workflow_hash="abc",
+            profiled_at=datetime(2026, 1, 1, tzinfo=UTC),
+            sample_size=1,
+            input_mode="single",
+            runs=[],
+            metadata={},
+            profiling_cost=1.23,
+        )
+        d = session.to_dict()
+        restored = ProfilingSession.from_dict(d)
+        assert restored.profiling_cost == 1.23
+
+    def test_run_id_is_string(self):
+        uuid_str = "550e8400-e29b-41d4-a716-446655440000"
+        session = ProfilingSession(
+            workflow_name="test",
+            workflow_hash="abc",
+            profiled_at=datetime(2026, 1, 1, tzinfo=UTC),
+            sample_size=1,
+            input_mode="single",
+            runs=[],
+            metadata={},
+            run_id=uuid_str,
+        )
+        d = session.to_dict()
+        restored = ProfilingSession.from_dict(d)
+        assert restored.run_id == uuid_str

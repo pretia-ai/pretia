@@ -131,6 +131,14 @@ MODEL_TIERS: dict[str, str] = {
 PRICING_LAST_UPDATED = "2026-06-05"
 
 MODEL_CACHE_HIT_PRICING: dict[str, float] = {
+    # Anthropic — cache read is 10% of standard input price
+    "claude-opus-4-7": 0.50,
+    "claude-opus-4-6": 0.50,
+    "claude-sonnet-4-6": 0.30,
+    "claude-haiku-4-5": 0.10,
+    "claude-opus-4-20250514": 1.50,
+    "claude-sonnet-4-20250514": 0.30,
+    # DeepSeek
     "deepseek-v4-flash": 0.0028,
     "deepseek-v4-pro": 0.012,
     "deepseek-chat": 0.0028,

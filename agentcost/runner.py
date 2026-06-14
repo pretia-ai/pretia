@@ -8,6 +8,7 @@ import importlib.util
 import logging
 import re
 import statistics
+import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -16,7 +17,7 @@ import click
 
 from agentcost.collectors.base import BaseCollector, StepRecord
 from agentcost.collectors.generic import GenericCollector
-from agentcost.inputs.generator import generate_inputs
+from agentcost.inputs.generator import _extract_workflow_context, generate_inputs
 from agentcost.inputs.selector import InputSelection, select_input_mode
 from agentcost.pricing.tables import calculate_cost, model_tier
 from agentcost.projection.patterns import detect_patterns
@@ -186,6 +187,9 @@ class ProfileRunner:
         langfuse_last_n: int = 10,
         output_dir: str = ".agentcost",
         cache_mode: str = "cold",
+        progress_callback: Any | None = None,
+        generator_model: str = "deepseek-v4-flash",
+        corpus_path: str | None = None,
     ) -> None:
         self.workflow_path = workflow_path
         self.collector_name = collector
@@ -196,6 +200,9 @@ class ProfileRunner:
         self.langfuse_last_n = langfuse_last_n
         self.output_dir = output_dir
         self.cache_mode = cache_mode
+        self.progress_callback = progress_callback
+        self.generator_model = generator_model
+        self.corpus_path = corpus_path
 
     def _load_workflow(self) -> tuple[Any, str]:
         module = _load_workflow_module(self.workflow_path)
@@ -256,6 +263,17 @@ class ProfileRunner:
         )
         return GenericCollector()
 
+    @staticmethod
+    def _detect_framework(collector: BaseCollector) -> str | None:
+        """Derive a framework label from the selected collector."""
+        mapping = {
+            "LangGraphCollector": "langgraph",
+            "OpenAIAgentsCollector": "openai-agents",
+            "QwenAgentCollector": "qwen-agent",
+            "GenericCollector": "generic",
+        }
+        return mapping.get(type(collector).__name__)
+
     async def _resolve_inputs(
         self,
         system_prompt: str,
@@ -269,8 +287,35 @@ class ProfileRunner:
         )
 
         if selection.mode == "auto-generate":
-            n = self.auto_generate or 20
-            inputs = await generate_inputs(system_prompt or "General purpose agent.", n=n)
+            n = self.auto_generate or 50
+
+            context_parts: list[str] = []
+            try:
+                wf_source = Path(self.workflow_path).read_text(encoding="utf-8")
+                wf_context = _extract_workflow_context(wf_source)
+                if wf_context:
+                    context_parts.append(wf_context)
+            except OSError:
+                pass
+
+            if self.corpus_path:
+                from agentcost.inputs.corpus import load_corpus_context
+
+                try:
+                    corpus_ctx = load_corpus_context(self.corpus_path)
+                    if corpus_ctx:
+                        context_parts.append(
+                            f"Documents in the user's knowledge base:\n{corpus_ctx}"
+                        )
+                except (FileNotFoundError, OSError) as exc:
+                    logging.warning("Could not load corpus: %s", exc)
+
+            inputs = await generate_inputs(
+                system_prompt or "General purpose agent.",
+                n=n,
+                model=self.generator_model,
+                additional_context="\n\n".join(context_parts),
+            )
             return selection, inputs
 
         if selection.mode in ("single", "manual", "file"):
@@ -297,7 +342,11 @@ class ProfileRunner:
         workflow, system_prompt = self._load_workflow()
         collector = self._select_collector(workflow)
         selection, inputs = await self._resolve_inputs(system_prompt)
-        runs = await collector.collect(workflow, inputs)
+        runs = await collector.collect(
+            workflow,
+            inputs,
+            on_run_complete=self.progress_callback,
+        )
 
         cost_summary = _build_cost_summary(runs)
 
@@ -329,6 +378,8 @@ class ProfileRunner:
             input_source=selection.mode,
         )
 
+        from agentcost import __version__
+
         workflow_src = Path(self.workflow_path).read_bytes()
         session = ProfilingSession(
             workflow_name=self.workflow_path,
@@ -344,6 +395,11 @@ class ProfileRunner:
                 "projection": projection.to_dict(),
                 "confidence": projection.confidence.to_dict(),
             },
+            workflow_id=Path(self.workflow_path).stem,
+            run_id=str(uuid.uuid4()),
+            framework=self._detect_framework(collector),
+            agentcost_version=__version__,
+            profiling_cost=cost_summary["total_session_cost"],
         )
 
         store = ProfileStore(storage_dir=Path(self.output_dir))
@@ -412,6 +468,8 @@ class ProfileRunner:
             input_source="langfuse",
         )
 
+        from agentcost import __version__
+
         session = ProfilingSession(
             workflow_name=f"langfuse-import ({len(traces)} traces)",
             workflow_hash="langfuse",
@@ -427,6 +485,11 @@ class ProfileRunner:
                 "projection": projection.to_dict(),
                 "confidence": projection.confidence.to_dict(),
             },
+            workflow_id="langfuse-import",
+            run_id=str(uuid.uuid4()),
+            framework=None,
+            agentcost_version=__version__,
+            profiling_cost=0.0,
         )
 
         store = ProfileStore(storage_dir=Path(self.output_dir))

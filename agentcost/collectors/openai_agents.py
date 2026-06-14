@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -345,15 +346,18 @@ class OpenAIAgentsCollector(BaseCollector):
         self,
         workflow: Any,
         inputs: list[str],
+        on_run_complete: Callable[[int, int, list[StepRecord]], None] | None = None,
     ) -> list[list[StepRecord]]:
         """Run the workflow on each input with injected hooks.
 
         Args:
             workflow: An OpenAI Agents SDK Agent instance.
             inputs: Input strings to run the workflow on.
+            on_run_complete: Optional callback after each run.
         """
         runs: list[list[StepRecord]] = []
-        for inp in inputs:
+        total = len(inputs)
+        for i, inp in enumerate(inputs):
             hooks = AgentCostRunHooks()
 
             try:
@@ -376,4 +380,6 @@ class OpenAIAgentsCollector(BaseCollector):
                 steps = _build_fallback_steps(raw_responses, agent_name, model)
 
             runs.append(steps)
+            if on_run_complete is not None:
+                on_run_complete(i, total, steps)
         return runs

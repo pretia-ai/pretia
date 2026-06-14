@@ -94,6 +94,14 @@ def format_cli_report(
     if iter_panel is not None:
         renderables.append(iter_panel)
 
+    score_data = meta.get("score")
+    if score_data:
+        renderables.append(_build_score_panel(score_data))
+
+    rec_data = meta.get("recommendations")
+    if rec_data:
+        renderables.append(_build_recommendations_panel(rec_data))
+
     saved_path = meta.get("saved_path", "")
     footer_parts = []
     if saved_path:
@@ -405,3 +413,81 @@ def _build_iteration_panel(stats: dict[str, Any] | None) -> Panel | None:
         )
 
     return Panel(table, expand=False)
+
+
+_SCORE_ZONE_STYLES: dict[str, str] = {
+    "red": "bold red",
+    "amber": "bold yellow",
+    "green": "bold green",
+}
+
+_REC_TYPE_STYLES: dict[str, str] = {
+    "model_swap": "cyan",
+    "architecture": "blue",
+    "workflow": "magenta",
+}
+
+
+def _build_score_panel(score: dict[str, Any]) -> Panel:
+    """Render the optimization score as a Rich panel."""
+    numeric = score.get("score", 0)
+    zone = score.get("zone", "amber")
+    zone_label = score.get("zone_label", "")
+    total_savings = score.get("total_savings", 0)
+    waste_pct = score.get("waste_pct", 0)
+    rec_count = score.get("recommendation_count", 0)
+    scope_note = score.get("scope_note", "")
+
+    style = _SCORE_ZONE_STYLES.get(zone, "bold")
+
+    text = Text()
+    text.append(f"{numeric}", style=f"{style}")
+    text.append(" / 100  ", style="dim")
+    text.append(f"[{zone_label}]", style=style)
+    text.append("\n\n", style="")
+    text.append("Recoverable savings: ", style="dim")
+    text.append(format_cost(total_savings), style="bold")
+    text.append(f"  ({waste_pct:.0%} waste)", style="dim")
+    text.append(f"  |  {rec_count} recommendation", style="dim")
+    if rec_count != 1:
+        text.append("s", style="dim")
+
+    if numeric <= 70 and scope_note:
+        text.append(f"\n{scope_note}", style="dim italic")
+
+    return Panel(text, title="Optimization Score", expand=False)
+
+
+def _build_recommendations_panel(recommendations: list[dict[str, Any]]) -> Panel:
+    """Render recommendation cards as a Rich panel."""
+    if not recommendations:
+        return Panel(
+            Text("No recommendations generated.", style="green"),
+            title="Recommendations",
+            expand=False,
+        )
+
+    text = Text()
+    for i, rec in enumerate(recommendations):
+        rec_type = rec.get("type", "unknown")
+        title = rec.get("title", "")
+        desc = rec.get("description", "")
+        savings = rec.get("monthly_savings", 0)
+        confidence = rec.get("confidence", "")
+
+        type_style = _REC_TYPE_STYLES.get(rec_type, "dim")
+        conf_style = _CONFIDENCE_STYLES.get(confidence, "dim")
+
+        if i == 0:
+            text.append("TOP RECOMMENDATION\n", style="bold")
+
+        text.append(f"[{rec_type.replace('_', ' ').upper()}]", style=type_style)
+        text.append(f" {title}\n", style="bold")
+        text.append(f"  {desc}\n", style="")
+        text.append("  Saves ", style="dim")
+        text.append(format_cost(savings), style=f"bold {type_style}")
+        text.append("/month  |  Confidence: ", style="dim")
+        text.append(confidence, style=conf_style)
+        text.append("\n\n", style="")
+
+    return Panel(text, title="Recommendations", expand=False)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import asyncio
 import logging
 import os
@@ -9,6 +10,35 @@ import re
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_workflow_context(source: str) -> str:
+    """Extract domain context from workflow source: docstrings and type annotations."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return ""
+
+    parts: list[str] = []
+
+    for node in ast.iter_child_nodes(tree):
+        if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            docstring = ast.get_docstring(node)
+            if docstring:
+                parts.append(f"{node.name}: {docstring}")
+
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                annotations = []
+                for arg in node.args.args:
+                    if arg.annotation:
+                        annotations.append(f"{arg.arg}: {ast.unparse(arg.annotation)}")
+                if node.returns:
+                    annotations.append(f"returns {ast.unparse(node.returns)}")
+                if annotations:
+                    parts.append(f"{node.name}({', '.join(annotations)})")
+
+    return "\n".join(parts)
+
 
 _GENERATION_PROMPT_TEMPLATE = """\
 Generate exactly {n} diverse test inputs for an AI agent workflow.
@@ -201,8 +231,8 @@ async def _call_deepseek(
 
 async def generate_inputs(
     system_prompt: str,
-    n: int = 20,
-    model: str = "claude-haiku-4-5",
+    n: int = 50,
+    model: str = "deepseek-v4-flash",
     api_key: str | None = None,
     additional_context: str = "",
 ) -> list[str]:
@@ -251,8 +281,8 @@ async def generate_inputs(
 
 def generate_inputs_sync(
     system_prompt: str,
-    n: int = 20,
-    model: str = "claude-haiku-4-5",
+    n: int = 50,
+    model: str = "deepseek-v4-flash",
     api_key: str | None = None,
     additional_context: str = "",
 ) -> list[str]:

@@ -119,16 +119,16 @@ class TestDeepseekNoCacheUsesStandardPrice:
         assert cost == pytest.approx(expected, rel=0.01)
 
 
-class TestNonDeepseekIgnoresCacheTokens:
+class TestNoCachePricingIgnoresCacheTokens:
     def test_ignores_cache(self):
         cost_with = calculate_cost(
-            "claude-haiku-4-5",
+            "gpt-4o",
             input_tokens=2000,
             output_tokens=500,
             cache_hit_tokens=1500,
             cache_miss_tokens=500,
         )
-        cost_without = calculate_cost("claude-haiku-4-5", input_tokens=2000, output_tokens=500)
+        cost_without = calculate_cost("gpt-4o", input_tokens=2000, output_tokens=500)
         assert cost_with == cost_without
 
 

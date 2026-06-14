@@ -78,6 +78,34 @@ class TestProfileGroup:
 # ---------------------------------------------------------------------------
 
 
+class TestRagDetection:
+    def test_detects_chromadb(self, tmp_path):
+        wf = tmp_path / "rag_agent.py"
+        wf.write_text("import chromadb\nclient = chromadb.Client()\n")
+        from agentcost.cli import _detect_rag_imports
+
+        assert _detect_rag_imports(str(wf)) is True
+
+    def test_detects_langchain_vectorstores(self, tmp_path):
+        wf = tmp_path / "rag_agent.py"
+        wf.write_text("from langchain.vectorstores import Chroma\n")
+        from agentcost.cli import _detect_rag_imports
+
+        assert _detect_rag_imports(str(wf)) is True
+
+    def test_no_match(self, tmp_path):
+        wf = tmp_path / "simple.py"
+        wf.write_text("import os\nx = 42\n")
+        from agentcost.cli import _detect_rag_imports
+
+        assert _detect_rag_imports(str(wf)) is False
+
+    def test_nonexistent_file(self):
+        from agentcost.cli import _detect_rag_imports
+
+        assert _detect_rag_imports("/nonexistent/path.py") is False
+
+
 class TestProfileRun:
     def test_help(self):
         result = runner.invoke(cli, ["profile", "run", "--help"])
@@ -86,6 +114,7 @@ class TestProfileRun:
         assert "--collector" in result.output
         assert "--auto-generate" in result.output
         assert "--input" in result.output
+        assert "--generator-model" in result.output
 
     def test_nonexistent_file(self):
         result = runner.invoke(
@@ -112,7 +141,7 @@ class TestProfileRun:
         ):
             result = runner.invoke(
                 cli,
-                ["profile", "run", str(wf), "--input", "hello"],
+                ["profile", "run", str(wf), "--input", "hello", "-y"],
             )
 
         assert result.exit_code == 0
@@ -121,6 +150,63 @@ class TestProfileRun:
         assert call_kwargs["workflow_path"] == str(wf)
         assert call_kwargs["single_input"] == "hello"
         mock_run.assert_called_once()
+
+    def test_generator_model_passed_to_runner(self, tmp_path):
+        wf = tmp_path / "agent.py"
+        wf.write_text("graph = 'fake'\n")
+
+        mock_session = _make_mock_session()
+
+        with (
+            patch(
+                "agentcost.runner.ProfileRunner.run_sync",
+                return_value=mock_session,
+            ),
+            patch(
+                "agentcost.runner.ProfileRunner.__init__",
+                return_value=None,
+            ) as mock_init,
+        ):
+            runner.invoke(
+                cli,
+                [
+                    "profile",
+                    "run",
+                    str(wf),
+                    "--input",
+                    "hello",
+                    "-y",
+                    "--generator-model",
+                    "gpt-4o-mini",
+                ],
+            )
+
+        call_kwargs = mock_init.call_args[1]
+        assert call_kwargs["generator_model"] == "gpt-4o-mini"
+
+    def test_generator_model_defaults_to_deepseek(self, tmp_path):
+        wf = tmp_path / "agent.py"
+        wf.write_text("graph = 'fake'\n")
+
+        mock_session = _make_mock_session()
+
+        with (
+            patch(
+                "agentcost.runner.ProfileRunner.run_sync",
+                return_value=mock_session,
+            ),
+            patch(
+                "agentcost.runner.ProfileRunner.__init__",
+                return_value=None,
+            ) as mock_init,
+        ):
+            runner.invoke(
+                cli,
+                ["profile", "run", str(wf), "--input", "hello", "-y"],
+            )
+
+        call_kwargs = mock_init.call_args[1]
+        assert call_kwargs["generator_model"] == "deepseek-v4-flash"
 
 
 # ---------------------------------------------------------------------------

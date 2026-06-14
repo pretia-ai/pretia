@@ -6,7 +6,7 @@ import hashlib
 import json
 import logging
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 from typing import Any
 
@@ -223,12 +223,14 @@ class QwenAgentCollector(BaseCollector):
         self,
         workflow: Any,
         inputs: list[str],
+        on_run_complete: Callable[[int, int, list[StepRecord]], None] | None = None,
     ) -> list[list[StepRecord]]:
         """Run the workflow on each input with an instrumented LLM client.
 
         Args:
             workflow: A Qwen-Agent Agent instance (or subclass).
             inputs: Input strings to run the workflow on.
+            on_run_complete: Optional callback after each run.
         """
         agent_name = _extract_agent_name(workflow)
         system_prompt = _extract_system_prompt(workflow)
@@ -238,8 +240,9 @@ class QwenAgentCollector(BaseCollector):
 
         original_llm = getattr(workflow, "llm", None)
         runs: list[list[StepRecord]] = []
+        total = len(inputs)
 
-        for inp in inputs:
+        for i, inp in enumerate(inputs):
             captured: list[_CapturedCall] = []
 
             if original_llm is not None:
@@ -271,6 +274,8 @@ class QwenAgentCollector(BaseCollector):
                 tool_def_tokens=tool_def_tokens,
             )
             runs.append(steps)
+            if on_run_complete is not None:
+                on_run_complete(i, total, steps)
 
         return runs
 

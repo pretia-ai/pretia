@@ -247,3 +247,65 @@ class TestPricingTableInputCheaperThanOutput:
             f"{model}: input ${input_price}/MTok > output ${output_price}/MTok — "
             "unusual pricing; verify against provider docs"
         )
+
+
+# ---------------------------------------------------------------------------
+# Anthropic cache-hit pricing
+# ---------------------------------------------------------------------------
+
+
+class TestAnthropicCacheHitPricing:
+    @pytest.mark.parametrize(
+        "model,expected_rate",
+        [
+            ("claude-opus-4-7", 0.50),
+            ("claude-opus-4-6", 0.50),
+            ("claude-sonnet-4-6", 0.30),
+            ("claude-haiku-4-5", 0.10),
+            ("claude-opus-4-20250514", 1.50),
+            ("claude-sonnet-4-20250514", 0.30),
+        ],
+    )
+    def test_anthropic_cache_hit_rate_exists(self, model, expected_rate):
+        from agentcost.pricing.tables import MODEL_CACHE_HIT_PRICING
+
+        assert model in MODEL_CACHE_HIT_PRICING
+        assert MODEL_CACHE_HIT_PRICING[model] == expected_rate
+
+    def test_anthropic_cache_rate_is_ten_percent_of_input(self):
+        from agentcost.pricing.tables import MODEL_CACHE_HIT_PRICING
+
+        for model in MODEL_PRICING:
+            if not model.startswith("claude-"):
+                continue
+            input_price = MODEL_PRICING[model][0]
+            expected_cache = input_price * 0.10
+            assert model in MODEL_CACHE_HIT_PRICING, f"{model} missing cache pricing"
+            assert MODEL_CACHE_HIT_PRICING[model] == pytest.approx(expected_cache, rel=1e-6)
+
+    def test_calculate_cost_anthropic_with_cache_cheaper(self):
+        cost_no_cache = calculate_cost("claude-haiku-4-5", input_tokens=2000, output_tokens=500)
+        cost_with_cache = calculate_cost(
+            "claude-haiku-4-5",
+            input_tokens=2000,
+            output_tokens=500,
+            cache_hit_tokens=1500,
+            cache_miss_tokens=500,
+        )
+        assert cost_with_cache < cost_no_cache
+
+
+class TestCacheHitPricingInvariants:
+    def test_all_cache_models_in_pricing_table(self):
+        from agentcost.pricing.tables import MODEL_CACHE_HIT_PRICING
+
+        assert set(MODEL_CACHE_HIT_PRICING).issubset(MODEL_PRICING)
+
+    def test_cache_hit_rate_less_than_input_price(self):
+        from agentcost.pricing.tables import MODEL_CACHE_HIT_PRICING
+
+        for model, cache_rate in MODEL_CACHE_HIT_PRICING.items():
+            input_price = MODEL_PRICING[model][0]
+            assert cache_rate < input_price, (
+                f"{model}: cache rate {cache_rate} >= input price {input_price}"
+            )

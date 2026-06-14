@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import json
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -166,12 +167,15 @@ class BaseCollector(ABC):
         self,
         workflow: Any,
         inputs: list[str],
+        on_run_complete: Callable[[int, int, list[StepRecord]], None] | None = None,
     ) -> list[list[StepRecord]]:
         """Run the workflow on each input and return one StepRecord list per run.
 
         Args:
             workflow: The agent workflow object (framework-specific).
             inputs: Input strings to run the workflow on.
+            on_run_complete: Optional callback invoked after each run with
+                (run_index, total_runs, records).
 
         Returns:
             One list of StepRecords per input, in the same order as `inputs`.
@@ -182,9 +186,10 @@ class BaseCollector(ABC):
         self,
         workflow: Any,
         inputs: list[str],
+        on_run_complete: Callable[[int, int, list[StepRecord]], None] | None = None,
     ) -> list[list[StepRecord]]:
         """Run `collect()` to completion synchronously. Convenience wrapper for CLI use."""
-        return asyncio.run(self.collect(workflow, inputs))
+        return asyncio.run(self.collect(workflow, inputs, on_run_complete))
 
 
 @dataclass(frozen=True, slots=True)

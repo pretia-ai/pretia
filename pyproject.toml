@@ -4,20 +4,21 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agentcost"
-version = "0.1.0"
+version = "1.0.0"
 description = "Pre-deployment cost intelligence for AI agent workflows"
 readme = "README.md"
-license = { text = "MIT" }
+license = { text = "BSL-1.1" }
 requires-python = ">=3.11"
 authors = [{ name = "AgentCost contributors" }]
 keywords = ["llm", "agents", "cost", "profiling", "observability"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: Other/Proprietary License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [

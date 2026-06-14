@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from agentcost.collectors.base import StepRecord
+from agentcost.pricing.tables import MODEL_CACHE_HIT_PRICING, resolve_model
 from agentcost.projection.stats import ProfilingStats, compute_stats, robust_cv
 
 logger = logging.getLogger(__name__)
@@ -593,6 +594,186 @@ def _detect_bimodality(
     ]
 
 
+def _detect_cache_utilization(
+    runs: list[list[StepRecord]],
+) -> list[DetectedPattern]:
+    """Detect steps where cache utilization is low despite model support."""
+    step_cache: dict[str, dict[str, list]] = defaultdict(
+        lambda: {"hit": [], "miss": [], "models": []}
+    )
+
+    for run in runs:
+        for rec in run:
+            if rec.cache_hit_tokens is None and rec.cache_miss_tokens is None:
+                continue
+            hit = rec.cache_hit_tokens or 0
+            miss = rec.cache_miss_tokens or 0
+            step_cache[rec.step_name]["hit"].append(hit)
+            step_cache[rec.step_name]["miss"].append(miss)
+            step_cache[rec.step_name]["models"].append(rec.model)
+
+    patterns: list[DetectedPattern] = []
+    for step_name, data in step_cache.items():
+        hits = data["hit"]
+        misses = data["miss"]
+        models = data["models"]
+        if not hits:
+            continue
+
+        total_hit = sum(hits)
+        total_miss = sum(misses)
+        total = total_hit + total_miss
+        if total == 0:
+            continue
+
+        cache_hit_ratio = total_hit / total
+
+        model = models[0]
+        canonical = model
+        try:
+            canonical = resolve_model(model)
+        except ValueError:
+            pass
+        supports_caching = canonical in MODEL_CACHE_HIT_PRICING
+
+        if not supports_caching or cache_hit_ratio >= 0.1:
+            continue
+
+        patterns.append(
+            DetectedPattern(
+                pattern_type="cache_utilization_opportunity",
+                step_name=step_name,
+                severity="warning",
+                evidence={
+                    "cache_hit_ratio": round(cache_hit_ratio, 4),
+                    "total_cache_miss_tokens": total_miss,
+                    "model": model,
+                },
+                description=(
+                    f"Step '{step_name}' has low cache utilization "
+                    f"(hit ratio={cache_hit_ratio:.1%}) with {model}, "
+                    f"which supports prompt caching. Consider restructuring "
+                    f"prompts to improve cache hit rate."
+                ),
+            )
+        )
+    return patterns
+
+
+def _detect_zero_execution_steps(
+    runs: list[list[StepRecord]],
+    graph_steps: list[str] | None = None,
+) -> list[DetectedPattern]:
+    """Detect graph steps that never executed across any observed run."""
+    if graph_steps is None:
+        return []
+
+    observed_steps: set[str] = set()
+    for run in runs:
+        for rec in run:
+            observed_steps.add(rec.step_name)
+
+    patterns: list[DetectedPattern] = []
+    for step_name in graph_steps:
+        if step_name in observed_steps:
+            continue
+        patterns.append(
+            DetectedPattern(
+                pattern_type="zero_execution_step",
+                step_name=step_name,
+                severity="warning",
+                evidence={
+                    "step_name": step_name,
+                    "total_runs": len(runs),
+                    "graph_steps": len(graph_steps),
+                    "observed_steps": len(observed_steps),
+                },
+                description=(
+                    f"Graph step '{step_name}' was never executed across "
+                    f"{len(runs)} profiling runs. This step may represent a "
+                    f"rare code path whose cost is not captured in projections."
+                ),
+            )
+        )
+    return patterns
+
+
+def _detect_output_token_budget(
+    runs: list[list[StepRecord]],
+) -> list[DetectedPattern]:
+    """Detect steps where max_tokens_setting is too loose or risks truncation."""
+    step_outputs: dict[str, list[tuple[int, int]]] = defaultdict(list)
+
+    for run in runs:
+        for rec in run:
+            if rec.max_tokens_setting is None:
+                continue
+            step_outputs[rec.step_name].append((rec.output_tokens, rec.max_tokens_setting))
+
+    patterns: list[DetectedPattern] = []
+    for step_name, pairs in step_outputs.items():
+        if not pairs:
+            continue
+
+        output_vals = sorted(p[0] for p in pairs)
+        max_tokens_setting = pairs[0][1]
+
+        n = len(output_vals)
+        median_output = output_vals[n // 2]
+        p95_idx = min(int(n * 0.95), n - 1)
+        p95_output = output_vals[p95_idx]
+
+        if max_tokens_setting > 4 * median_output and median_output > 0:
+            suggested = int(round(1.5 * p95_output / 256)) * 256
+            if suggested < 256:
+                suggested = 256
+            patterns.append(
+                DetectedPattern(
+                    pattern_type="output_token_budget",
+                    step_name=step_name,
+                    severity="warning",
+                    evidence={
+                        "max_tokens_setting": max_tokens_setting,
+                        "median_output_tokens": median_output,
+                        "p95_output_tokens": p95_output,
+                        "suggested_max_tokens": suggested,
+                        "budget_issue": "too_loose",
+                    },
+                    description=(
+                        f"Step '{step_name}' has max_tokens="
+                        f"{max_tokens_setting} but median output is only "
+                        f"{median_output} tokens "
+                        f"({max_tokens_setting / median_output:.0f}x "
+                        f"overhead). Consider reducing to ~{suggested} "
+                        f"(1.5x p95)."
+                    ),
+                )
+            )
+
+        if median_output > 0.9 * max_tokens_setting:
+            patterns.append(
+                DetectedPattern(
+                    pattern_type="output_token_budget",
+                    step_name=step_name,
+                    severity="warning",
+                    evidence={
+                        "max_tokens_setting": max_tokens_setting,
+                        "median_output_tokens": median_output,
+                        "p95_output_tokens": p95_output,
+                        "budget_issue": "possible_truncation",
+                    },
+                    description=(
+                        f"Step '{step_name}' may be truncating output: "
+                        f"median output ({median_output} tokens) is "
+                        f"{median_output / max_tokens_setting:.0%} of "
+                        f"max_tokens={max_tokens_setting}. Increase the "
+                        f"budget to avoid quality loss."
+                    ),
+                )
+            )
+    return patterns
+
+
 # Which detectors require custom cost models in Monte Carlo vs. whole-run resampling.
 #
 # COST ADJUSTMENT (custom MC model needed):
@@ -602,8 +783,11 @@ def _detect_bimodality(
 #   bimodality (GMM)           — sample from fitted 2-component log-normal mixture
 #
 # NO COST ADJUSTMENT (whole-run resampling handles them):
-#   high_token_variance        — triggers MC mode; reporting; confidence deduction
-#   step_count_variance        — triggers MC mode; whole-run sampling; reporting
+#   high_token_variance            — triggers MC mode; reporting; confidence deduction
+#   step_count_variance            — triggers MC mode; whole-run sampling; reporting
+#   cache_utilization_opportunity  — reporting only; informational for recommendations
+#   zero_execution_step            — reporting only; informational for coverage analysis
+#   output_token_budget            — reporting only; informational for recommendations
 #
 # When bimodality + context_growth/loop_variance co-occur, the GMM model takes
 # priority for per-run total cost. Per-step growth models are skipped.
@@ -613,12 +797,13 @@ def _detect_bimodality(
 #   1. Mode selection: their presence forces Monte Carlo instead of linear projection.
 #   2. Confidence scoring: they may trigger deductions (handled in confidence.py).
 #   3. Reporting: they provide metadata for richer user-facing output.
-#   4. Recommendations: they inform Sprint 4 recommendation generation.
+#   4. Recommendations: they inform recommendation generation.
 
 
 def detect_patterns(
     runs: list[list[StepRecord]],
     stats: ProfilingStats | None = None,
+    graph_steps: list[str] | None = None,
 ) -> list[DetectedPattern]:
     """Run all pattern detectors and return results sorted by severity (danger first)."""
     if not runs:
@@ -632,6 +817,9 @@ def detect_patterns(
     patterns.extend(_detect_high_token_variance(stats))
     patterns.extend(_detect_step_count_variance(runs))
     patterns.extend(_detect_bimodality(runs, stats))
+    patterns.extend(_detect_cache_utilization(runs))
+    patterns.extend(_detect_zero_execution_steps(runs, graph_steps))
+    patterns.extend(_detect_output_token_budget(runs))
 
     severity_order = {"danger": 0, "warning": 1}
     patterns.sort(key=lambda p: severity_order.get(p.severity, 2))
