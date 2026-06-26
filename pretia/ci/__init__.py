@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pretia.ci.baseline import (
     Baseline,
     BaselineStep,
@@ -10,14 +12,6 @@ from pretia.ci.baseline import (
     save_baseline,
 )
 from pretia.ci.diff import DiffResult, StepDiff, diff_baseline, format_diff_report
-from pretia.ci.github import (
-    ActionResult,
-    check_threshold,
-    format_diff_only_comment,
-    format_full_profile_comment,
-    format_pr_comment,
-    run_diff_analysis,
-)
 from pretia.ci.report import format_cli_report
 
 __all__ = [
@@ -38,3 +32,20 @@ __all__ = [
     "run_diff_analysis",
     "save_baseline",
 ]
+
+_GITHUB_ATTRS = {
+    "ActionResult",
+    "check_threshold",
+    "format_diff_only_comment",
+    "format_full_profile_comment",
+    "format_pr_comment",
+    "run_diff_analysis",
+}
+
+
+def __getattr__(name: str) -> Any:
+    if name in _GITHUB_ATTRS:
+        from pretia.ci import github
+
+        return getattr(github, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
