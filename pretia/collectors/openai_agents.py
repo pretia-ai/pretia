@@ -14,9 +14,7 @@ try:
     from agents import Runner
     from agents.lifecycle import RunHooksBase
 except ImportError:
-    raise ImportError(
-        "OpenAI Agents SDK not installed. Run: pip install pretia[openai]"
-    ) from None
+    raise ImportError("OpenAI Agents SDK not installed. Run: pip install pretia[openai]") from None
 
 from pretia.collectors.base import BaseCollector, StepRecord
 

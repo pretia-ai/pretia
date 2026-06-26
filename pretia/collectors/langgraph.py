@@ -17,8 +17,7 @@ try:
     from langchain_core.outputs import LLMResult
 except ImportError:
     raise ImportError(
-        "LangGraph support requires langchain-core. "
-        "Install it with: pip install pretia[langgraph]"
+        "LangGraph support requires langchain-core. Install it with: pip install pretia[langgraph]"
     ) from None
 
 from pretia.collectors.base import BaseCollector, StepRecord

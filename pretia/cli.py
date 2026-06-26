@@ -328,8 +328,7 @@ def report_cmd(
             sessions = store.list_sessions()
             if not sessions:
                 console.print(
-                    "[red]Error:[/red] No saved profiles found. "
-                    "Run 'pretia profile run' first.",
+                    "[red]Error:[/red] No saved profiles found. Run 'pretia profile run' first.",
                 )
                 sys.exit(1)
             session = store.load(sessions[0])
@@ -573,8 +572,7 @@ def baseline_update(
             sessions = store.list_sessions()
             if not sessions:
                 console.print(
-                    "[red]Error:[/red] No saved profiles found. "
-                    "Run 'pretia profile run' first.",
+                    "[red]Error:[/red] No saved profiles found. Run 'pretia profile run' first.",
                 )
                 sys.exit(1)
             session = store.load(sessions[0])
@@ -938,8 +936,7 @@ def recommend_cmd(profile_path: str) -> None:
             sessions = store.list_sessions()
             if not sessions:
                 console.print(
-                    "[red]Error:[/red] No saved profiles found. "
-                    "Run 'pretia profile run' first.",
+                    "[red]Error:[/red] No saved profiles found. Run 'pretia profile run' first.",
                 )
                 sys.exit(1)
             session = store.load(sessions[0])

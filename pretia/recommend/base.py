@@ -42,13 +42,10 @@ class Recommendation:
 
     def __post_init__(self) -> None:
         if self.type not in _VALID_TYPES:
-            raise ValueError(
-                f"type must be one of {sorted(_VALID_TYPES)}, got {self.type!r}"
-            )
+            raise ValueError(f"type must be one of {sorted(_VALID_TYPES)}, got {self.type!r}")
         if self.confidence not in _VALID_CONFIDENCES:
             raise ValueError(
-                f"confidence must be one of {sorted(_VALID_CONFIDENCES)}, "
-                f"got {self.confidence!r}"
+                f"confidence must be one of {sorted(_VALID_CONFIDENCES)}, got {self.confidence!r}"
             )
 
     def to_dict(self) -> dict[str, Any]:

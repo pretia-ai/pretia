@@ -34,9 +34,7 @@ def _percentile(sorted_values: list[float], pct: int) -> float:
     return sorted_values[lo] + frac * (sorted_values[hi] - sorted_values[lo])
 
 
-def _iter_distribution(
-    runs: list[list[StepRecord]], step_name: str
-) -> list[int]:
+def _iter_distribution(runs: list[list[StepRecord]], step_name: str) -> list[int]:
     """Return per-run max iteration for *step_name*, sorted ascending."""
     counts: list[int] = []
     for run in runs:
@@ -47,9 +45,7 @@ def _iter_distribution(
     return counts
 
 
-def _step_cost_per_run(
-    runs: list[list[StepRecord]], step_name: str
-) -> list[float]:
+def _step_cost_per_run(runs: list[list[StepRecord]], step_name: str) -> list[float]:
     """Return total cost for *step_name* in each run."""
     costs: list[float] = []
     for run in runs:
@@ -68,9 +64,7 @@ class LoopCapGenerator(RecommendationGenerator):
 
     def generate(self, profile: ProfilingSession) -> list[Recommendation]:
         patterns = _extract_pattern_dicts(profile)
-        loop_patterns = [
-            p for p in patterns if p.get("pattern_type") == "loop_count_variance"
-        ]
+        loop_patterns = [p for p in patterns if p.get("pattern_type") == "loop_count_variance"]
         if not loop_patterns or not profile.runs:
             return []
 
@@ -156,9 +150,7 @@ class CircuitBreakerGenerator(RecommendationGenerator):
 
     def generate(self, profile: ProfilingSession) -> list[Recommendation]:
         patterns = _extract_pattern_dicts(profile)
-        loop_patterns = [
-            p for p in patterns if p.get("pattern_type") == "loop_count_variance"
-        ]
+        loop_patterns = [p for p in patterns if p.get("pattern_type") == "loop_count_variance"]
         if not loop_patterns or not profile.runs:
             return []
 
@@ -218,9 +210,7 @@ class CircuitBreakerGenerator(RecommendationGenerator):
             run = profile.runs[i]
             for r in run:
                 if r.step_name == step_name and r.iteration > threshold:
-                    excess_cost += _safe_record_cost(
-                        r.model, r.input_tokens, r.output_tokens
-                    )
+                    excess_cost += _safe_record_cost(r.model, r.input_tokens, r.output_tokens)
 
         n_runs = len(profile.runs)
         avg_excess = excess_cost / n_runs if n_runs > 0 else 0.0

@@ -180,12 +180,8 @@ class ModelSwapGenerator(RecommendationGenerator):
         if recommended_tier == tier:
             return None
 
-        current_cost = calculate_cost(
-            canonical, int(median_input), int(median_output)
-        )
-        recommended_cost = calculate_cost(
-            recommended_model, int(median_input), int(median_output)
-        )
+        current_cost = calculate_cost(canonical, int(median_input), int(median_output))
+        recommended_cost = calculate_cost(recommended_model, int(median_input), int(median_output))
         savings_per_call = current_cost - recommended_cost
         if savings_per_call <= 0:
             return None

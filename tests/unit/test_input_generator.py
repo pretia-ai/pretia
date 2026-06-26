@@ -155,7 +155,7 @@ class TestProviderDetection:
             "pretia.inputs.generator._try_import",
             return_value=None,
         ):
-            with pytest.raises(ImportError, match="anthropic.*openai"):
+            with pytest.raises(ImportError, match="requires the `openai` package"):
                 await generate_inputs("You are a bot.", n=2)
 
     @pytest.mark.asyncio
@@ -171,7 +171,7 @@ class TestProviderDetection:
             side_effect=lambda n: sdk if n == "anthropic" else None,
         ):
             with pytest.raises(ValueError, match="No API key"):
-                await generate_inputs("You are a bot.", n=2)
+                await generate_inputs("You are a bot.", n=2, model="claude-haiku-4-5")
 
     @pytest.mark.asyncio
     async def test_deepseek_provider_detection(self, monkeypatch):

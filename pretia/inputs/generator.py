@@ -126,6 +126,37 @@ def _resolve_provider(
     if want_anthropic and anthropic_mod and anthropic_key:
         return "anthropic", anthropic_key, anthropic_mod
 
+    # If a specific provider was requested but can't be satisfied, fail clearly
+    if want_deepseek and not openai_mod:
+        raise ImportError(
+            f"Model '{model}' requires the `openai` package (DeepSeek uses an "
+            "OpenAI-compatible API). Install it with: pip install openai"
+        )
+    if want_deepseek and not deepseek_key:
+        raise ValueError(
+            f"Model '{model}' requires DEEPSEEK_API_KEY. "
+            "Set it in your environment or pass api_key directly."
+        )
+    if want_qwen and not openai_mod:
+        raise ImportError(
+            f"Model '{model}' requires the `openai` package. Install it with: pip install openai"
+        )
+    if want_qwen and not dashscope_key:
+        raise ValueError(
+            f"Model '{model}' requires DASHSCOPE_API_KEY. "
+            "Set it in your environment or pass api_key directly."
+        )
+    if want_openai and not openai_mod:
+        raise ImportError(
+            f"Model '{model}' requires the `openai` package. Install it with: pip install openai"
+        )
+    if want_anthropic and not anthropic_mod:
+        raise ImportError(
+            f"Model '{model}' requires the `anthropic` package. "
+            "Install it with: pip install anthropic"
+        )
+
+    # No specific provider requested — pick the best available
     if not want_openai and not want_anthropic and not want_qwen and not want_deepseek:
         if anthropic_mod and anthropic_key:
             return "anthropic", anthropic_key, anthropic_mod
@@ -142,17 +173,6 @@ def _resolve_provider(
             "package. Install one with: pip install anthropic"
             " (or) pip install openai"
         )
-
-    if not anthropic_key and not openai_key and not dashscope_key and not deepseek_key:
-        raise ValueError(
-            "No API key found. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, "
-            "DASHSCOPE_API_KEY, or DEEPSEEK_API_KEY, or pass api_key directly."
-        )
-
-    if anthropic_mod and anthropic_key:
-        return "anthropic", anthropic_key, anthropic_mod
-    if openai_mod and openai_key:
-        return "openai", openai_key, openai_mod
 
     raise ValueError(
         "No API key found. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, "

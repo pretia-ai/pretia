@@ -115,26 +115,20 @@ class TestGenerateRecommendations:
 
     def test_single_generator(self) -> None:
         session = _make_session()
-        with patch(
-            "pretia.recommend.registry._GENERATORS", [_SingleGenerator]
-        ):
+        with patch("pretia.recommend.registry._GENERATORS", [_SingleGenerator]):
             result = generate_recommendations(session)
         assert len(result) == 1
         assert result[0].id == "single-rec"
 
     def test_empty_generator_returns_empty(self) -> None:
         session = _make_session()
-        with patch(
-            "pretia.recommend.registry._GENERATORS", [_EmptyGenerator]
-        ):
+        with patch("pretia.recommend.registry._GENERATORS", [_EmptyGenerator]):
             result = generate_recommendations(session)
         assert result == []
 
     def test_sorted_by_priority_descending(self) -> None:
         session = _make_session()
-        with patch(
-            "pretia.recommend.registry._GENERATORS", [_MultiGenerator]
-        ):
+        with patch("pretia.recommend.registry._GENERATORS", [_MultiGenerator]):
             result = generate_recommendations(session)
         assert len(result) == 2
         assert result[0].priority >= result[1].priority
@@ -188,9 +182,7 @@ class TestGenerateRecommendations:
                 ]
 
         session = _make_session()
-        with patch(
-            "pretia.recommend.registry._GENERATORS", [_GenA, _GenB]
-        ):
+        with patch("pretia.recommend.registry._GENERATORS", [_GenA, _GenB]):
             result = generate_recommendations(session)
         assert len(result) == 2
         ids = {r.id for r in result}

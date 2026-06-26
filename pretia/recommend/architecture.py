@@ -37,8 +37,7 @@ class PromptCachingGenerator(RecommendationGenerator):
     def generate(self, profile: ProfilingSession) -> list[Recommendation]:
         patterns = _extract_pattern_dicts(profile)
         cache_patterns = [
-            p for p in patterns
-            if p.get("pattern_type") == "cache_utilization_opportunity"
+            p for p in patterns if p.get("pattern_type") == "cache_utilization_opportunity"
         ]
         if not cache_patterns:
             return []
@@ -134,7 +133,10 @@ class ToolFilterGenerator(RecommendationGenerator):
         return recommendations
 
     def _evaluate_step(
-        self, step_name: str, step_stats: Any, profile: ProfilingSession,
+        self,
+        step_name: str,
+        step_stats: Any,
+        profile: ProfilingSession,
     ) -> Recommendation | None:
         if step_stats.step_type != "llm":
             return None
@@ -152,9 +154,11 @@ class ToolFilterGenerator(RecommendationGenerator):
 
         tool_def_values.sort()
         n = len(tool_def_values)
-        median_tool_def = tool_def_values[n // 2] if n % 2 == 1 else (
-            tool_def_values[n // 2 - 1] + tool_def_values[n // 2]
-        ) / 2
+        median_tool_def = (
+            tool_def_values[n // 2]
+            if n % 2 == 1
+            else (tool_def_values[n // 2 - 1] + tool_def_values[n // 2]) / 2
+        )
 
         if median_input <= 0 or median_tool_def <= 0:
             return None
@@ -195,9 +199,7 @@ class ToolFilterGenerator(RecommendationGenerator):
         except (ValueError, KeyError):
             return None
 
-        monthly_savings = round(
-            savings_tokens * input_price * _DEFAULT_DAILY_VOLUME * 30, 2
-        )
+        monthly_savings = round(savings_tokens * input_price * _DEFAULT_DAILY_VOLUME * 30, 2)
 
         if monthly_savings < 10.0:
             return None
@@ -270,9 +272,7 @@ class CacheContextGenerator(RecommendationGenerator):
         recommendations: list[Recommendation] = []
         for (step_a, step_b), costs in pair_costs.items():
             avg_redundant = sum(costs) / len(costs) if costs else 0.0
-            monthly_savings = round(
-                avg_redundant * _DEFAULT_DAILY_VOLUME * 30, 2
-            )
+            monthly_savings = round(avg_redundant * _DEFAULT_DAILY_VOLUME * 30, 2)
 
             if monthly_savings < 10.0:
                 continue
@@ -286,30 +286,29 @@ class CacheContextGenerator(RecommendationGenerator):
                 if avg_tokens > 0:
                     break
 
-            recommendations.append(Recommendation(
-                id=f"cache-context-{step_a}-{step_b}",
-                type="architecture",
-                title=(
-                    f"Eliminate redundant system prompt "
-                    f"in {step_a} and {step_b}"
-                ),
-                description=(
-                    f"{step_a} and {step_b} send identical system prompts "
-                    f"({avg_tokens:,} tokens) in consecutive calls. "
-                    f"Restructuring to share context or enabling prompt caching "
-                    f"saves ${monthly_savings:,.0f}/month "
-                    f"at {_DEFAULT_DAILY_VOLUME:,} daily runs."
-                ),
-                monthly_savings=monthly_savings,
-                confidence="HIGH",
-                affected_steps=[step_a, step_b],
-                evidence={
-                    "system_prompt_tokens": avg_tokens,
-                    "occurrences": len(costs),
-                    "avg_redundant_cost_per_run": round(avg_redundant, 6),
-                    "daily_volume": _DEFAULT_DAILY_VOLUME,
-                },
-                priority=compute_priority(monthly_savings, "HIGH"),
-            ))
+            recommendations.append(
+                Recommendation(
+                    id=f"cache-context-{step_a}-{step_b}",
+                    type="architecture",
+                    title=(f"Eliminate redundant system prompt in {step_a} and {step_b}"),
+                    description=(
+                        f"{step_a} and {step_b} send identical system prompts "
+                        f"({avg_tokens:,} tokens) in consecutive calls. "
+                        f"Restructuring to share context or enabling prompt caching "
+                        f"saves ${monthly_savings:,.0f}/month "
+                        f"at {_DEFAULT_DAILY_VOLUME:,} daily runs."
+                    ),
+                    monthly_savings=monthly_savings,
+                    confidence="HIGH",
+                    affected_steps=[step_a, step_b],
+                    evidence={
+                        "system_prompt_tokens": avg_tokens,
+                        "occurrences": len(costs),
+                        "avg_redundant_cost_per_run": round(avg_redundant, 6),
+                        "daily_volume": _DEFAULT_DAILY_VOLUME,
+                    },
+                    priority=compute_priority(monthly_savings, "HIGH"),
+                )
+            )
 
         return recommendations

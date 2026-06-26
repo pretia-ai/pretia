@@ -179,16 +179,18 @@ def _tool_step_runs(
     runs: list[list[StepRecord]] = []
     for i in range(n_runs):
         tn = tool_names[i % len(tool_names)]
-        runs.append([
-            _make_record(
-                step_name=step_name,
-                model=model,
-                input_tokens=input_tokens,
-                output_tokens=100,
-                tool_definitions_tokens=tool_definitions_tokens,
-                tool_name=tn,
-            )
-        ])
+        runs.append(
+            [
+                _make_record(
+                    step_name=step_name,
+                    model=model,
+                    input_tokens=input_tokens,
+                    output_tokens=100,
+                    tool_definitions_tokens=tool_definitions_tokens,
+                    tool_name=tn,
+                )
+            ]
+        )
     return runs
 
 

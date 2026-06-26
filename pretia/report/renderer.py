@@ -29,9 +29,9 @@ def _load_template() -> jinja2.Template:
     else:
         from importlib.resources import files
 
-        text = (
-            files("pretia.report").joinpath("templates").joinpath(_TEMPLATE_NAME)
-        ).read_text(encoding="utf-8")
+        text = (files("pretia.report").joinpath("templates").joinpath(_TEMPLATE_NAME)).read_text(
+            encoding="utf-8"
+        )
 
     env = jinja2.Environment(autoescape=True)
     env.filters["format_cost"] = format_cost
