@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import ast
+import logging
 import re
 from dataclasses import dataclass
 from math import ceil
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 _MODEL_KWARGS = frozenset(
     {
@@ -57,6 +60,7 @@ class WorkflowEstimate:
     estimated_cost_per_run: float
     estimated_steps: int
     estimated_system_prompt_tokens: int
+    parse_error: str | None = None
 
 
 def estimate_workflow(workflow_path: str) -> WorkflowEstimate:
@@ -67,11 +71,15 @@ def estimate_workflow(workflow_path: str) -> WorkflowEstimate:
 
     source = path.read_text(encoding="utf-8")
     framework = _detect_framework(source)
-    raw_models = _extract_models(source)
+    parse_errors: list[str] = []
+    raw_models = _extract_models(source, _parse_errors=parse_errors)
 
     models: list[ModelEstimate] = []
+    unrecognized: list[str] = []
     for rm in raw_models:
         canonical, inp, outp = _resolve_pricing(rm["model_name"])
+        if canonical is None:
+            unrecognized.append(rm["model_name"])
         models.append(
             ModelEstimate(
                 model_name=rm["model_name"],
@@ -81,6 +89,14 @@ def estimate_workflow(workflow_path: str) -> WorkflowEstimate:
                 input_price_per_m=inp,
                 output_price_per_m=outp,
             )
+        )
+
+    for name in unrecognized:
+        logger.warning(
+            "Unrecognized model: '%s'. Pricing unavailable. "
+            "Use register_model('%s', input_price=X, output_price=Y) to add pricing.",
+            name,
+            name,
         )
 
     prompts = _extract_system_prompts(source)
@@ -95,6 +111,7 @@ def estimate_workflow(workflow_path: str) -> WorkflowEstimate:
         estimated_cost_per_run=cost,
         estimated_steps=len(models) or 1,
         estimated_system_prompt_tokens=sp_tokens,
+        parse_error=parse_errors[0] if parse_errors else None,
     )
 
 
@@ -106,11 +123,18 @@ def _detect_framework(source: str) -> str | None:
     return "generic"
 
 
-def _extract_models(source: str) -> list[dict[str, Any]]:
+def _extract_models(
+    source: str,
+    _parse_errors: list[str] | None = None,
+) -> list[dict[str, Any]]:
     """Extract model references from the AST."""
     try:
         tree = ast.parse(source)
-    except SyntaxError:
+    except SyntaxError as exc:
+        msg = f"Syntax error on line {exc.lineno}: {exc.msg}"
+        logger.warning("Could not parse file — %s", msg)
+        if _parse_errors is not None:
+            _parse_errors.append(msg)
         return []
 
     results: list[dict[str, Any]] = []
@@ -161,7 +185,7 @@ def _extract_system_prompts(source: str) -> list[str]:
     try:
         tree = ast.parse(source)
     except SyntaxError:
-        return []
+        return []  # already warned in _extract_models
 
     prompts: list[str] = []
     seen: set[str] = set()

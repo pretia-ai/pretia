@@ -1026,6 +1026,12 @@ def estimate_cmd(workflow_path: str, traffic: int | None, verbose: bool) -> None
         header.append(f"~{est.estimated_system_prompt_tokens:,} (extracted from source)")
     console.print(Panel(header, title="Static Estimate"))
 
+    if est.parse_error:
+        console.print(
+            f"[yellow]Warning:[/yellow] Could not parse file — {est.parse_error}",
+        )
+        console.print()
+
     if est.models:
         table = Table(title="Models Detected", show_lines=False, pad_edge=False)
         table.add_column("Model", style="bold")
@@ -1033,6 +1039,7 @@ def estimate_cmd(workflow_path: str, traffic: int | None, verbose: bool) -> None
         table.add_column("Input $/M", justify="right")
         table.add_column("Output $/M", justify="right")
 
+        unrecognized = []
         for m in est.models:
             tier = ""
             if m.canonical_name:
@@ -1042,6 +1049,8 @@ def estimate_cmd(workflow_path: str, traffic: int | None, verbose: bool) -> None
                     tier = model_tier(m.canonical_name)
                 except (ValueError, KeyError):
                     pass
+            else:
+                unrecognized.append(m.model_name)
 
             table.add_row(
                 m.model_name,
@@ -1051,6 +1060,13 @@ def estimate_cmd(workflow_path: str, traffic: int | None, verbose: bool) -> None
             )
 
         console.print(table)
+        if unrecognized:
+            for name in unrecognized:
+                console.print(
+                    f"[yellow]Warning:[/yellow] Unrecognized model '{name}'. "
+                    f"Use register_model('{name}', input_price=X, output_price=Y) "
+                    "to add pricing.",
+                )
         console.print()
 
         volumes = [traffic] if traffic else [100, 1_000, 10_000]

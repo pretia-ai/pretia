@@ -69,7 +69,13 @@ def _load_workflow_module(path: str) -> Any:
     if spec is None or spec.loader is None:
         raise click.UsageError(f"Cannot load module from '{path}'.")
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    try:
+        spec.loader.exec_module(module)
+    except ImportError as exc:
+        pkg = exc.name or str(exc)
+        raise ImportError(
+            f"'{path}' requires '{pkg}' which is not installed. Install it with: pip install {pkg}"
+        ) from exc
     return module
 
 
