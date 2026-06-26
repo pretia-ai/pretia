@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from agentcost.inputs.generator import (
+from pretia.inputs.generator import (
     _GENERATION_PROMPT_TEMPLATE,
     _extract_workflow_context,
     _parse_response,
@@ -100,7 +100,7 @@ class TestProviderDetection:
         openai_sdk = _mock_openai_sdk()
 
         with patch(
-            "agentcost.inputs.generator._try_import",
+            "pretia.inputs.generator._try_import",
             side_effect=lambda n: anthropic_sdk if n == "anthropic" else openai_sdk,
         ):
             result = await generate_inputs("You are a bot.", n=2, model="claude-haiku-4-5")
@@ -116,7 +116,7 @@ class TestProviderDetection:
         openai_sdk = _mock_openai_sdk()
 
         with patch(
-            "agentcost.inputs.generator._try_import",
+            "pretia.inputs.generator._try_import",
             side_effect=lambda n: openai_sdk if n == "openai" else None,
         ):
             result = await generate_inputs(
@@ -136,7 +136,7 @@ class TestProviderDetection:
         openai_sdk = _mock_openai_sdk()
 
         with patch(
-            "agentcost.inputs.generator._try_import",
+            "pretia.inputs.generator._try_import",
             side_effect=lambda n: anthropic_sdk if n == "anthropic" else openai_sdk,
         ):
             await generate_inputs(
@@ -152,7 +152,7 @@ class TestProviderDetection:
     async def test_no_sdk_raises_import_error(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
         with patch(
-            "agentcost.inputs.generator._try_import",
+            "pretia.inputs.generator._try_import",
             return_value=None,
         ):
             with pytest.raises(ImportError, match="anthropic.*openai"):
@@ -167,7 +167,7 @@ class TestProviderDetection:
         sdk = _mock_anthropic_sdk()
 
         with patch(
-            "agentcost.inputs.generator._try_import",
+            "pretia.inputs.generator._try_import",
             side_effect=lambda n: sdk if n == "anthropic" else None,
         ):
             with pytest.raises(ValueError, match="No API key"):
@@ -182,7 +182,7 @@ class TestProviderDetection:
         openai_sdk = _mock_openai_sdk()
 
         with patch(
-            "agentcost.inputs.generator._try_import",
+            "pretia.inputs.generator._try_import",
             side_effect=lambda n: openai_sdk if n == "openai" else None,
         ):
             result = await generate_inputs(
@@ -206,7 +206,7 @@ class TestProviderDetection:
         openai_sdk = _mock_openai_sdk()
 
         with patch(
-            "agentcost.inputs.generator._try_import",
+            "pretia.inputs.generator._try_import",
             side_effect=lambda n: anthropic_sdk if n == "anthropic" else openai_sdk,
         ):
             await generate_inputs("You are a bot.", n=2, model="claude-haiku-4-5")

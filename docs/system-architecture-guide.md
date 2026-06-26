@@ -1,6 +1,6 @@
-# AgentCost System Architecture Guide
+# Pretia System Architecture Guide
 
-Complete architecture reference for the AgentCost codebase as of Sprint 3. Covers every layer from data collection through validated cost projections — how each module works, how they connect, where data transforms, and where to look when something breaks.
+Complete architecture reference for the Pretia codebase as of Sprint 3. Covers every layer from data collection through validated cost projections — how each module works, how they connect, where data transforms, and where to look when something breaks.
 
 For sprint-specific deep dives with function-level documentation, worked examples, and debugging exercises:
 - [Sprint 1 Code Guide](sprint-01-code-guide.md) — collectors, pricing, store, runner, CLI, inputs
@@ -32,7 +32,7 @@ For sprint-specific deep dives with function-level documentation, worked example
 
 ## 1. The Big Picture
 
-AgentCost answers one question: **"How much will this AI agent workflow cost at production scale?"**
+Pretia answers one question: **"How much will this AI agent workflow cost at production scale?"**
 
 It does this by:
 1. **Profiling** the workflow N times with diverse inputs
@@ -43,7 +43,7 @@ It does this by:
 ### System overview — data flow from CLI to terminal
 
 ```
- USER RUNS:  agentcost profile run workflow.py --auto-generate 50
+ USER RUNS:  pretia profile run workflow.py --auto-generate 50
  ──────────────────────────────────────────────────────────────────
 
  ┌─── LAYER 7: ORCHESTRATION ──────────────────────────────────────┐
@@ -112,7 +112,7 @@ It does this by:
                 │
  ┌──────────────▼── LAYER 8: OUTPUT ───────────────────────────────┐
  │                                                                  │
- │  ProfileStore.save(session)  → .agentcost/workflow_YYYYMMDD.json │
+ │  ProfileStore.save(session)  → .pretia/workflow_YYYYMMDD.json │
  │  format_cli_report(session)  → Rich tables + panels → terminal  │
  │  _auto_diff_baseline()       → one-line diff if baseline exists  │
  │  Visibility warnings + profiling recommendations                 │
@@ -125,7 +125,7 @@ It does this by:
 ## 2. Directory Map
 
 ```
-agentcost/
+pretia/
 ├── __init__.py              Public API: ProfileRunner, StepRecord, __version__
 ├── cli.py                   Click CLI: 8 commands (profile run, report, analyze, ...)
 ├── runner.py                ProfileRunner — full pipeline orchestrator
@@ -135,8 +135,8 @@ agentcost/
 │   ├── __init__.py          Lazy imports via __getattr__ for optional deps
 │   ├── base.py              StepRecord (17 fields) + BaseCollector ABC
 │   ├── generic.py           Manual instrumentation: StepTracker + _try_extract
-│   ├── langgraph.py         LangGraph: AgentCostCallbackHandler
-│   ├── openai_agents.py     OpenAI Agents: AgentCostRunHooks + fallback
+│   ├── langgraph.py         LangGraph: PretiaCallbackHandler
+│   ├── openai_agents.py     OpenAI Agents: PretiaRunHooks + fallback
 │   ├── qwen_agent.py        Qwen-Agent: _InstrumentedChatModel proxy
 │   └── cache_bust.py        DeepSeek cache-busting utility
 │
@@ -162,7 +162,7 @@ agentcost/
 │   ├── suite.py             run_backtesting_suite() → hard/soft gates → launch decision
 │   ├── data_checks.py       validate_profiling_data() → zero-token warnings
 │   ├── visibility.py        Recommendations, input stats, coverage statements
-│   └── validate_cmd.py      agentcost validate: 20-vs-100 comparison
+│   └── validate_cmd.py      pretia validate: 20-vs-100 comparison
 │
 ├── ci/
 │   ├── baseline.py          Baseline create/save/load (per-step + monthly snapshots)
@@ -273,7 +273,7 @@ All implement `BaseCollector.collect(workflow, inputs) -> list[list[StepRecord]]
 │  ─────────────────                                                           │
 │  Auto-detect: hasattr(workflow, "ainvoke") AND hasattr(workflow, "nodes")     │
 │                                                                              │
-│  Injects AgentCostCallbackHandler into LangChain's callback system.          │
+│  Injects PretiaCallbackHandler into LangChain's callback system.          │
 │  Pairs start/end events by run_id UUID:                                      │
 │    on_chat_model_start(run_id) → _inflight[run_id] = {model, start_ns, ...} │
 │    on_llm_end(run_id)          → pop _inflight → extract tokens → StepRecord │
@@ -311,7 +311,7 @@ All implement `BaseCollector.collect(workflow, inputs) -> list[list[StepRecord]]
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-Optional-dep collectors use **lazy imports** via `__getattr__` in `collectors/__init__.py`. Importing `agentcost.collectors.LangGraphCollector` when `langgraph` isn't installed raises `ImportError` — but only when you actually access the name, not when you `import agentcost`.
+Optional-dep collectors use **lazy imports** via `__getattr__` in `collectors/__init__.py`. Importing `pretia.collectors.LangGraphCollector` when `langgraph` isn't installed raises `ImportError` — but only when you actually access the name, not when you `import pretia`.
 
 ### Cache busting (`cache_bust.py`)
 
@@ -357,8 +357,8 @@ explicit_inputs → inputs_file → single_input → from_langfuse → auto_gene
 
 | File | Purpose |
 |------|---------|
-| `agentcost/pricing/tables.py` | All pricing data, cost calculation, model resolution |
-| `agentcost/pricing/__init__.py` | Re-exports: `calculate_cost`, `resolve_model`, `register_model`, `UnrecognizedModelError`, ... |
+| `pretia/pricing/tables.py` | All pricing data, cost calculation, model resolution |
+| `pretia/pricing/__init__.py` | Re-exports: `calculate_cost`, `resolve_model`, `register_model`, `UnrecognizedModelError`, ... |
 
 ### Data structures
 
@@ -624,7 +624,7 @@ Directional bias check: if ≥ 80% of workflows skew one direction → diagnosti
 - Workflow-level: total monthly p50/p75/p90/p95, confidence tier, assumptions list
 - Version "1.0" — `from_dict` validates version prefix
 
-`save_baseline()` writes to `.agentcost/baseline.json`. `load_baseline()` reads and deserializes.
+`save_baseline()` writes to `.pretia/baseline.json`. `load_baseline()` reads and deserializes.
 
 ### Diffing (`ci/diff.py`)
 
@@ -657,7 +657,7 @@ The full pipeline orchestrator. Coordinates every layer:
 class ProfileRunner:
     def __init__(self, workflow_path, collector="auto", auto_generate=None,
                  single_input=None, inputs_file=None, from_langfuse=False,
-                 langfuse_last_n=10, output_dir=".agentcost", cache_mode="cold"):
+                 langfuse_last_n=10, output_dir=".pretia", cache_mode="cold"):
 
     async def run(self) -> ProfilingSession:
         workflow, system_prompt = self._load_workflow()         # importlib dynamic import
@@ -690,14 +690,14 @@ class ProfileRunner:
 
 | Command | Function | What it does |
 |---------|----------|-------------|
-| `agentcost profile run <workflow>` | `run()` | Full profiling pipeline |
-| `agentcost report <profile.json>` | `report_cmd()` | Render report from saved profile |
-| `agentcost analyze --from-langfuse` | `analyze_cmd()` | Analyze Langfuse traces without execution |
-| `agentcost baseline update <profile>` | `baseline_update()` | Save profile as cost baseline |
-| `agentcost diff <baseline> <profile>` | `diff_cmd()` | Compare baseline to new profile |
-| `agentcost validate <workflow>` | `validate_cmd()` | 20-vs-100 projection quality check |
-| `agentcost update-pricing` | `update_pricing_cmd()` | Pricing update instructions |
-| `agentcost ui` | (Sprint 6) | Launch local web UI on :7100 |
+| `pretia profile run <workflow>` | `run()` | Full profiling pipeline |
+| `pretia report <profile.json>` | `report_cmd()` | Render report from saved profile |
+| `pretia analyze --from-langfuse` | `analyze_cmd()` | Analyze Langfuse traces without execution |
+| `pretia baseline update <profile>` | `baseline_update()` | Save profile as cost baseline |
+| `pretia diff <baseline> <profile>` | `diff_cmd()` | Compare baseline to new profile |
+| `pretia validate <workflow>` | `validate_cmd()` | 20-vs-100 projection quality check |
+| `pretia update-pricing` | `update_pricing_cmd()` | Pricing update instructions |
+| `pretia ui` | (Sprint 6) | Launch local web UI on :7100 |
 
 Key flags: `--auto-generate N`, `--input "..."`, `--inputs file.jsonl`, `--from-langfuse`, `--last N`, `--allow-cache`, `--traffic N`, `--threshold N`, `-v/--verbose`.
 
@@ -719,7 +719,7 @@ class ProfilingSession:
     metadata: dict[str, Any]     # cost_summary, stats, patterns, projection, confidence
 ```
 
-`ProfileStore.save()` writes to `.agentcost/{stem}_{YYYYMMDD_HHMMSS}.json`. `_safe_name()` strips path to filename stem (`agents/v2/bot.py` → `"bot"`).
+`ProfileStore.save()` writes to `.pretia/{stem}_{YYYYMMDD_HHMMSS}.json`. `_safe_name()` strips path to filename stem (`agents/v2/bot.py` → `"bot"`).
 
 `ProfileStore.load()` deserializes via `ProfilingSession.from_dict()` → `StepRecord.from_dict()` for each record. Re-validates all invariants.
 
@@ -834,7 +834,7 @@ Xfailed: 1 Gemini thoughts token extraction (no native collector)
 | **Pricing** | Loud failure. Unknown model → `UnrecognizedModelError` with suggestions. | Every downstream number depends on correct pricing. A wrong price is worse than no price. |
 | **Validation** | Warnings only. Zero-token steps, stale profiles, uniform inputs → log warnings. | Informative but non-blocking. The user decides whether to act. |
 | **Projection** | Graceful degradation. Missing runs for MC → linear fallback. Small n → suppress p95. | Always produce *some* output. Annotate uncertainty instead of refusing to project. |
-| **Hooks (OpenAI)** | Every method wrapped in `try/except Exception`. | A bug in AgentCost must never crash the user's workflow execution. |
+| **Hooks (OpenAI)** | Every method wrapped in `try/except Exception`. | A bug in Pretia must never crash the user's workflow execution. |
 
 ### No external dependencies for math
 
@@ -855,15 +855,15 @@ Core (always installed):
   click, rich, jinja2
 
 Optional extras:
-  pip install agentcost[langgraph]     # LangGraph + LangChain
-  pip install agentcost[openai]        # OpenAI Agents SDK
-  pip install agentcost[qwen]          # Qwen-Agent
-  pip install agentcost[ui]            # FastAPI + React bundle
-  pip install agentcost[validation]    # scipy + sklearn
-  pip install agentcost[backtesting]   # langchain-anthropic + full test deps
+  pip install pretia[langgraph]     # LangGraph + LangChain
+  pip install pretia[openai]        # OpenAI Agents SDK
+  pip install pretia[qwen]          # Qwen-Agent
+  pip install pretia[ui]            # FastAPI + React bundle
+  pip install pretia[validation]    # scipy + sklearn
+  pip install pretia[backtesting]   # langchain-anthropic + full test deps
 
 Dev:
-  pip install agentcost[dev]           # pytest, ruff, pyright, build
+  pip install pretia[dev]           # pytest, ruff, pyright, build
 ```
 
 Lazy imports via `__getattr__` prevent `ImportError` when optional packages aren't installed. The error surfaces only when the specific collector is needed.
@@ -872,7 +872,7 @@ Lazy imports via `__getattr__` prevent `ImportError` when optional packages aren
 
 ## 13. Full Pipeline Traces
 
-### Trace A: `agentcost profile run workflow.py --auto-generate 50`
+### Trace A: `pretia profile run workflow.py --auto-generate 50`
 
 ```
 cli.py:run(workflow_path, auto_generate=50)
@@ -926,15 +926,15 @@ cli.py:run(workflow_path, auto_generate=50)
        ├─ ProfilingSession(metadata={cost_summary, stats, patterns, projection, confidence})
        │
        ├─ ProfileStore.save(session)
-       │    → .agentcost/workflow_20260601_143022.json
+       │    → .pretia/workflow_20260601_143022.json
        │
        ├─ _auto_diff_baseline(session)
-       │    If .agentcost/baseline.json exists → diff_baseline() → summary
+       │    If .pretia/baseline.json exists → diff_baseline() → summary
        │
        └─ Return to CLI → format_cli_report(session) → console.print()
 ```
 
-### Trace B: `agentcost analyze --from-langfuse --last 20`
+### Trace B: `pretia analyze --from-langfuse --last 20`
 
 ```
 cli.py:analyze_cmd(from_langfuse=True, last_n=20)
@@ -966,7 +966,7 @@ cli.py:analyze_cmd(from_langfuse=True, last_n=20)
   └─ format_cli_report(session) → console.print()
 ```
 
-### Trace C: `agentcost diff baseline.json latest`
+### Trace C: `pretia diff baseline.json latest`
 
 ```
 cli.py:diff_cmd(baseline_path, profile_path="latest")
@@ -988,7 +988,7 @@ cli.py:diff_cmd(baseline_path, profile_path="latest")
   └─ If --threshold N: check p50_pct > N → sys.exit(1) for CI gate
 ```
 
-### Trace D: `agentcost validate workflow.py`
+### Trace D: `pretia validate workflow.py`
 
 ```
 cli.py:validate_cmd(workflow_path, budget=10, small_n=20, large_n=100)
@@ -1025,7 +1025,7 @@ cli.py:validate_cmd(workflow_path, budget=10, small_n=20, large_n=100)
 ### Import hierarchy (no circular dependencies)
 
 ```
-agentcost/__init__.py
+pretia/__init__.py
   └── runner.py
         ├── collectors/base.py          (StepRecord, BaseCollector)
         ├── collectors/generic.py       (GenericCollector, StepTracker)

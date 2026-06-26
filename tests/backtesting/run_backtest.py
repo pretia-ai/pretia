@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Backtest comparison runner for the AgentCost backtesting suite.
+"""Backtest comparison runner for the Pretia backtesting suite.
 
 Orchestrates the three-comparison protocol (A: no drift, B: drifted, C: reweighted)
 for each workflow. Computes accuracy metrics, validates detectors, generates B1-B10
@@ -28,7 +28,7 @@ from typing import Any
 
 import click
 
-from agentcost.pricing.tables import calculate_cost
+from pretia.pricing.tables import calculate_cost
 
 
 def _load_dotenv() -> None:
@@ -370,14 +370,14 @@ async def _run_comparison(
     parallel: int,
 ) -> dict[str, Any]:
     """Execute one comparison (A, B, or C) for a single workflow."""
-    from agentcost.projection.patterns import detect_patterns
-    from agentcost.projection.stats import compute_stats
-    from agentcost.validation.scoring import score_comparison
     from bt_agents.harness.run_workflow import (
         load_prompts,
         run_batch,
         save_results,
     )
+    from pretia.projection.patterns import detect_patterns
+    from pretia.projection.stats import compute_stats
+    from pretia.validation.scoring import score_comparison
 
     gt_n = _GROUND_TRUTH_N.get(workflow_id, 200)
     result: dict[str, Any] = {"comparison": comparison, "error": None}
@@ -472,8 +472,8 @@ def _build_workflow_result(
     profiling_records: list[list[Any]],
 ) -> dict[str, Any]:
     """Build the per-workflow result JSON compatible with visualization generators."""
-    from agentcost.validation.scoring import ComparisonScore
-    from agentcost.validation.suite import attribute_failure
+    from pretia.validation.scoring import ComparisonScore
+    from pretia.validation.suite import attribute_failure
     from tests.backtesting.detector_validation import results_to_dict, validate_detectors
 
     # Build ComparisonScores for failure attribution
@@ -496,7 +496,7 @@ def _build_workflow_result(
     # Recovery percentage
     recovery_pct = None
     if scores.get("A") and scores.get("B") and scores.get("C"):
-        from agentcost.validation.suite import _compute_recovery
+        from pretia.validation.suite import _compute_recovery
 
         if not scores["B"].passes:
             recovery_pct = _compute_recovery(scores["A"], scores["B"], scores["C"])
@@ -505,7 +505,7 @@ def _build_workflow_result(
     patterns_for_detection = []
     comp_b = comparisons.get("B", comparisons.get("A", {}))
     if comp_b.get("detected_patterns"):
-        from agentcost.projection.patterns import DetectedPattern
+        from pretia.projection.patterns import DetectedPattern
 
         for pd in comp_b["detected_patterns"]:
             try:

@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
 
-from agentcost.cli import cli
-from agentcost.store import ProfilingSession
+from pretia.cli import cli
+from pretia.store import ProfilingSession
 
 runner = CliRunner()
 
@@ -82,26 +82,26 @@ class TestRagDetection:
     def test_detects_chromadb(self, tmp_path):
         wf = tmp_path / "rag_agent.py"
         wf.write_text("import chromadb\nclient = chromadb.Client()\n")
-        from agentcost.cli import _detect_rag_imports
+        from pretia.cli import _detect_rag_imports
 
         assert _detect_rag_imports(str(wf)) is True
 
     def test_detects_langchain_vectorstores(self, tmp_path):
         wf = tmp_path / "rag_agent.py"
         wf.write_text("from langchain.vectorstores import Chroma\n")
-        from agentcost.cli import _detect_rag_imports
+        from pretia.cli import _detect_rag_imports
 
         assert _detect_rag_imports(str(wf)) is True
 
     def test_no_match(self, tmp_path):
         wf = tmp_path / "simple.py"
         wf.write_text("import os\nx = 42\n")
-        from agentcost.cli import _detect_rag_imports
+        from pretia.cli import _detect_rag_imports
 
         assert _detect_rag_imports(str(wf)) is False
 
     def test_nonexistent_file(self):
-        from agentcost.cli import _detect_rag_imports
+        from pretia.cli import _detect_rag_imports
 
         assert _detect_rag_imports("/nonexistent/path.py") is False
 
@@ -131,11 +131,11 @@ class TestProfileRun:
 
         with (
             patch(
-                "agentcost.runner.ProfileRunner.run_sync",
+                "pretia.runner.ProfileRunner.run_sync",
                 return_value=mock_session,
             ) as mock_run,
             patch(
-                "agentcost.runner.ProfileRunner.__init__",
+                "pretia.runner.ProfileRunner.__init__",
                 return_value=None,
             ) as mock_init,
         ):
@@ -159,11 +159,11 @@ class TestProfileRun:
 
         with (
             patch(
-                "agentcost.runner.ProfileRunner.run_sync",
+                "pretia.runner.ProfileRunner.run_sync",
                 return_value=mock_session,
             ),
             patch(
-                "agentcost.runner.ProfileRunner.__init__",
+                "pretia.runner.ProfileRunner.__init__",
                 return_value=None,
             ) as mock_init,
         ):
@@ -192,11 +192,11 @@ class TestProfileRun:
 
         with (
             patch(
-                "agentcost.runner.ProfileRunner.run_sync",
+                "pretia.runner.ProfileRunner.run_sync",
                 return_value=mock_session,
             ),
             patch(
-                "agentcost.runner.ProfileRunner.__init__",
+                "pretia.runner.ProfileRunner.__init__",
                 return_value=None,
             ) as mock_init,
         ):
@@ -227,7 +227,7 @@ class TestReportCommand:
 
     def test_latest_no_profiles(self, tmp_path):
         with patch(
-            "agentcost.store.ProfileStore.list_sessions",
+            "pretia.store.ProfileStore.list_sessions",
             return_value=[],
         ):
             result = runner.invoke(cli, ["report", "latest"])
@@ -258,7 +258,7 @@ class TestReportCommand:
         profile_path.write_text(json.dumps(session.to_dict(), indent=2))
 
         with patch(
-            "agentcost.store.ProfileStore.list_sessions",
+            "pretia.store.ProfileStore.list_sessions",
             return_value=[profile_path],
         ):
             result = runner.invoke(cli, ["report", "latest"])
@@ -349,19 +349,19 @@ class TestAnalyzeCommand:
 
         with (
             patch(
-                "agentcost.inputs.importer.create_langfuse_client",
+                "pretia.inputs.importer.create_langfuse_client",
                 return_value=MagicMock(),
             ),
             patch(
-                "agentcost.inputs.importer.fetch_traces",
+                "pretia.inputs.importer.fetch_traces",
                 return_value=[mock_trace, mock_trace, mock_trace],
             ),
             patch(
-                "agentcost.inputs.importer.traces_to_step_records",
+                "pretia.inputs.importer.traces_to_step_records",
                 return_value=[[], [], []],
             ),
             patch(
-                "agentcost.store.ProfileStore.save",
+                "pretia.store.ProfileStore.save",
                 return_value=tmp_path / "out.json",
             ),
         ):
@@ -578,7 +578,7 @@ class TestBaselineCommand:
         profile_path.write_text(json.dumps(session.to_dict(), indent=2))
 
         with patch(
-            "agentcost.store.ProfileStore.list_sessions",
+            "pretia.store.ProfileStore.list_sessions",
             return_value=[profile_path],
         ):
             result = runner.invoke(

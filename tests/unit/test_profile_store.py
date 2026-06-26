@@ -7,8 +7,8 @@ import os
 from datetime import UTC, datetime
 from pathlib import Path
 
-from agentcost.collectors.base import StepRecord
-from agentcost.store import ProfileStore, ProfilingSession
+from pretia.collectors.base import StepRecord
+from pretia.store import ProfileStore, ProfilingSession
 
 
 def _session(
@@ -54,7 +54,7 @@ def test_filename_pattern(tmp_path):
 
 
 def test_save_creates_storage_dir(tmp_path):
-    storage = tmp_path / "nested" / "agentcost"
+    storage = tmp_path / "nested" / "pretia"
     assert not storage.exists()
     store = ProfileStore(storage_dir=storage)
     store.save(_session(profiled_at=datetime(2026, 1, 1, tzinfo=UTC)))
@@ -138,7 +138,7 @@ def test_loaded_session_step_records_are_step_record_instances(tmp_path, sample_
 
 def test_default_storage_dir():
     store = ProfileStore()
-    assert store.storage_dir == Path(".agentcost")
+    assert store.storage_dir == Path(".pretia")
 
 
 # ---------------------------------------------------------------------------
@@ -152,7 +152,7 @@ class TestMetadataEnrichment:
         assert session.workflow_id is None
         assert session.run_id is None
         assert session.framework is None
-        assert session.agentcost_version is None
+        assert session.pretia_version is None
         assert session.profiling_cost is None
 
     def test_new_fields_serialize_roundtrip(self, tmp_path, sample_record):
@@ -168,7 +168,7 @@ class TestMetadataEnrichment:
             workflow_id="test-agent",
             run_id="550e8400-e29b-41d4-a716-446655440000",
             framework="langgraph",
-            agentcost_version="0.1.0",
+            pretia_version="0.1.0",
             profiling_cost=1.84,
         )
         path = store.save(session)
@@ -176,7 +176,7 @@ class TestMetadataEnrichment:
         assert loaded.workflow_id == "test-agent"
         assert loaded.run_id == "550e8400-e29b-41d4-a716-446655440000"
         assert loaded.framework == "langgraph"
-        assert loaded.agentcost_version == "0.1.0"
+        assert loaded.pretia_version == "0.1.0"
         assert loaded.profiling_cost == 1.84
 
     def test_backward_compat_missing_new_fields(self):
@@ -193,7 +193,7 @@ class TestMetadataEnrichment:
         assert session.workflow_id is None
         assert session.run_id is None
         assert session.framework is None
-        assert session.agentcost_version is None
+        assert session.pretia_version is None
         assert session.profiling_cost is None
 
     def test_new_fields_in_to_dict_output(self):
@@ -208,14 +208,14 @@ class TestMetadataEnrichment:
             workflow_id="my-workflow",
             run_id="uuid-here",
             framework="generic",
-            agentcost_version="0.1.0",
+            pretia_version="0.1.0",
             profiling_cost=2.50,
         )
         d = session.to_dict()
         assert d["workflow_id"] == "my-workflow"
         assert d["run_id"] == "uuid-here"
         assert d["framework"] == "generic"
-        assert d["agentcost_version"] == "0.1.0"
+        assert d["pretia_version"] == "0.1.0"
         assert d["profiling_cost"] == 2.50
 
     def test_profiling_cost_accepts_float(self):

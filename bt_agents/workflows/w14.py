@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from agentcost.collectors.base import StepRecord
+from pretia.collectors.base import StepRecord
 
 from bt_agents import BaseAgent
 from bt_agents.patterns.rag_pipeline import run_rag_pipeline

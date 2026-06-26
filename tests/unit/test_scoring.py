@@ -6,13 +6,13 @@ import json
 
 import pytest
 
-from agentcost.projection.stats import (
+from pretia.projection.stats import (
     PercentileStats,
     ProfilingStats,
     RunStats,
     StepStats,
 )
-from agentcost.validation.scoring import (
+from pretia.validation.scoring import (
     CalibrationScore,
     _spearman_rank_correlation,
     bootstrap_bca_ci,
@@ -496,7 +496,7 @@ class TestBcaReproducible:
 
 class TestCvarBasic:
     def test_cvar_known_values(self):
-        from agentcost.projection.montecarlo import compute_cvar
+        from pretia.projection.montecarlo import compute_cvar
 
         costs = list(range(1, 101))
         cvar = compute_cvar([float(x) for x in costs], alpha=0.05)
@@ -507,7 +507,7 @@ class TestCvarSubadditivity:
     def test_subadditive(self):
         import random
 
-        from agentcost.projection.montecarlo import compute_cvar
+        from pretia.projection.montecarlo import compute_cvar
 
         rng = random.Random(42)
         a = [rng.gauss(10, 3) for _ in range(1000)]

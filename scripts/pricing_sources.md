@@ -1,6 +1,6 @@
 # Pricing Table Sources
 
-Per-million-token pricing in `agentcost/pricing/tables.py` is sourced from
+Per-million-token pricing in `pretia/pricing/tables.py` is sourced from
 the vendor pages below. Verify these URLs before each release — providers
 change pricing without notice.
 
@@ -19,7 +19,7 @@ change pricing without notice.
 1. Run `python scripts/validate_pricing.py` (requires API keys).
 2. The script sends one small request per backtesting model and computes cost via `calculate_cost()`.
 3. Manually compare the computed cost against each provider's billing dashboard.
-4. If a price is wrong, update `MODEL_PRICING` in `agentcost/pricing/tables.py` and re-run the structural invariant tests.
+4. If a price is wrong, update `MODEL_PRICING` in `pretia/pricing/tables.py` and re-run the structural invariant tests.
 
 ## Notes
 

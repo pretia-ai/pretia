@@ -2,9 +2,9 @@
 
 **Purpose:** This file specifies how to build the 14 workflow agent implementations — the orchestration code that takes an input, runs it through the correct steps with the correct models, handles control flow (loops, routing, fan-out, multi-turn), and records cost data as StepRecords. These agents are what gets profiled and backtested.
 
-**Context for Claude Code:** You have the AgentCost codebase (including the projection engine, the collector, the StepRecord schema), the generated system prompts in `prompts/`, `projection-engine-recommendation-addition-2.md` (engine design, W17 architecture), `cross-cutting-robustness.md`, and the technical spec. This file tells you how to build the workflow orchestrators that connect inputs to prompts to API calls to cost data.
+**Context for Claude Code:** You have the Pretia codebase (including the projection engine, the collector, the StepRecord schema), the generated system prompts in `prompts/`, `projection-engine-recommendation-addition-2.md` (engine design, W17 architecture), `cross-cutting-robustness.md`, and the technical spec. This file tells you how to build the workflow orchestrators that connect inputs to prompts to API calls to cost data.
 
-**What you are building:** A runnable agent per workflow that the AgentCost collector can invoke. Each agent takes one input (JSON), executes all workflow steps, and returns a list of StepRecords. The harness runs N inputs through an agent and feeds the StepRecords to the projection engine.
+**What you are building:** A runnable agent per workflow that the Pretia collector can invoke. Each agent takes one input (JSON), executes all workflow steps, and returns a list of StepRecords. The harness runs N inputs through an agent and feeds the StepRecords to the projection engine.
 
 ---
 
@@ -100,7 +100,7 @@ def call_model(model, system_prompt, messages, max_tokens=4096, tools=None) -> P
 **Why not LangGraph/LangChain for orchestration:**
 The workflow graphs are fixed and known at build time — a loop with a termination condition, a router with 3 paths, a fan-out. Custom Python with `asyncio` for W16 parallel calls is simpler and gives full control over StepRecord creation at every API call boundary. Agent frameworks tend to abstract away the exact things we need to measure (per-call token counts, cache behavior, per-step cost).
 
-**However:** The existing AgentCost codebase was built around LangGraph. If the codebase already has LangGraph patterns, state management, and graph definitions, it may be more consistent to build the workflow agents as LangGraph graphs rather than introducing a parallel custom orchestration system. LangGraph's `StateGraph` maps naturally to these workflow patterns (loops via conditional edges, routing via branching, fan-out via `Send`), and its callback system can capture per-node usage data for StepRecords.
+**However:** The existing Pretia codebase was built around LangGraph. If the codebase already has LangGraph patterns, state management, and graph definitions, it may be more consistent to build the workflow agents as LangGraph graphs rather than introducing a parallel custom orchestration system. LangGraph's `StateGraph` maps naturally to these workflow patterns (loops via conditional edges, routing via branching, fan-out via `Send`), and its callback system can capture per-node usage data for StepRecords.
 
 **Let Claude Code decide.** It has access to the codebase and can see which approach integrates better. The non-negotiable requirement either way: every API call must produce a StepRecord with `input_tokens`, `output_tokens`, `cache_hit_tokens`, and `cost_usd` extracted from the provider's usage response — not from local tokenization, not from framework estimates. If LangGraph's callback/event system exposes the raw API response usage, use it. If it abstracts it away, add a hook or wrapper that captures it.
 
@@ -126,7 +126,7 @@ Verify these model strings against LiteLLM's current model list (`litellm.model_
 
 ### Pricing Table
 
-LiteLLM includes a built-in cost tracker (`litellm.completion_cost(response)`) that computes per-call cost from its internal pricing table. Use this as the primary cost source. Cross-check against the pricing table in the AgentCost codebase — if they disagree, the codebase's table takes precedence (it's what the projection engine uses).
+LiteLLM includes a built-in cost tracker (`litellm.completion_cost(response)`) that computes per-call cost from its internal pricing table. Use this as the primary cost source. Cross-check against the pricing table in the Pretia codebase — if they disagree, the codebase's table takes precedence (it's what the projection engine uses).
 
 ```python
 from litellm import completion_cost
@@ -460,7 +460,7 @@ Both conditions must be true. If the input is complex but the loop converged in 
 
 ---
 
-## Part 5: Integration with AgentCost
+## Part 5: Integration with Pretia
 
 The StepRecords produced by the harness must be consumable by the existing projection engine. Verify:
 

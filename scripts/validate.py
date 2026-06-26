@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Unified validation: 4-stage gate for the AgentCost backtesting suite.
+"""Unified validation: 4-stage gate for the Pretia backtesting suite.
 
 Usage::
 
@@ -559,7 +559,7 @@ def run_stage_2() -> StageResult:
     # Model pricing + LiteLLM consistency
     pricing_issues: list[str] = []
     try:
-        from agentcost.pricing.tables import MODEL_PRICING, resolve_model
+        from pretia.pricing.tables import MODEL_PRICING, resolve_model
         from bt_agents.providers.llm import LITELLM_MODEL_MAP
 
         manifest = _load_manifest()
@@ -599,8 +599,8 @@ def run_stage_2() -> StageResult:
 
     # StepRecord schema + projection smoke test
     try:
-        from agentcost.collectors.base import StepRecord
-        from agentcost.projection.stats import compute_stats
+        from pretia.collectors.base import StepRecord
+        from pretia.projection.stats import compute_stats
 
         test_records: list[list[StepRecord]] = []
         for i in range(20):
@@ -831,7 +831,7 @@ def run_stage_4() -> StageResult:
 
             # Track cost
             try:
-                from agentcost.pricing.tables import calculate_cost
+                from pretia.pricing.tables import calculate_cost
                 run_cost = sum(
                     calculate_cost(r.model, r.input_tokens, r.output_tokens)
                     for r in records
@@ -971,7 +971,7 @@ def format_report(report: ValidationReport) -> str:
 @click.option("--skip-live", is_flag=True, default=False, help="Skip stage 4 (no API calls).")
 @click.option("--output", type=click.Path(), default=None, help="JSON report output path.")
 def main(stage: int | None, skip_live: bool, output: str | None) -> None:
-    """Unified validation: 4-stage gate for AgentCost backtesting."""
+    """Unified validation: 4-stage gate for Pretia backtesting."""
     os.chdir(ROOT)
     if str(ROOT) not in sys.path:
         sys.path.insert(0, str(ROOT))

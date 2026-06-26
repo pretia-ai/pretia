@@ -1,4 +1,4 @@
-"""Tests for agentcost.recommend.score — optimization score computation."""
+"""Tests for pretia.recommend.score — optimization score computation."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ import json
 
 import pytest
 
-from agentcost.recommend.base import Recommendation, compute_priority
-from agentcost.recommend.score import _classify_zone, compute_score
+from pretia.recommend.base import Recommendation, compute_priority
+from pretia.recommend.score import _classify_zone, compute_score
 
 
 def _make_rec(monthly_savings: float = 100.0) -> Recommendation:

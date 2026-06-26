@@ -7,9 +7,9 @@ from datetime import UTC, datetime
 
 import pytest
 
-from agentcost.collectors.base import StepRecord
-from agentcost.projection.patterns import DetectedPattern, detect_patterns
-from agentcost.projection.stats import compute_stats
+from pretia.collectors.base import StepRecord
+from pretia.projection.patterns import DetectedPattern, detect_patterns
+from pretia.projection.stats import compute_stats
 
 
 def _make_record(
@@ -711,7 +711,7 @@ class TestBimodalityZeroCostHandling:
 
 class TestRobustCvNoOutlierEffect:
     def test_outlier_resistant(self):
-        from agentcost.projection.stats import robust_cv
+        from pretia.projection.stats import robust_cv
 
         values = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 100.0]
         rcv = robust_cv(values)
@@ -722,7 +722,7 @@ class TestRobustCvMatchesCvForNormal:
     def test_close_to_standard_cv(self):
         import math
 
-        from agentcost.projection.stats import robust_cv
+        from pretia.projection.stats import robust_cv
 
         values = [8.0, 9.0, 9.0, 10.0, 10.0, 10.0, 10.0, 11.0, 11.0, 12.0]
         mean = sum(values) / len(values)
@@ -734,7 +734,7 @@ class TestRobustCvMatchesCvForNormal:
 
 class TestRobustCvZeroMedian:
     def test_returns_zero(self):
-        from agentcost.projection.stats import robust_cv
+        from pretia.projection.stats import robust_cv
 
         values = [0.0, 0.0, 0.0, 1.0, 2.0]
         assert robust_cv(values) == 0.0

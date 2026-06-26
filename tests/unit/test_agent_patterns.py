@@ -8,7 +8,6 @@ import pytest
 
 pytest.importorskip("litellm")
 
-from agentcost.collectors.base import StepRecord
 from bt_agents.harness.run_workflow import load_prompts
 from bt_agents.patterns.multi_turn import run_multi_turn
 from bt_agents.patterns.rag_pipeline import run_rag_pipeline
@@ -18,6 +17,7 @@ from bt_agents.patterns.self_assessment_loop import (
     run_self_assessment_loop,
 )
 from bt_agents.patterns.single_step import run_single_step
+from pretia.collectors.base import StepRecord
 
 # ---------------------------------------------------------------------------
 # Resolve prompts directory relative to project root

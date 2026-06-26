@@ -2,7 +2,7 @@
 
 **Purpose:** This file specifies what Claude Code must produce — one or more production-grade system prompts per workflow, for a total of 14 workflows with ~30 distinct prompts. These prompts are the fixed instructions each agent step uses when processing an input. They do not change between runs. Cost variation comes from how different inputs interact with these fixed prompts and the workflow's control flow (loops, routing, fan-out).
 
-**Context for Claude Code:** You have access to the AgentCost codebase, `projection-engine-recommendation-addition-2.md` (engine design, statistical methods, schema, W17 full architecture, PDF pipeline), `cross-cutting-robustness.md` (robustness constraints, detector matrix, failure modes), and the technical spec. The system described in the system guide is already implemented. This file provides the per-workflow specifications you need to generate the prompts. Treat it as the authoritative source for workflow structure, step architecture, model assignments, and prompt requirements.
+**Context for Claude Code:** You have access to the Pretia codebase, `projection-engine-recommendation-addition-2.md` (engine design, statistical methods, schema, W17 full architecture, PDF pipeline), `cross-cutting-robustness.md` (robustness constraints, detector matrix, failure modes), and the technical spec. The system described in the system guide is already implemented. This file provides the per-workflow specifications you need to generate the prompts. Treat it as the authoritative source for workflow structure, step architecture, model assignments, and prompt requirements.
 
 **What you are generating:** For each workflow step, a complete system prompt — full text, not a stub. The prompt is what gets sent as the `system` message (or equivalent) in the API call. It defines the agent's role, constraints, output format, and behavioral rules for that step.
 
@@ -38,7 +38,7 @@ Elements not marked cost-critical are important for realism but can be adapted w
 - Must not leak internal reasoning markers to the user (no "thinking out loud" unless it's a self-reflection step designed for it).
 - Must not invent business rules, policies, or product features not specified in the prompt itself. The prompt must be self-contained — no assumption that the model has external knowledge about the fictional company or domain.
 - Must not include instructions that suppress cost variance (e.g., "always respond in exactly 50 words" flattens the distribution). Output length constraints should define a range, not a point.
-- Must not include meta-instructions about AgentCost, profiling, or backtesting. The prompt should read as a genuine production prompt for an agent that doesn't know it's being profiled.
+- Must not include meta-instructions about Pretia, profiling, or backtesting. The prompt should read as a genuine production prompt for an agent that doesn't know it's being profiled.
 
 ### Domain Content
 

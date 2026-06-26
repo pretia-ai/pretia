@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-from agentcost.projection.stats import (
+from pretia.projection.stats import (
     PercentileStats,
     ProfilingStats,
     RunStats,
     StepStats,
 )
-from agentcost.validation.scoring import (
+from pretia.validation.scoring import (
     _COMPARISON_TARGETS,
     ComparisonScore,
     score_comparison,
 )
-from agentcost.validation.suite import (
+from pretia.validation.suite import (
     FailureAttribution,
     _compute_recovery,
     attribute_failure,

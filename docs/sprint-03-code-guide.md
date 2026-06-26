@@ -10,20 +10,20 @@ Sprint 3 overhauled the projection engine, added a validation layer, hardened co
 
 - [Part 1: Architecture Overview](#part-1-architecture-overview)
 - [Part 2: Projection Engine](#part-2-projection-engine)
-  - [2A. Monte Carlo Simulation](#2a-monte-carlo-simulation--agentcostprojectionmontecarlopy)
-  - [2B. Pattern Detection](#2b-pattern-detection--agentcostprojectionpatternspy)
-  - [2C. Projector](#2c-projector--agentcostprojectionprojectorpy)
+  - [2A. Monte Carlo Simulation](#2a-monte-carlo-simulation--pretiaprojectionmontecarlopy)
+  - [2B. Pattern Detection](#2b-pattern-detection--pretiaprojectionpatternspy)
+  - [2C. Projector](#2c-projector--pretiaprojectionprojectorpy)
 - [Part 3: Validation Layer](#part-3-validation-layer)
-  - [3A. Confidence Scoring](#3a-confidence-scoring--agentcostvalidationconfidencepy)
-  - [3B. Calibration Scoring](#3b-calibration-scoring--agentcostvalidationscoringpy)
-  - [3C. Backtesting Suite](#3c-backtesting-suite--agentcostvalidationsuitepy)
-  - [3D. Data Quality Checks](#3d-data-quality-checks--agentcostvalidationdata_checkspy)
-  - [3E. Visibility Warnings](#3e-visibility-warnings--agentcostvalidationvisibilitypy)
+  - [3A. Confidence Scoring](#3a-confidence-scoring--pretiavalidationconfidencepy)
+  - [3B. Calibration Scoring](#3b-calibration-scoring--pretiavalidationscoringpy)
+  - [3C. Backtesting Suite](#3c-backtesting-suite--pretiavalidationsuitepy)
+  - [3D. Data Quality Checks](#3d-data-quality-checks--pretiavalidationdata_checkspy)
+  - [3E. Visibility Warnings](#3e-visibility-warnings--pretiavalidationvisibilitypy)
 - [Part 4: Collector & Pricing Hardening](#part-4-collector--pricing-hardening)
-  - [4A. StepRecord Cache Fields](#4a-steprecord-cache-fields--agentcostcollectorsbasepy)
-  - [4B. Token Extraction](#4b-token-extraction--agentcostcollectorsgenericpy)
-  - [4C. Cache Busting](#4c-cache-busting--agentcostcollectorscache_bustpy)
-  - [4D. Pricing Tables](#4d-pricing-tables--agentcostpricingtablespy)
+  - [4A. StepRecord Cache Fields](#4a-steprecord-cache-fields--pretiacollectorsbasepy)
+  - [4B. Token Extraction](#4b-token-extraction--pretiacollectorsgenericpy)
+  - [4C. Cache Busting](#4c-cache-busting--pretiacollectorscache_bustpy)
+  - [4D. Pricing Tables](#4d-pricing-tables--pretiapricingtablespy)
 - [Part 5: Significance Testing & Baseline Diffing](#part-5-significance-testing--baseline-diffing)
 - [Part 6: Runner & CLI Changes](#part-6-runner--cli-changes)
 - [Part 7: Synthetic Testing Framework](#part-7-synthetic-testing-framework)
@@ -123,7 +123,7 @@ Sprint 3's changes form three major arcs:
 
 ## Part 2: Projection Engine
 
-### 2A. Monte Carlo Simulation — `agentcost/projection/montecarlo.py`
+### 2A. Monte Carlo Simulation — `pretia/projection/montecarlo.py`
 
 #### What this file does
 
@@ -229,7 +229,7 @@ print(f'p50={result.projected_p50:.2f}, p95={result.projected_p95:.2f}')
 
 ---
 
-### 2B. Pattern Detection — `agentcost/projection/patterns.py`
+### 2B. Pattern Detection — `pretia/projection/patterns.py`
 
 #### What this file does
 
@@ -357,7 +357,7 @@ This is critical for understanding which detectors affect cost models vs. just t
 
 ---
 
-### 2C. Projector — `agentcost/projection/projector.py`
+### 2C. Projector — `pretia/projection/projector.py`
 
 #### What this file does
 
@@ -418,7 +418,7 @@ project(stats, patterns, traffic=[100, 1000, 10000], runs=runs)
 
 ## Part 3: Validation Layer
 
-### 3A. Confidence Scoring — `agentcost/validation/confidence.py`
+### 3A. Confidence Scoring — `pretia/validation/confidence.py`
 
 #### What this file does
 
@@ -480,7 +480,7 @@ Assigns a 0–100 confidence score and maps it to a tier (HIGH/MODERATE/LOW/VERY
 
 ---
 
-### 3B. Calibration Scoring — `agentcost/validation/scoring.py`
+### 3B. Calibration Scoring — `pretia/validation/scoring.py`
 
 #### What this file does
 
@@ -550,7 +550,7 @@ score_projection(projected, ground_truth, ...)
 
 ---
 
-### 3C. Backtesting Suite — `agentcost/validation/suite.py`
+### 3C. Backtesting Suite — `pretia/validation/suite.py`
 
 #### What this file does
 
@@ -622,7 +622,7 @@ Compute launch gate:
 
 ---
 
-### 3D. Data Quality Checks — `agentcost/validation/data_checks.py`
+### 3D. Data Quality Checks — `pretia/validation/data_checks.py`
 
 #### What this file does
 
@@ -646,7 +646,7 @@ for w in data_warnings:
 
 ---
 
-### 3E. Visibility Warnings — `agentcost/validation/visibility.py`
+### 3E. Visibility Warnings — `pretia/validation/visibility.py`
 
 #### What this file does
 
@@ -667,7 +667,7 @@ Context-aware profiling recommendations and display helpers. Tells the user what
 
 ## Part 4: Collector & Pricing Hardening
 
-### 4A. StepRecord Cache Fields — `agentcost/collectors/base.py`
+### 4A. StepRecord Cache Fields — `pretia/collectors/base.py`
 
 Two new optional fields added to `StepRecord`:
 
@@ -678,7 +678,7 @@ cache_miss_tokens: int | None = None
 
 Added at the end of the dataclass with defaults, so all existing constructor calls remain valid. `to_dict()` includes them. `from_dict()` uses `.get()` with `None` default for backward compatibility with older JSON files.
 
-### 4B. Token Extraction — `agentcost/collectors/generic.py`
+### 4B. Token Extraction — `pretia/collectors/generic.py`
 
 `_try_extract()` now extracts DeepSeek cache fields from both dict and attribute access paths:
 
@@ -696,7 +696,7 @@ Both flow through `record_llm_call()` → `StepRecord(cache_hit_tokens=..., cach
 
 `StepTracker.record_llm_call()` gained two new optional parameters: `cache_hit_tokens: int | None = None` and `cache_miss_tokens: int | None = None`.
 
-### 4C. Cache Busting — `agentcost/collectors/cache_bust.py`
+### 4C. Cache Busting — `pretia/collectors/cache_bust.py`
 
 #### What this file does
 
@@ -713,7 +713,7 @@ Prevents server-side prompt caching (specifically DeepSeek's 50× cheaper cache-
 
 `ProfileRunner.__init__` accepts `cache_mode: str = "cold"`. The CLI flag `--allow-cache` sets it to `"warm"`. The runner passes this to collectors that support it.
 
-### 4D. Pricing Tables — `agentcost/pricing/tables.py`
+### 4D. Pricing Tables — `pretia/pricing/tables.py`
 
 #### New constants
 
@@ -761,7 +761,7 @@ Example (DeepSeek V4 Flash, 1000 cache hits + 200 cache misses):
 
 ## Part 5: Significance Testing & Baseline Diffing
 
-### `agentcost/ci/diff.py`
+### `pretia/ci/diff.py`
 
 #### What this file does
 
@@ -797,7 +797,7 @@ Compares a saved baseline against a new profiling session and computes per-step 
 
 ## Part 6: Runner & CLI Changes
 
-### `agentcost/runner.py` — Sprint 3 Changes
+### `pretia/runner.py` — Sprint 3 Changes
 
 1. **`cache_mode` parameter** — `ProfileRunner.__init__` accepts `cache_mode: str = "cold"`. Passed to collectors that support cache busting.
 
@@ -810,18 +810,18 @@ Compares a saved baseline against a new profiling session and computes per-step 
 
 3. **`project()` integration** — The runner now calls `project(stats, patterns, runs=runs, input_source=selection.mode)` and stores the full `ProjectionResult` in session metadata.
 
-4. **Auto baseline diff** — `_auto_diff_baseline()` checks for `.agentcost/baseline.json` and shows a one-line summary if it exists.
+4. **Auto baseline diff** — `_auto_diff_baseline()` checks for `.pretia/baseline.json` and shows a one-line summary if it exists.
 
-### `agentcost/cli.py` — Sprint 3 Changes
+### `pretia/cli.py` — Sprint 3 Changes
 
 New CLI commands:
 
 | Command | What it does |
 |---------|-------------|
-| `agentcost baseline update <profile>` | Save a profile as a cost baseline |
-| `agentcost diff <baseline> <profile>` | Compare baseline to new profile |
-| `agentcost validate <workflow>` | Run projection quality check (small-n vs large-n) |
-| `agentcost update-pricing` | Placeholder for pricing updates |
+| `pretia baseline update <profile>` | Save a profile as a cost baseline |
+| `pretia diff <baseline> <profile>` | Compare baseline to new profile |
+| `pretia validate <workflow>` | Run projection quality check (small-n vs large-n) |
+| `pretia update-pricing` | Placeholder for pricing updates |
 
 New flags:
 
@@ -982,10 +982,10 @@ Compares projected percentiles against known distribution truth to produce a cal
 
 ## Part 9: Full Data Flow Diagrams
 
-### Pipeline: `agentcost profile run workflow.py --auto-generate 50`
+### Pipeline: `pretia profile run workflow.py --auto-generate 50`
 
 ```
-User runs: agentcost profile run workflow.py --auto-generate 50
+User runs: pretia profile run workflow.py --auto-generate 50
     │
     ▼
 cli.py:run()
@@ -1051,7 +1051,7 @@ ProfileRunner.run_sync() → asyncio.run(self.run())
     │   {"cost_summary", "stats", "patterns", "projection", "confidence"}
     │
     ├─ ProfileStore.save(session)
-    │   → .agentcost/{workflow}_{timestamp}.json
+    │   → .pretia/{workflow}_{timestamp}.json
     │
     └─ _auto_diff_baseline(session)               ◄── NEW Sprint 3
         └─ If baseline.json exists → diff_baseline() → one-line summary
@@ -1837,7 +1837,7 @@ Work through each exercise by reading the broken code, then answer the four ques
 
 ### Exercise 1: CLT aggregation with zero variance
 
-**File:** `agentcost/projection/montecarlo.py`
+**File:** `pretia/projection/montecarlo.py`
 **Symptom:** For a perfectly uniform cost distribution (every run costs exactly $0.05), the Monte Carlo projection shows wild variation between runs. Some simulations produce monthly costs of −$500 (clamped to $0) and others produce $15,000, when the true monthly cost at 1000/day is exactly $1,500.
 
 **Broken code:**
@@ -1867,7 +1867,7 @@ def _clt_aggregate(costs: list[float], n_total: int, z: float) -> float:
 
 ### Exercise 2: Whole-run sampling index error
 
-**File:** `agentcost/projection/montecarlo.py`
+**File:** `pretia/projection/montecarlo.py`
 **Symptom:** `IndexError: list index out of range` inside the simulation loop. Only happens when some steps appear in some runs but not others (e.g., a conditional routing workflow where path B only runs 30% of the time).
 
 **Broken code:**
@@ -1894,7 +1894,7 @@ for sn in all_step_names:
 
 ### Exercise 3: Effective sample size division by zero
 
-**File:** `agentcost/validation/confidence.py`
+**File:** `pretia/validation/confidence.py`
 **Symptom:** `ZeroDivisionError` when calling `compute_confidence()` with exactly 2 runs that have the same cost.
 
 **Broken code:**
@@ -1921,7 +1921,7 @@ def compute_effective_sample_size(costs: list[float]) -> float:
 
 ### Exercise 4: Bootstrap CI with one element
 
-**File:** `agentcost/validation/scoring.py`
+**File:** `pretia/validation/scoring.py`
 **Symptom:** `IndexError` when computing bootstrap CI on a ground truth with only 1 run. `rng.choice(costs)` works fine, but `sorted([...])` produces a 1-element list, and the percentile computation accesses `sorted_data[1]`.
 
 **Broken code:**
@@ -1947,7 +1947,7 @@ def bootstrap_percentile_ci(costs, percentile, n_bootstrap=1000, ci_level=0.90, 
 
 ### Exercise 5: Tail inflation applied twice
 
-**File:** `agentcost/projection/montecarlo.py`
+**File:** `pretia/projection/montecarlo.py`
 **Symptom:** At n=10 observed runs, the projected p95 monthly cost is 2.4× higher than what the synthetic testing framework expects. The calibration report shows massive overestimation for small sample sizes.
 
 **Broken code:**
@@ -1975,7 +1975,7 @@ if n_observed < 30:
 
 ### Exercise 6: Pattern significance check ignoring negative correlation
 
-**File:** `agentcost/projection/patterns.py`
+**File:** `pretia/projection/patterns.py`
 **Symptom:** A step where context_size *decreases* with iteration (e.g., a compaction step) is flagged as "context growth" with a danger severity. The r is −0.95, which is a strong negative correlation. The code treats it as growth because it only checks `r² > 0.7`, which is true for r = −0.95.
 
 **Broken code:**
@@ -2096,10 +2096,10 @@ pearson_passes = pearson_r_sq > 0.7 and pearson_sig and pearson_r_val > 0
 ```python
 from dataclasses import replace
 from datetime import UTC, datetime
-from agentcost.collectors.base import StepRecord
-from agentcost.projection.stats import compute_stats
-from agentcost.projection.patterns import detect_patterns
-from agentcost.projection.montecarlo import simulate
+from pretia.collectors.base import StepRecord
+from pretia.projection.stats import compute_stats
+from pretia.projection.patterns import detect_patterns
+from pretia.projection.montecarlo import simulate
 
 rec = StepRecord(step_name="classify", step_type="llm", model="gpt-4o-mini", input_tokens=500, output_tokens=50, context_size=500, tool_definitions_tokens=0, system_prompt_hash="abc", system_prompt_tokens=100, output_format="text", is_retry=False, iteration=1, parent_step=None, duration_ms=200, timestamp=datetime(2026, 5, 20, tzinfo=UTC))
 runs = [[rec], [replace(rec, input_tokens=800)], [replace(rec, input_tokens=1200)]]
@@ -2112,7 +2112,7 @@ mc.monthly_projection.p50, mc.monthly_projection.p95
 ### Pattern detection
 
 ```python
-from agentcost.projection.patterns import detect_patterns, _pearson_r, _rank, _is_significant
+from pretia.projection.patterns import detect_patterns, _pearson_r, _rank, _is_significant
 # Test Pearson r
 r, slope = _pearson_r([1.0, 2.0, 3.0, 4.0, 5.0], [500.0, 1000.0, 1500.0, 2000.0, 2500.0])
 r, slope  # should be (1.0, 500.0)
@@ -2128,7 +2128,7 @@ _rank([3.0, 1.0, 1.0, 5.0])  # [3.0, 1.5, 1.5, 4.0]
 ### Confidence scoring
 
 ```python
-from agentcost.validation.confidence import compute_effective_sample_size, compute_confidence
+from pretia.validation.confidence import compute_effective_sample_size, compute_confidence
 # All identical → zero effective n
 compute_effective_sample_size([0.05] * 200)  # ≈ 0.0
 
@@ -2144,7 +2144,7 @@ compute_confidence(50, {}, [], run_costs=costs)
 ### Bootstrap CI
 
 ```python
-from agentcost.validation.scoring import bootstrap_percentile_ci
+from pretia.validation.scoring import bootstrap_percentile_ci
 costs = [0.01, 0.02, 0.05, 0.03, 0.08, 0.02, 0.04, 0.06, 0.15, 0.03, 0.02, 0.05, 0.04, 0.07, 0.03]
 point, lo, hi = bootstrap_percentile_ci(costs, 95, n_bootstrap=1000)
 f"p95 = {point:.4f}, 90% CI = [{lo:.4f}, {hi:.4f}]"
@@ -2153,7 +2153,7 @@ f"p95 = {point:.4f}, 90% CI = [{lo:.4f}, {hi:.4f}]"
 ### Pricing with cache
 
 ```python
-from agentcost.pricing.tables import calculate_cost, register_model, resolve_model, check_pricing_staleness
+from pretia.pricing.tables import calculate_cost, register_model, resolve_model, check_pricing_staleness
 # Standard cost
 calculate_cost("deepseek-v4-flash", 1000, 500)
 
@@ -2171,7 +2171,7 @@ check_pricing_staleness()
 ### Mann-Whitney U
 
 ```python
-from agentcost.ci.diff import mann_whitney_u, significance_label
+from pretia.ci.diff import mann_whitney_u, significance_label
 x = [0.05, 0.06, 0.04, 0.07, 0.05]  # baseline costs
 y = [0.08, 0.09, 0.07, 0.10, 0.08]  # new costs
 p = mann_whitney_u(x, y)
@@ -2181,7 +2181,7 @@ f"p = {p:.4f}, {significance_label(p)}"
 ### Visibility helpers
 
 ```python
-from agentcost.validation.visibility import sample_coverage_statement, format_projection_output, get_profiling_recommendation
+from pretia.validation.visibility import sample_coverage_statement, format_projection_output, get_profiling_recommendation
 sample_coverage_statement(20)  # "events < ~14%..."
 sample_coverage_statement(50)  # "events < ~6%..."
 
@@ -2219,7 +2219,7 @@ pytest tests/unit/test_montecarlo.py -v -k "test_clt_aggregate"
 pytest tests/unit/test_patterns.py -v --log-cli-level=DEBUG
 
 # Ruff check on Sprint 3 files
-ruff check agentcost/projection/ agentcost/validation/ agentcost/collectors/cache_bust.py agentcost/ci/diff.py
+ruff check pretia/projection/ pretia/validation/ pretia/collectors/cache_bust.py pretia/ci/diff.py
 ```
 
 ---

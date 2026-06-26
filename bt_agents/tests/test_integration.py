@@ -10,8 +10,8 @@ import asyncio
 
 import pytest
 
-from agentcost.collectors.base import StepRecord
-from agentcost.projection.stats import compute_stats
+from pretia.collectors.base import StepRecord
+from pretia.projection.stats import compute_stats
 
 from bt_agents.harness.run_workflow import load_agent, load_prompts
 

@@ -8,9 +8,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from agentcost.collectors.base import StepRecord
-from agentcost.runner import ProfileRunner, _build_cost_summary
-from agentcost.store import ProfileStore
+from pretia.collectors.base import StepRecord
+from pretia.runner import ProfileRunner, _build_cost_summary
+from pretia.store import ProfileStore
 
 
 def _make_record(
@@ -162,7 +162,7 @@ class TestInputPassthrough:
             auto_generate=3,
         )
         with patch(
-            "agentcost.runner.generate_inputs",
+            "pretia.runner.generate_inputs",
             new_callable=AsyncMock,
             return_value=["a", "b", "c"],
         ):
@@ -192,10 +192,10 @@ class TestFullPipeline:
 
         with (
             patch(
-                "agentcost.runner.ProfileRunner._select_collector",
+                "pretia.runner.ProfileRunner._select_collector",
             ) as mock_coll,
             patch(
-                "agentcost.runner.generate_inputs",
+                "pretia.runner.generate_inputs",
                 new_callable=AsyncMock,
                 return_value=["input1", "input2"],
             ),
@@ -242,10 +242,10 @@ class TestFullPipeline:
 
         with (
             patch(
-                "agentcost.runner.ProfileRunner._select_collector",
+                "pretia.runner.ProfileRunner._select_collector",
             ) as mock_coll,
             patch(
-                "agentcost.runner.generate_inputs",
+                "pretia.runner.generate_inputs",
                 new_callable=AsyncMock,
                 return_value=["x"],
             ),

@@ -5,13 +5,13 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 
-from agentcost.schema import (
+from pretia.schema import (
     _OPTIONAL_FIELDS,
     _REQUIRED_FIELDS,
     profile_json_schema,
     validate_profile,
 )
-from agentcost.store import ProfilingSession
+from pretia.store import ProfilingSession
 
 
 def _valid_profile() -> dict:
@@ -52,7 +52,7 @@ class TestValidateProfile:
                 "workflow_id": "support-agent",
                 "run_id": "550e8400-e29b-41d4-a716-446655440000",
                 "framework": "langgraph",
-                "agentcost_version": "0.1.0",
+                "pretia_version": "0.1.0",
                 "profiling_cost": 1.84,
             }
         )

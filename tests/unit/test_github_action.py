@@ -6,9 +6,9 @@ import json
 
 import pytest
 
-from agentcost.ci.baseline import Baseline, BaselineStep
-from agentcost.ci.diff import DiffResult, PatternChanges
-from agentcost.ci.github import (
+from pretia.ci.baseline import Baseline, BaselineStep
+from pretia.ci.diff import DiffResult, PatternChanges
+from pretia.ci.github import (
     ActionResult,
     _score_emoji,
     check_threshold,
@@ -17,9 +17,9 @@ from agentcost.ci.github import (
     format_pr_comment,
     run_diff_analysis,
 )
-from agentcost.estimate import ModelEstimate, WorkflowEstimate
-from agentcost.recommend.base import Recommendation, compute_priority
-from agentcost.recommend.score import OptimizationScore
+from pretia.estimate import ModelEstimate, WorkflowEstimate
+from pretia.recommend.base import Recommendation, compute_priority
+from pretia.recommend.score import OptimizationScore
 
 # ---------------------------------------------------------------------------
 # Test helpers
@@ -209,7 +209,7 @@ class TestScoreEmoji:
 class TestFormatDiffOnlyComment:
     def test_hidden_marker_present(self) -> None:
         comment = format_diff_only_comment(_make_estimate(), None, 1000)
-        assert "<!-- agentcost-pr-comment -->" in comment
+        assert "<!-- pretia-pr-comment -->" in comment
 
     def test_with_baseline_shows_delta(self) -> None:
         estimate = _make_estimate(cost_per_run=0.03)
@@ -237,7 +237,7 @@ class TestFormatDiffOnlyComment:
     def test_zero_cost_workflow(self) -> None:
         estimate = _make_estimate(cost_per_run=0.0, models=[])
         comment = format_diff_only_comment(estimate, None, 1000)
-        assert "<!-- agentcost-pr-comment -->" in comment
+        assert "<!-- pretia-pr-comment -->" in comment
         assert "$0.00" in comment
 
     def test_footer_shows_diff_mode(self) -> None:
@@ -246,7 +246,7 @@ class TestFormatDiffOnlyComment:
 
     def test_footer_has_powered_by(self) -> None:
         comment = format_diff_only_comment(_make_estimate(), None, 1000)
-        assert "Powered by AgentCost" in comment
+        assert "Powered by Pretia" in comment
 
     def test_projected_cost_calculation(self) -> None:
         estimate = _make_estimate(cost_per_run=0.01)
@@ -270,7 +270,7 @@ class TestFormatFullProfileComment:
     def test_hidden_marker_present(self) -> None:
         score = _make_score(72, "amber")
         comment = format_full_profile_comment(score, 840.0, [], None, None)
-        assert "<!-- agentcost-pr-comment -->" in comment
+        assert "<!-- pretia-pr-comment -->" in comment
 
     def test_includes_score(self) -> None:
         score = _make_score(72, "amber")
@@ -479,7 +479,7 @@ class TestRunDiffAnalysis:
         wf = tmp_path / "agent.py"
         wf.write_text('run(model="gpt-4o")\n')
         result = run_diff_analysis(str(wf), str(tmp_path / "baseline.json"), 1000, None)
-        assert "<!-- agentcost-pr-comment -->" in result.comment_markdown
+        assert "<!-- pretia-pr-comment -->" in result.comment_markdown
 
 
 # ---------------------------------------------------------------------------
@@ -490,16 +490,16 @@ class TestRunDiffAnalysis:
 class TestCommentMarker:
     def test_diff_mode_has_marker(self) -> None:
         comment = format_diff_only_comment(_make_estimate(), None, 1000)
-        assert "<!-- agentcost-pr-comment -->" in comment
+        assert "<!-- pretia-pr-comment -->" in comment
 
     def test_full_mode_has_marker(self) -> None:
         comment = format_full_profile_comment(_make_score(80, "green"), 840.0, [], None, None)
-        assert "<!-- agentcost-pr-comment -->" in comment
+        assert "<!-- pretia-pr-comment -->" in comment
 
     def test_marker_is_first_line(self) -> None:
         comment = format_diff_only_comment(_make_estimate(), None, 1000)
-        assert comment.startswith("<!-- agentcost-pr-comment -->")
+        assert comment.startswith("<!-- pretia-pr-comment -->")
 
     def test_full_mode_marker_is_first_line(self) -> None:
         comment = format_full_profile_comment(_make_score(80, "green"), 840.0, [], None, None)
-        assert comment.startswith("<!-- agentcost-pr-comment -->")
+        assert comment.startswith("<!-- pretia-pr-comment -->")

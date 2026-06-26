@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from agentcost.inputs.selector import read_inputs_file, select_input_mode
+from pretia.inputs.selector import read_inputs_file, select_input_mode
 
 # ---------------------------------------------------------------------------
 # Explicit inputs

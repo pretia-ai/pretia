@@ -7,7 +7,7 @@ import hashlib
 
 import pytest
 
-from agentcost.collectors.generic import GenericCollector
+from pretia.collectors.generic import GenericCollector
 
 
 class MockUsage:

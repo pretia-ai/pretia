@@ -47,7 +47,7 @@ def _estimate_cost(
 ) -> float:
     """Estimate cost from tokens, using pricing table or defaults."""
     try:
-        from agentcost.pricing.tables import calculate_cost, resolve_model
+        from pretia.pricing.tables import calculate_cost, resolve_model
 
         if model:
             canonical = resolve_model(model)

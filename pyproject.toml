@@ -3,13 +3,13 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "agentcost"
+name = "pretia"
 version = "1.0.0"
 description = "Pre-deployment cost intelligence for AI agent workflows"
 readme = "README.md"
 license = { text = "BSL-1.1" }
 requires-python = ">=3.11"
-authors = [{ name = "AgentCost contributors" }]
+authors = [{ name = "Pretia contributors" }]
 keywords = ["llm", "agents", "cost", "profiling", "observability"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -82,14 +82,14 @@ pdf-generation = [
 ]
 
 [project.scripts]
-agentcost = "agentcost.cli:cli"
+pretia = "pretia.cli:cli"
 
 [project.urls]
-Homepage = "https://github.com/agentcost/agentcost"
-Issues = "https://github.com/agentcost/agentcost/issues"
+Homepage = "https://github.com/pretia/pretia"
+Issues = "https://github.com/pretia/pretia/issues"
 
 [tool.hatch.build.targets.wheel]
-packages = ["agentcost"]
+packages = ["pretia"]
 
 [tool.ruff]
 line-length = 99
@@ -111,6 +111,6 @@ markers = [
 ]
 
 [tool.pyright]
-include = ["agentcost"]
+include = ["pretia"]
 pythonVersion = "3.11"
 typeCheckingMode = "standard"

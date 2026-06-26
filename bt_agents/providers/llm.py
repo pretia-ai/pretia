@@ -17,14 +17,14 @@ from typing import Any
 import litellm
 from litellm import acompletion
 
-from agentcost.pricing.tables import calculate_cost, resolve_model
+from pretia.pricing.tables import calculate_cost, resolve_model
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # LiteLLM model string mapping
 # ---------------------------------------------------------------------------
-# Maps AgentCost canonical model names (from pricing/tables.py) to the
+# Maps Pretia canonical model names (from pricing/tables.py) to the
 # provider-prefixed strings LiteLLM expects for routing.
 LITELLM_MODEL_MAP: dict[str, str] = {
     "claude-opus-4-7": "anthropic/claude-opus-4-7",
@@ -168,7 +168,7 @@ async def call_model(
     """Call an LLM via LiteLLM with cache-bust, retry, and usage extraction.
 
     Args:
-        model: Canonical model name from the AgentCost pricing table.
+        model: Canonical model name from the Pretia pricing table.
         system_prompt: The system prompt text. ``{{CACHE_BUST_SUFFIX}}`` is
             replaced with a fresh UUID automatically.
         messages: List of message dicts (role/content) for the user/assistant

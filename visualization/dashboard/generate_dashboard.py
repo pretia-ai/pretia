@@ -945,11 +945,11 @@ def generate_dashboard(
         import plotly.graph_objects as go  # noqa: F401
     except ImportError:
         logger.warning(
-            "plotly is not installed. Install with: pip install agentcost[visualization]"
+            "plotly is not installed. Install with: pip install pretia[visualization]"
         )
         print(  # noqa: T201
             "Warning: plotly is not installed. Dashboard generation skipped. "
-            "Install with: pip install agentcost[visualization]"
+            "Install with: pip install pretia[visualization]"
         )
         return None
 
@@ -1326,7 +1326,7 @@ def generate_dashboard(
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>AgentCost Backtest Dashboard</title>
+<title>Pretia Backtest Dashboard</title>
 <script>{plotly_js}</script>
 <style>
 body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; background: #f8f9fa; color: #212529; }}
@@ -1372,7 +1372,7 @@ h2 {{ margin: 0 0 4px; font-size: 18px; color: #343a40; }}
 
 <div class="content">
 
-<h1>AgentCost Backtest Dashboard</h1>
+<h1>Pretia Backtest Dashboard</h1>
 <p class="subtitle">Generated {date_str} &middot; Total cost: ${total_cost:,.4f} &middot; {total} workflows</p>
 
 <!-- D1: Executive Summary -->
@@ -1442,7 +1442,7 @@ h2 {{ margin: 0 0 4px; font-size: 18px; color: #343a40; }}
 {d5_html}
 </div>
 
-<div class="footer">AgentCost Backtesting Dashboard &middot; Generated with mock data</div>
+<div class="footer">Pretia Backtesting Dashboard &middot; Generated with mock data</div>
 
 </div><!-- /content -->
 
@@ -1478,7 +1478,7 @@ def main() -> None:
     """CLI entry point."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Generate AgentCost backtest dashboard")
+    parser = argparse.ArgumentParser(description="Generate Pretia backtest dashboard")
     parser.add_argument(
         "--results-dir",
         type=Path,

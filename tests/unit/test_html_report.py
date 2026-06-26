@@ -1,4 +1,4 @@
-"""Tests for agentcost.report — HTML report generation (charts, renderer, CLI wiring)."""
+"""Tests for pretia.report — HTML report generation (charts, renderer, CLI wiring)."""
 
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ from unittest.mock import patch
 
 import pytest
 
-from agentcost.report.charts import StepCostEntry, render_cost_waterfall, render_score_ring
-from agentcost.report.renderer import (
+from pretia.report.charts import StepCostEntry, render_cost_waterfall, render_score_ring
+from pretia.report.renderer import (
     _build_step_entries,
     _extract_cost_per_run,
     _extract_projection,
@@ -19,7 +19,7 @@ from agentcost.report.renderer import (
     render_and_save,
     render_html_report,
 )
-from agentcost.store import ProfilingSession
+from pretia.store import ProfilingSession
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -489,7 +489,7 @@ class TestRenderHtmlReport:
         session = _make_session(metadata=_make_full_metadata())
         html = render_html_report(session)
         assert "Profiled with" in html
-        assert "AgentCost" in html
+        assert "Pretia" in html
 
     def test_no_javascript(self) -> None:
         session = _make_session(metadata=_make_full_metadata())
@@ -573,7 +573,7 @@ class TestRenderHtmlEdgeCases:
         session = _make_session(
             metadata=meta,
             framework="langgraph",
-            agentcost_version="0.1.0",
+            pretia_version="0.1.0",
             profiling_cost=1.84,
         )
         html = render_html_report(session)
@@ -591,7 +591,7 @@ class TestRenderAndSave:
     def test_writes_file_to_disk(self, tmp_path: Path) -> None:
         session = _make_session(metadata=_make_full_metadata())
         output = tmp_path / "report.html"
-        with patch("agentcost.report.renderer.webbrowser.open"):
+        with patch("pretia.report.renderer.webbrowser.open"):
             path = render_and_save(session, output_path=output, open_browser=False)
         assert path.exists()
         content = path.read_text()
@@ -599,8 +599,8 @@ class TestRenderAndSave:
 
     def test_default_output_path(self, tmp_path: Path) -> None:
         session = _make_session(metadata=_make_full_metadata())
-        with patch("agentcost.report.renderer.webbrowser.open"):
-            with patch("agentcost.report.renderer.Path", wraps=Path) as mock_path:
+        with patch("pretia.report.renderer.webbrowser.open"):
+            with patch("pretia.report.renderer.Path", wraps=Path) as mock_path:
                 mock_path.side_effect = None
                 path = render_and_save(
                     session,
@@ -613,14 +613,14 @@ class TestRenderAndSave:
     def test_creates_parent_directory(self, tmp_path: Path) -> None:
         nested = tmp_path / "deep" / "nested" / "dir" / "report.html"
         session = _make_session(metadata=_make_full_metadata())
-        with patch("agentcost.report.renderer.webbrowser.open"):
+        with patch("pretia.report.renderer.webbrowser.open"):
             path = render_and_save(session, output_path=nested, open_browser=False)
         assert path.exists()
 
     def test_open_browser_called(self, tmp_path: Path) -> None:
         session = _make_session(metadata=_make_full_metadata())
         output = tmp_path / "report.html"
-        with patch("agentcost.report.renderer.webbrowser.open") as mock_open:
+        with patch("pretia.report.renderer.webbrowser.open") as mock_open:
             render_and_save(session, output_path=output, open_browser=True)
         mock_open.assert_called_once()
         assert "file://" in mock_open.call_args[0][0]
@@ -628,7 +628,7 @@ class TestRenderAndSave:
     def test_no_browser_when_disabled(self, tmp_path: Path) -> None:
         session = _make_session(metadata=_make_full_metadata())
         output = tmp_path / "report.html"
-        with patch("agentcost.report.renderer.webbrowser.open") as mock_open:
+        with patch("pretia.report.renderer.webbrowser.open") as mock_open:
             render_and_save(session, output_path=output, open_browser=False)
         mock_open.assert_not_called()
 
@@ -636,7 +636,7 @@ class TestRenderAndSave:
         session = _make_session(metadata=_make_full_metadata())
         output = tmp_path / "report.html"
         with patch(
-            "agentcost.report.renderer.webbrowser.open",
+            "pretia.report.renderer.webbrowser.open",
             side_effect=OSError("no browser"),
         ):
             path = render_and_save(session, output_path=output, open_browser=True)
@@ -650,13 +650,13 @@ class TestRenderAndSave:
 
 class TestLoadTemplate:
     def test_template_loads_successfully(self) -> None:
-        from agentcost.report.renderer import _load_template
+        from pretia.report.renderer import _load_template
 
         template = _load_template()
         assert template is not None
 
     def test_template_renders_minimal(self) -> None:
-        from agentcost.report.renderer import _load_template
+        from pretia.report.renderer import _load_template
 
         template = _load_template()
         html = template.render(
@@ -682,7 +682,7 @@ class TestLoadTemplate:
             raw_json="{}",
             input_mode="auto",
             framework=None,
-            agentcost_version=None,
+            pretia_version=None,
             profiling_cost=None,
         )
         assert "<!DOCTYPE html>" in html

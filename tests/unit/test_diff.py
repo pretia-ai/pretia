@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 
-from agentcost.ci.baseline import Baseline, BaselineStep
-from agentcost.ci.diff import diff_baseline, format_diff_report
-from agentcost.store import ProfilingSession
+from pretia.ci.baseline import Baseline, BaselineStep
+from pretia.ci.diff import diff_baseline, format_diff_report
+from pretia.store import ProfilingSession
 
 
 def _make_baseline_step(
@@ -524,7 +524,7 @@ class TestFormatDiffReport:
         result = diff_baseline(bl, session)
         report = format_diff_report(result)
 
-        assert "AgentCost Diff Report" in report
+        assert "Pretia Diff Report" in report
         assert "Step Comparison" in report
         assert "Monthly Projection Change" in report
         assert "Model changes" in report

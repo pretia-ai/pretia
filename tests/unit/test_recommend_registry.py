@@ -1,13 +1,13 @@
-"""Tests for agentcost.recommend.registry — generator registry and deduplication."""
+"""Tests for pretia.recommend.registry — generator registry and deduplication."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 from unittest.mock import patch
 
-from agentcost.recommend.base import Recommendation, RecommendationGenerator
-from agentcost.recommend.registry import _GENERATORS, generate_recommendations, register
-from agentcost.store import ProfilingSession
+from pretia.recommend.base import Recommendation, RecommendationGenerator
+from pretia.recommend.registry import _GENERATORS, generate_recommendations, register
+from pretia.store import ProfilingSession
 
 
 def _make_session(
@@ -106,7 +106,7 @@ class TestGenerateRecommendations:
     def test_empty_registry(self) -> None:
         session = _make_session()
         with patch.object(
-            __import__("agentcost.recommend.registry", fromlist=["_GENERATORS"]),
+            __import__("pretia.recommend.registry", fromlist=["_GENERATORS"]),
             "_GENERATORS",
             [],
         ):
@@ -116,7 +116,7 @@ class TestGenerateRecommendations:
     def test_single_generator(self) -> None:
         session = _make_session()
         with patch(
-            "agentcost.recommend.registry._GENERATORS", [_SingleGenerator]
+            "pretia.recommend.registry._GENERATORS", [_SingleGenerator]
         ):
             result = generate_recommendations(session)
         assert len(result) == 1
@@ -125,7 +125,7 @@ class TestGenerateRecommendations:
     def test_empty_generator_returns_empty(self) -> None:
         session = _make_session()
         with patch(
-            "agentcost.recommend.registry._GENERATORS", [_EmptyGenerator]
+            "pretia.recommend.registry._GENERATORS", [_EmptyGenerator]
         ):
             result = generate_recommendations(session)
         assert result == []
@@ -133,7 +133,7 @@ class TestGenerateRecommendations:
     def test_sorted_by_priority_descending(self) -> None:
         session = _make_session()
         with patch(
-            "agentcost.recommend.registry._GENERATORS", [_MultiGenerator]
+            "pretia.recommend.registry._GENERATORS", [_MultiGenerator]
         ):
             result = generate_recommendations(session)
         assert len(result) == 2
@@ -144,7 +144,7 @@ class TestGenerateRecommendations:
     def test_dedup_keeps_higher_priority(self) -> None:
         session = _make_session()
         with patch(
-            "agentcost.recommend.registry._GENERATORS",
+            "pretia.recommend.registry._GENERATORS",
             [_SingleGenerator, _DuplicateIdGenerator],
         ):
             result = generate_recommendations(session)
@@ -155,7 +155,7 @@ class TestGenerateRecommendations:
     def test_dedup_keeps_higher_priority_reversed_order(self) -> None:
         session = _make_session()
         with patch(
-            "agentcost.recommend.registry._GENERATORS",
+            "pretia.recommend.registry._GENERATORS",
             [_DuplicateIdGenerator, _HighPriorityDuplicateGenerator],
         ):
             result = generate_recommendations(session)
@@ -189,7 +189,7 @@ class TestGenerateRecommendations:
 
         session = _make_session()
         with patch(
-            "agentcost.recommend.registry._GENERATORS", [_GenA, _GenB]
+            "pretia.recommend.registry._GENERATORS", [_GenA, _GenB]
         ):
             result = generate_recommendations(session)
         assert len(result) == 2
@@ -199,7 +199,7 @@ class TestGenerateRecommendations:
     def test_failing_generator_does_not_crash(self) -> None:
         session = _make_session()
         with patch(
-            "agentcost.recommend.registry._GENERATORS",
+            "pretia.recommend.registry._GENERATORS",
             [_FailingGenerator, _SingleGenerator],
         ):
             result = generate_recommendations(session)

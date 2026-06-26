@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from agentcost.collectors.base import StepRecord
-from agentcost.validation.data_checks import validate_profiling_data
+from pretia.collectors.base import StepRecord
+from pretia.validation.data_checks import validate_profiling_data
 
 
 def _make_record(

@@ -21,7 +21,7 @@ sys.modules.setdefault("langfuse", _mock_langfuse)
 sys.modules.setdefault("langfuse.api", _mock_langfuse_api)
 sys.modules.setdefault("langfuse.api.client", _mock_langfuse_api_client)
 
-from agentcost.inputs.importer import (  # noqa: E402
+from pretia.inputs.importer import (  # noqa: E402
     LangfuseObservation,
     LangfuseTrace,
     _compute_duration_ms,
@@ -175,7 +175,7 @@ class TestCreateClient:
         with patch.dict(sys.modules, {"langfuse.api.client": mock_client}):
             import importlib
 
-            from agentcost.inputs import importer
+            from pretia.inputs import importer
 
             importlib.reload(importer)
 

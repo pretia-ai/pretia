@@ -1,4 +1,4 @@
-# AgentCost Backtest Analysis Prompt
+# Pretia Backtest Analysis Prompt
 
 Use this prompt when sending `analytics.json` and `analytics.pdf` to an LLM for analysis.
 
@@ -94,7 +94,7 @@ For each action, specify: workflow, step, what to change, estimated savings/mont
 
 ### With Claude Code
 ```bash
-# From the AgentCost repo root:
+# From the Pretia repo root:
 cat visualization/llm_analysis_prompt.md reports/demo/analytics.json | pbcopy
 # Then paste into Claude with the PDF attached
 ```
@@ -108,7 +108,7 @@ prompt = open("visualization/llm_analysis_prompt.md").read()
 # Send prompt + data as the user message
 ```
 
-### With the AgentCost CLI (future)
+### With the Pretia CLI (future)
 ```bash
-agentcost analyze-report reports/demo/analytics.json --with-pdf reports/demo/analytics.pdf
+pretia analyze-report reports/demo/analytics.json --with-pdf reports/demo/analytics.pdf
 ```

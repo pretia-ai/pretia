@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Failure attribution CLI for the AgentCost backtesting suite.
+"""Failure attribution CLI for the Pretia backtesting suite.
 
 Loads backtest comparison results for each workflow and classifies failures
 into three buckets using the existing attribute_failure() function:
@@ -44,7 +44,7 @@ def _load_workflow_results(results_dir: Path) -> dict[str, dict[str, Any]]:
 
 def _extract_score(comparisons: dict[str, Any], key: str) -> Any:
     """Extract a ComparisonScore from the comparisons dict."""
-    from agentcost.validation.scoring import ComparisonScore
+    from pretia.validation.scoring import ComparisonScore
 
     comp = comparisons.get(key)
     if comp is None:
@@ -60,7 +60,7 @@ def run_attribution(
     workflow_filter: str | None = None,
 ) -> list[dict[str, Any]]:
     """Run failure attribution on all workflows in the results directory."""
-    from agentcost.validation.suite import _compute_recovery, attribute_failure
+    from pretia.validation.suite import _compute_recovery, attribute_failure
 
     workflow_results = _load_workflow_results(results_dir)
     if not workflow_results:

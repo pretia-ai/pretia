@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
 
-from agentcost.cli import cli
-from agentcost.store import ProfilingSession
+from pretia.cli import cli
+from pretia.store import ProfilingSession
 
 runner = CliRunner()
 
@@ -132,7 +132,7 @@ class TestRecommendCommand:
 
     def test_latest_no_profiles(self) -> None:
         with patch(
-            "agentcost.store.ProfileStore.list_sessions",
+            "pretia.store.ProfileStore.list_sessions",
             return_value=[],
         ):
             result = runner.invoke(cli, ["recommend", "latest"])
@@ -219,11 +219,11 @@ class TestProfileRunWithRecommendations:
 
         with (
             patch(
-                "agentcost.runner.ProfileRunner.run_sync",
+                "pretia.runner.ProfileRunner.run_sync",
                 return_value=mock_session,
             ),
             patch(
-                "agentcost.runner.ProfileRunner.__init__",
+                "pretia.runner.ProfileRunner.__init__",
                 return_value=None,
             ),
         ):

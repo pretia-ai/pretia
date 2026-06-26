@@ -13,7 +13,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from agentcost.collectors.base import StepRecord
+from pretia.collectors.base import StepRecord
 from bt_agents.harness.retrieval_sim import load_corpus, retrieve
 from bt_agents.harness.step_builder import build_embedding_step, build_llm_step
 from bt_agents.providers.embeddings import embed_text

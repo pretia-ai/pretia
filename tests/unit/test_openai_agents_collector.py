@@ -1,4 +1,4 @@
-"""Tests for OpenAIAgentsCollector and AgentCostRunHooks (fully mocked, no openai-agents)."""
+"""Tests for OpenAIAgentsCollector and PretiaRunHooks (fully mocked, no openai-agents)."""
 
 from __future__ import annotations
 
@@ -34,9 +34,9 @@ _saved_agents_lifecycle = sys.modules.get("agents.lifecycle")
 sys.modules["agents"] = _mock_agents
 sys.modules["agents.lifecycle"] = _mock_lifecycle
 
-from agentcost.collectors.openai_agents import (  # noqa: E402
-    AgentCostRunHooks,
+from pretia.collectors.openai_agents import (  # noqa: E402
     OpenAIAgentsCollector,
+    PretiaRunHooks,
     _build_fallback_steps,
     _detect_output_format,
     _extract_agent_name,
@@ -151,14 +151,14 @@ class TestHelperFunctions:
 
 
 # ---------------------------------------------------------------------------
-# AgentCostRunHooks — LLM lifecycle
+# PretiaRunHooks — LLM lifecycle
 # ---------------------------------------------------------------------------
 
 
 class TestHooksLLMLifecycle:
     @pytest.mark.asyncio
     async def test_hooks_capture_agent_step(self):
-        hooks = AgentCostRunHooks()
+        hooks = PretiaRunHooks()
         agent = MockAgent(name="classifier", model="gpt-4o")
         context = MagicMock()
 
@@ -181,7 +181,7 @@ class TestHooksLLMLifecycle:
 
     @pytest.mark.asyncio
     async def test_hooks_system_prompt_hashed(self):
-        hooks = AgentCostRunHooks()
+        hooks = PretiaRunHooks()
         agent = MockAgent(name="agent_a")
         prompt = "You are a support agent."
 
@@ -195,7 +195,7 @@ class TestHooksLLMLifecycle:
 
     @pytest.mark.asyncio
     async def test_hooks_null_system_prompt(self):
-        hooks = AgentCostRunHooks()
+        hooks = PretiaRunHooks()
         agent = MockAgent()
 
         await hooks.on_llm_start(MagicMock(), agent, None, [])
@@ -208,7 +208,7 @@ class TestHooksLLMLifecycle:
 
     @pytest.mark.asyncio
     async def test_hooks_context_size_from_usage(self):
-        hooks = AgentCostRunHooks()
+        hooks = PretiaRunHooks()
         agent = MockAgent()
 
         await hooks.on_llm_start(MagicMock(), agent, "prompt", [{"content": "hi"}])
@@ -220,7 +220,7 @@ class TestHooksLLMLifecycle:
 
     @pytest.mark.asyncio
     async def test_hooks_context_size_estimated_when_no_usage(self):
-        hooks = AgentCostRunHooks()
+        hooks = PretiaRunHooks()
         agent = MockAgent()
 
         await hooks.on_llm_start(
@@ -237,7 +237,7 @@ class TestHooksLLMLifecycle:
 
     @pytest.mark.asyncio
     async def test_hooks_output_format_json(self):
-        hooks = AgentCostRunHooks()
+        hooks = PretiaRunHooks()
         agent = MockAgent()
 
         await hooks.on_llm_start(MagicMock(), agent, None, [])
@@ -249,14 +249,14 @@ class TestHooksLLMLifecycle:
 
 
 # ---------------------------------------------------------------------------
-# AgentCostRunHooks — tool lifecycle
+# PretiaRunHooks — tool lifecycle
 # ---------------------------------------------------------------------------
 
 
 class TestHooksToolLifecycle:
     @pytest.mark.asyncio
     async def test_hooks_capture_tool_step(self):
-        hooks = AgentCostRunHooks()
+        hooks = PretiaRunHooks()
         agent = MockAgent()
         tool = MockTool(name="search_db")
         context = MagicMock()
@@ -275,7 +275,7 @@ class TestHooksToolLifecycle:
 
     @pytest.mark.asyncio
     async def test_hooks_tool_timing(self):
-        hooks = AgentCostRunHooks()
+        hooks = PretiaRunHooks()
         agent = MockAgent()
         tool = MockTool(name="slow_tool")
 
@@ -287,14 +287,14 @@ class TestHooksToolLifecycle:
 
 
 # ---------------------------------------------------------------------------
-# AgentCostRunHooks — multi-agent / handoff
+# PretiaRunHooks — multi-agent / handoff
 # ---------------------------------------------------------------------------
 
 
 class TestHooksMultiAgent:
     @pytest.mark.asyncio
     async def test_hooks_capture_multiple_agents(self):
-        hooks = AgentCostRunHooks()
+        hooks = PretiaRunHooks()
         agent_1 = MockAgent(name="triage", model="gpt-4o-mini")
         agent_2 = MockAgent(name="resolver", model="gpt-4o")
         ctx = MagicMock()
@@ -321,7 +321,7 @@ class TestHooksMultiAgent:
 
     @pytest.mark.asyncio
     async def test_hooks_handoff(self):
-        hooks = AgentCostRunHooks()
+        hooks = PretiaRunHooks()
         from_agent = MockAgent(name="triage")
         to_agent = MockAgent(name="billing_agent")
 
@@ -335,14 +335,14 @@ class TestHooksMultiAgent:
 
 
 # ---------------------------------------------------------------------------
-# AgentCostRunHooks — iteration counting
+# PretiaRunHooks — iteration counting
 # ---------------------------------------------------------------------------
 
 
 class TestHooksIterationCounting:
     @pytest.mark.asyncio
     async def test_hooks_iteration_counting(self):
-        hooks = AgentCostRunHooks()
+        hooks = PretiaRunHooks()
         agent = MockAgent(name="loop_agent")
         ctx = MagicMock()
 
@@ -354,7 +354,7 @@ class TestHooksIterationCounting:
 
     @pytest.mark.asyncio
     async def test_hooks_different_steps_independent_iterations(self):
-        hooks = AgentCostRunHooks()
+        hooks = PretiaRunHooks()
         agent_a = MockAgent(name="agent_a")
         agent_b = MockAgent(name="agent_b")
         ctx = MagicMock()
@@ -374,14 +374,14 @@ class TestHooksIterationCounting:
 
 
 # ---------------------------------------------------------------------------
-# AgentCostRunHooks — reset
+# PretiaRunHooks — reset
 # ---------------------------------------------------------------------------
 
 
 class TestHooksReset:
     @pytest.mark.asyncio
     async def test_hooks_reset_between_runs(self):
-        hooks = AgentCostRunHooks()
+        hooks = PretiaRunHooks()
         agent = MockAgent()
         ctx = MagicMock()
 
@@ -399,27 +399,27 @@ class TestHooksReset:
 
 
 # ---------------------------------------------------------------------------
-# AgentCostRunHooks — error resilience
+# PretiaRunHooks — error resilience
 # ---------------------------------------------------------------------------
 
 
 class TestHooksErrorResilience:
     @pytest.mark.asyncio
     async def test_hooks_error_resilience_none_agent(self):
-        hooks = AgentCostRunHooks()
+        hooks = PretiaRunHooks()
         await hooks.on_llm_start(MagicMock(), None, None, [])
         assert len(hooks.steps) == 0
 
     @pytest.mark.asyncio
     async def test_hooks_end_without_start_no_crash(self):
-        hooks = AgentCostRunHooks()
+        hooks = PretiaRunHooks()
         agent = MockAgent()
         await hooks.on_llm_end(MagicMock(), agent, MockModelResponse())
         assert len(hooks.steps) == 0
 
     @pytest.mark.asyncio
     async def test_hooks_tool_end_without_start_no_crash(self):
-        hooks = AgentCostRunHooks()
+        hooks = PretiaRunHooks()
         agent = MockAgent()
         tool = MockTool()
         await hooks.on_tool_end(MagicMock(), agent, tool, "result")
@@ -427,7 +427,7 @@ class TestHooksErrorResilience:
 
     @pytest.mark.asyncio
     async def test_hooks_none_response_still_records(self):
-        hooks = AgentCostRunHooks()
+        hooks = PretiaRunHooks()
         agent = MockAgent()
         await hooks.on_llm_start(MagicMock(), agent, None, [])
         await hooks.on_llm_end(MagicMock(), agent, None)
@@ -437,7 +437,7 @@ class TestHooksErrorResilience:
 
     @pytest.mark.asyncio
     async def test_hooks_handoff_none_agents_still_records(self):
-        hooks = AgentCostRunHooks()
+        hooks = PretiaRunHooks()
         await hooks.on_handoff(MagicMock(), None, None)
         assert len(hooks.steps) == 1
         assert hooks.steps[0].step_name == "handoff_agent"
@@ -648,17 +648,17 @@ class TestCollect:
 
 class TestLazyImport:
     def test_lazy_import_in_collectors_package(self):
-        from agentcost.collectors import OpenAIAgentsCollector
+        from pretia.collectors import OpenAIAgentsCollector
 
         assert OpenAIAgentsCollector is not None
         assert OpenAIAgentsCollector.__name__ == "OpenAIAgentsCollector"
 
-    def test_import_agentcost_without_sdk(self):
+    def test_import_pretia_without_sdk(self):
         saved = {}
         for mod_name in list(sys.modules):
             if mod_name == "agents" or mod_name.startswith("agents."):
                 saved[mod_name] = sys.modules.pop(mod_name)
-        saved_oa = sys.modules.pop("agentcost.collectors.openai_agents", None)
+        saved_oa = sys.modules.pop("pretia.collectors.openai_agents", None)
 
         try:
             with patch.dict(
@@ -671,11 +671,11 @@ class TestLazyImport:
                 with pytest.raises(ImportError, match="OpenAI Agents SDK"):
                     import importlib
 
-                    importlib.import_module("agentcost.collectors.openai_agents")
+                    importlib.import_module("pretia.collectors.openai_agents")
         finally:
             sys.modules.update(saved)
             if saved_oa is not None:
-                sys.modules["agentcost.collectors.openai_agents"] = saved_oa
+                sys.modules["pretia.collectors.openai_agents"] = saved_oa
 
 
 # ---------------------------------------------------------------------------
@@ -685,7 +685,7 @@ class TestLazyImport:
 
 class TestRunnerAutoDetection:
     def test_runner_detects_openai_agent(self):
-        from agentcost.runner import ProfileRunner
+        from pretia.runner import ProfileRunner
 
         agent = MockAgent(name="detect_me", instructions="Be helpful")
         runner = ProfileRunner(workflow_path="fake.py", single_input="test")
@@ -693,7 +693,7 @@ class TestRunnerAutoDetection:
         assert type(coll).__name__ == "OpenAIAgentsCollector"
 
     def test_runner_explicit_openai(self):
-        from agentcost.runner import ProfileRunner
+        from pretia.runner import ProfileRunner
 
         runner = ProfileRunner(
             workflow_path="fake.py",
@@ -704,7 +704,7 @@ class TestRunnerAutoDetection:
         assert type(coll).__name__ == "OpenAIAgentsCollector"
 
     def test_runner_generic_fallback_no_instructions(self):
-        from agentcost.runner import ProfileRunner
+        from pretia.runner import ProfileRunner
 
         class _Plain:
             name = "has_name_only"

@@ -2,7 +2,7 @@
 
 **Purpose:** This file specifies two things: (1) the visualization and reporting system that turns raw backtest results into understandable plots, dashboards, and narratives, and (2) the integration with the existing engine's pre-calibration validation layers that must pass before the pilot runs.
 
-**Context for Claude Code:** You have the full AgentCost codebase (including whatever validation, schema checks, and pre-flight infrastructure already exists), `projection-engine-recommendation-addition-2.md`, `cross-cutting-robustness.md`, `agentcost-v2-additions-prompts.md` (the backtest protocol), and the technical spec. Explore the codebase to find existing validation layers, reporting patterns, and plotting utilities before building anything new.
+**Context for Claude Code:** You have the full Pretia codebase (including whatever validation, schema checks, and pre-flight infrastructure already exists), `projection-engine-recommendation-addition-2.md`, `cross-cutting-robustness.md`, `pretia-v2-additions-prompts.md` (the backtest protocol), and the technical spec. Explore the codebase to find existing validation layers, reporting patterns, and plotting utilities before building anything new.
 
 ---
 
@@ -10,11 +10,11 @@
 
 ### What Already Exists
 
-The AgentCost engine has validation steps that run before profiling begins. These may include some or all of: schema validation of inputs, model availability checks, pricing table verification, collector configuration validation, token counting sanity checks, and connectivity tests. **Your first task is to audit the codebase and catalog every existing validation or pre-flight check.**
+The Pretia engine has validation steps that run before profiling begins. These may include some or all of: schema validation of inputs, model availability checks, pricing table verification, collector configuration validation, token counting sanity checks, and connectivity tests. **Your first task is to audit the codebase and catalog every existing validation or pre-flight check.**
 
 ### What the Backtest Needs Before the Pilot
 
-The pilot calibration protocol (in `agentcost-v2-additions-prompts.md`) assumes certain pre-conditions are met. These pre-conditions map to the engine's existing validation layers plus backtest-specific checks. Wire them together into a single `pre_calibration.py` that must pass before `run_pilot.py` is allowed to execute.
+The pilot calibration protocol (in `pretia-v2-additions-prompts.md`) assumes certain pre-conditions are met. These pre-conditions map to the engine's existing validation layers plus backtest-specific checks. Wire them together into a single `pre_calibration.py` that must pass before `run_pilot.py` is allowed to execute.
 
 **Pre-calibration checklist (find or build each check):**
 

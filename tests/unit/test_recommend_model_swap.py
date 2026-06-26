@@ -1,4 +1,4 @@
-"""Tests for agentcost.recommend.model_swap — ModelSwapGenerator."""
+"""Tests for pretia.recommend.model_swap — ModelSwapGenerator."""
 
 from __future__ import annotations
 
@@ -6,15 +6,15 @@ from datetime import UTC, datetime
 
 import pytest
 
-from agentcost.collectors.base import StepRecord
-from agentcost.pricing.tables import calculate_cost
-from agentcost.recommend.base import _DEFAULT_DAILY_VOLUME
-from agentcost.recommend.model_swap import (
+from pretia.collectors.base import StepRecord
+from pretia.pricing.tables import calculate_cost
+from pretia.recommend.base import _DEFAULT_DAILY_VOLUME
+from pretia.recommend.model_swap import (
     ModelSwapGenerator,
     _detect_provider,
     _has_classification_keywords,
 )
-from agentcost.store import ProfilingSession
+from pretia.store import ProfilingSession
 
 
 def _make_record(

@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from agentcost.collectors.base import StepRecord
+from pretia.collectors.base import StepRecord
 
 from bt_agents import BaseAgent
 from bt_agents.patterns.pipeline_overrides import PipelineStepConfig, run_pipeline_overrides

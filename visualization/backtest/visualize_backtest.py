@@ -17,7 +17,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
-from agentcost.validation.scoring import _COMPARISON_TARGETS  # noqa: E402
+from pretia.validation.scoring import _COMPARISON_TARGETS  # noqa: E402
 from visualization.colors import (  # noqa: E402
     COMPARISON_COLORS,
     DETECTOR_MATRIX_COLORS,

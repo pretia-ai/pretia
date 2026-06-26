@@ -7,16 +7,16 @@ from datetime import UTC, datetime
 
 import pytest
 
-from agentcost.collectors.base import StepRecord
-from agentcost.projection.patterns import DetectedPattern
-from agentcost.projection.projector import project
-from agentcost.projection.stats import (
+from pretia.collectors.base import StepRecord
+from pretia.projection.patterns import DetectedPattern
+from pretia.projection.projector import project
+from pretia.projection.stats import (
     PercentileStats,
     ProfilingStats,
     StepStats,
     compute_stats,
 )
-from agentcost.validation.confidence import ConfidenceResult
+from pretia.validation.confidence import ConfidenceResult
 
 
 def _make_record(
@@ -230,7 +230,7 @@ class TestStepCountTriggersMonteCarloMode:
                     ]
                 )
         stats = compute_stats(runs)
-        from agentcost.projection.patterns import detect_patterns
+        from pretia.projection.patterns import detect_patterns
 
         patterns = detect_patterns(runs, stats)
         scv = [p for p in patterns if p.pattern_type == "step_count_variance"]

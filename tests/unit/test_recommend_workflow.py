@@ -1,4 +1,4 @@
-"""Tests for agentcost.recommend.workflow — LoopCapGenerator and CircuitBreakerGenerator."""
+"""Tests for pretia.recommend.workflow — LoopCapGenerator and CircuitBreakerGenerator."""
 
 from __future__ import annotations
 
@@ -6,15 +6,15 @@ from datetime import UTC, datetime
 
 import pytest
 
-from agentcost.collectors.base import StepRecord
-from agentcost.recommend.base import _DEFAULT_DAILY_VOLUME, _safe_record_cost
-from agentcost.recommend.workflow import (
+from pretia.collectors.base import StepRecord
+from pretia.recommend.base import _DEFAULT_DAILY_VOLUME, _safe_record_cost
+from pretia.recommend.workflow import (
     CircuitBreakerGenerator,
     LoopCapGenerator,
     _iter_distribution,
     _percentile,
 )
-from agentcost.store import ProfilingSession
+from pretia.store import ProfilingSession
 
 
 def _make_record(

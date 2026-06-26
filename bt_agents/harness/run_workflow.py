@@ -22,8 +22,8 @@ from typing import Any
 
 import click
 
-from agentcost.collectors.base import StepRecord
-from agentcost.pricing.tables import MODEL_PRICING, calculate_cost
+from pretia.collectors.base import StepRecord
+from pretia.pricing.tables import MODEL_PRICING, calculate_cost
 
 logger = logging.getLogger(__name__)
 
@@ -290,8 +290,8 @@ def _detect_batch_patterns(
     dry-run records have zero tokens).
     """
     try:
-        from agentcost.projection.patterns import detect_patterns
-        from agentcost.projection.stats import compute_stats
+        from pretia.projection.patterns import detect_patterns
+        from pretia.projection.stats import compute_stats
 
         stats = compute_stats(all_records)
         patterns = detect_patterns(all_records, stats)
@@ -311,11 +311,11 @@ def save_as_session(
 ) -> Path:
     """Save batch results as a ProfilingSession compatible with ProfileStore.
 
-    Bridges the agents harness to the existing AgentCost persistence layer,
+    Bridges the agents harness to the existing Pretia persistence layer,
     enabling results to flow through ProfileStore.load() → compute_stats() →
     detect_patterns() → project().
     """
-    from agentcost.store import ProfileStore, ProfilingSession
+    from pretia.store import ProfileStore, ProfilingSession
 
     now = datetime.now(UTC)
 
@@ -359,7 +359,7 @@ def save_as_session(
 @click.option("--seed", type=int, default=None, help="Random seed for input shuffling")
 @click.option("--dry-run", is_flag=True, help="Validate without making API calls")
 @click.option("--profile", type=str, default=None, help="Backtest profile: profiling or ground_truth")
-@click.option("--save-session", is_flag=True, help="Also save as ProfilingSession to .agentcost/")
+@click.option("--save-session", is_flag=True, help="Also save as ProfilingSession to .pretia/")
 @click.option("-v", "--verbose", is_flag=True, help="Enable debug logging")
 def main(
     workflow: str,

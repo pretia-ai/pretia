@@ -1,4 +1,4 @@
-# AgentCost Backtesting Suite
+# Pretia Backtesting Suite
 
 Validates the projection engine against 13 real-world workflow archetypes. Backtesting is complete: 12/13 workflows project within 10% error, W5 (multimodal) recovers with `--traffic-mix` reweighting. Total backtest cost: $89.66.
 
@@ -46,7 +46,7 @@ Each workflow is validated via three comparisons:
 ### Prerequisites
 
 ```bash
-pip install agentcost[backtesting]
+pip install pretia[backtesting]
 
 export ANTHROPIC_API_KEY="sk-ant-..."
 export OPENAI_API_KEY="sk-..."

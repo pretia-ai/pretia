@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from agentcost.validation.suite import BacktestConfig
+from pretia.validation.suite import BacktestConfig
 from tests.backtesting.workflows._shared import (
     get_anthropic_model,
     get_deepseek_model,

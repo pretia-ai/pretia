@@ -147,7 +147,7 @@ class TestDashboard:
         assert result is not None
         assert output.exists()
         content = output.read_text()
-        assert "AgentCost Backtest Dashboard" in content
+        assert "Pretia Backtest Dashboard" in content
         assert "W1" in content
         assert "W2" in content
 

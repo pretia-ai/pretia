@@ -6,11 +6,11 @@ import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from agentcost.collectors.base import StepRecord
-from agentcost.pricing.tables import MODEL_PRICING, register_model
-from agentcost.projection.patterns import detect_patterns
-from agentcost.projection.projector import project
-from agentcost.projection.stats import compute_stats
+from pretia.collectors.base import StepRecord
+from pretia.pricing.tables import MODEL_PRICING, register_model
+from pretia.projection.patterns import detect_patterns
+from pretia.projection.projector import project
+from pretia.projection.stats import compute_stats
 from tests.synthetic.generators import SyntheticWorkflow
 
 _SYNTHETIC_MODEL = "_synthetic_unit_cost_"

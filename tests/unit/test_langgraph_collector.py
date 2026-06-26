@@ -1,4 +1,4 @@
-"""Tests for LangGraphCollector and AgentCostCallbackHandler (fully mocked, no langchain)."""
+"""Tests for LangGraphCollector and PretiaCallbackHandler (fully mocked, no langchain)."""
 
 from __future__ import annotations
 
@@ -20,9 +20,9 @@ sys.modules.setdefault("langchain_core", _mock_lc)
 sys.modules.setdefault("langchain_core.callbacks", _mock_lc.callbacks)
 sys.modules.setdefault("langchain_core.outputs", _mock_lc.outputs)
 
-from agentcost.collectors.langgraph import (  # noqa: E402
-    AgentCostCallbackHandler,
+from pretia.collectors.langgraph import (  # noqa: E402
     LangGraphCollector,
+    PretiaCallbackHandler,
 )
 
 # Reusable short aliases
@@ -71,7 +71,7 @@ def _start_llm(handler, *, run_id, ser=None, messages=None):
 
 class TestLLMCallLifecycle:
     def test_start_and_end_produces_step_record(self):
-        handler = AgentCostCallbackHandler()
+        handler = PretiaCallbackHandler()
         rid = uuid4()
         messages = [[{"role": "user", "content": "Hello"}]]
 
@@ -102,7 +102,7 @@ class TestLLMCallLifecycle:
 
 class TestTokenExtraction:
     def test_tokens_from_llm_output(self):
-        handler = AgentCostCallbackHandler()
+        handler = PretiaCallbackHandler()
         rid = uuid4()
 
         _start_llm(handler, run_id=rid)
@@ -120,7 +120,7 @@ class TestTokenExtraction:
         assert handler.records[0].output_tokens == 80
 
     def test_tokens_from_generation_info(self):
-        handler = AgentCostCallbackHandler()
+        handler = PretiaCallbackHandler()
         rid = uuid4()
 
         _start_llm(handler, run_id=rid)
@@ -139,7 +139,7 @@ class TestTokenExtraction:
         assert handler.records[0].output_tokens == 120
 
     def test_no_usage_data_falls_back_to_zero(self):
-        handler = AgentCostCallbackHandler()
+        handler = PretiaCallbackHandler()
         rid = uuid4()
 
         _start_llm(handler, run_id=rid)
@@ -158,7 +158,7 @@ class TestTokenExtraction:
 
 class TestSystemPrompt:
     def test_system_prompt_hashed(self):
-        handler = AgentCostCallbackHandler()
+        handler = PretiaCallbackHandler()
         rid = uuid4()
         prompt_text = "You are a support agent."
         messages = [
@@ -187,7 +187,7 @@ class TestSystemPrompt:
 
 class TestOutputFormat:
     def _run_with_text(self, text):
-        handler = AgentCostCallbackHandler()
+        handler = PretiaCallbackHandler()
         rid = uuid4()
         _start_llm(handler, run_id=rid)
         handler.on_llm_end(
@@ -215,7 +215,7 @@ class TestOutputFormat:
 
 class TestToolCall:
     def test_tool_start_and_end_produces_record(self):
-        handler = AgentCostCallbackHandler()
+        handler = PretiaCallbackHandler()
         rid = uuid4()
 
         handler.on_tool_start(
@@ -241,7 +241,7 @@ class TestToolCall:
 
 class TestIterationCounting:
     def test_same_step_increments(self):
-        handler = AgentCostCallbackHandler()
+        handler = PretiaCallbackHandler()
         resp = _make_response(llm_output=_USAGE_10_5)
 
         for _ in range(3):
@@ -263,12 +263,12 @@ class TestIterationCounting:
 
 class TestResilience:
     def test_end_without_start_no_crash(self):
-        handler = AgentCostCallbackHandler()
+        handler = PretiaCallbackHandler()
         handler.on_llm_end(_make_response(), run_id=uuid4())
         assert len(handler.records) == 0
 
     def test_missing_model_name_falls_back_to_unknown(self):
-        handler = AgentCostCallbackHandler()
+        handler = PretiaCallbackHandler()
         rid = uuid4()
 
         handler.on_chat_model_start(
@@ -284,7 +284,7 @@ class TestResilience:
         assert handler.records[0].model == "unknown"
 
     def test_tool_end_without_start_no_crash(self):
-        handler = AgentCostCallbackHandler()
+        handler = PretiaCallbackHandler()
         handler.on_tool_end("output", run_id=uuid4())
         assert len(handler.records) == 0
 
@@ -296,7 +296,7 @@ class TestResilience:
 
 class TestTiming:
     def test_duration_positive(self):
-        handler = AgentCostCallbackHandler()
+        handler = PretiaCallbackHandler()
         rid = uuid4()
 
         _start_llm(handler, run_id=rid)
@@ -378,7 +378,7 @@ class TestImportGuard:
             if mod_name == "langchain_core" or mod_name.startswith("langchain_core."):
                 saved[mod_name] = sys.modules.pop(mod_name)
         saved_lg = sys.modules.pop(
-            "agentcost.collectors.langgraph",
+            "pretia.collectors.langgraph",
             None,
         )
 
@@ -395,9 +395,9 @@ class TestImportGuard:
                     import importlib
 
                     importlib.import_module(
-                        "agentcost.collectors.langgraph",
+                        "pretia.collectors.langgraph",
                     )
         finally:
             sys.modules.update(saved)
             if saved_lg is not None:
-                sys.modules["agentcost.collectors.langgraph"] = saved_lg
+                sys.modules["pretia.collectors.langgraph"] = saved_lg

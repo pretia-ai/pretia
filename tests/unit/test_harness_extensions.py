@@ -15,8 +15,6 @@ try:
 except ModuleNotFoundError:
     _has_litellm = False
 
-from agentcost.collectors.base import StepRecord  # noqa: E402
-from agentcost.store import ProfileStore, ProfilingSession  # noqa: E402
 from bt_agents.harness.run_workflow import (  # noqa: E402
     _detect_batch_patterns,
     _extract_run_metadata,
@@ -27,6 +25,8 @@ from bt_agents.harness.run_workflow import (  # noqa: E402
     save_as_session,
     save_results,
 )
+from pretia.collectors.base import StepRecord  # noqa: E402
+from pretia.store import ProfileStore, ProfilingSession  # noqa: E402
 
 
 @pytest.fixture
@@ -523,7 +523,7 @@ class TestSaveAsSession:
 
     def test_session_flows_through_projection(self, multi_step_records, tmp_path):
         """End-to-end: save_as_session → ProfileStore.load → compute_stats."""
-        from agentcost.projection.stats import compute_stats
+        from pretia.projection.stats import compute_stats
 
         filepath = save_as_session(
             "W1",
@@ -598,7 +598,7 @@ class TestEndToEndWithDryRun:
         assert session.sample_size == 3
         assert session.input_mode == "backtesting"
 
-        from agentcost.projection.stats import compute_stats
+        from pretia.projection.stats import compute_stats
 
         stats = compute_stats(session.runs)
         assert stats.total_runs == 3

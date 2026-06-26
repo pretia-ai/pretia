@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from agentcost.collectors.base import StepRecord
+from pretia.collectors.base import StepRecord
 from scripts._smoke_checks import (
     check_cache_bust,
     check_cost_plausibility,

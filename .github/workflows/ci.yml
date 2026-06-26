@@ -28,10 +28,10 @@ jobs:
         run: uv pip install --system -e ".[dev]"
 
       - name: Lint
-        run: ruff check agentcost/ tests/
+        run: ruff check pretia/ tests/
 
       - name: Format check
-        run: ruff format --check agentcost/ tests/
+        run: ruff format --check pretia/ tests/
 
       - name: Unit tests
         # Exit 5 = no tests collected, tolerated while the scaffold has no tests yet.

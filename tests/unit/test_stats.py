@@ -7,8 +7,8 @@ from datetime import UTC, datetime
 
 import pytest
 
-from agentcost.collectors.base import StepRecord
-from agentcost.projection.stats import (
+from pretia.collectors.base import StepRecord
+from pretia.projection.stats import (
     compute_percentile_stats,
     compute_stats,
 )

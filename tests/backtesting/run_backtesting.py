@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""AgentCost Backtesting Runner.
+"""Pretia Backtesting Runner.
 
 Runs the full backtesting protocol across 10 test workflows.
 This script makes real API calls. Cost estimates:
@@ -79,7 +79,7 @@ def _run_profile(
     output_path: Path,
 ) -> None:
     """Profile a workflow with the given inputs and save the session."""
-    from agentcost.runner import ProfileRunner
+    from pretia.runner import ProfileRunner
 
     runner = ProfileRunner(
         workflow_path=workflow_path,
@@ -184,8 +184,8 @@ def _run_phase_2(configs: list, resume: bool) -> None:
 
 def _run_phase_3(configs: list) -> None:
     """Phase 3: Score existing results (no API calls)."""
-    from agentcost.store import ProfilingSession
-    from agentcost.validation.suite import format_suite_report, run_backtesting_suite
+    from pretia.store import ProfilingSession
+    from pretia.validation.suite import format_suite_report, run_backtesting_suite
 
     profiles: dict[str, dict[str, ProfilingSession]] = {}
     for cfg in configs:
@@ -328,7 +328,7 @@ def main(
     pre_calibrate: bool,
     verbose: bool,
 ) -> None:
-    """Run the AgentCost backtesting protocol."""
+    """Run the Pretia backtesting protocol."""
     log_level = logging.DEBUG if verbose else logging.WARNING
     logging.basicConfig(level=log_level, format="%(message)s")
 

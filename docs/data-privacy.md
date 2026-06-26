@@ -1,6 +1,6 @@
 # Data Privacy Policy
 
-Project policy for what AgentCost stores, and what it must never store.
+Project policy for what Pretia stores, and what it must never store.
 
 ## What NOT To Store
 
@@ -28,8 +28,8 @@ When `--include-prompts` is passed (future feature), raw system prompts are stor
 
 ## Baseline Files
 
-Baselines (`.agentcost/baseline.json`) contain aggregated statistics only: percentile distributions, model names, pattern flags, and monthly projections. No raw text. Baselines are safe to commit to version control.
+Baselines (`.pretia/baseline.json`) contain aggregated statistics only: percentile distributions, model names, pattern flags, and monthly projections. No raw text. Baselines are safe to commit to version control.
 
 ## Profiling Sessions
 
-Session files (`.agentcost/{workflow}_{timestamp}.json`) contain StepRecords with token counts and metadata. No raw text content. Safe to share within a team for cost analysis.
+Session files (`.pretia/{workflow}_{timestamp}.json`) contain StepRecords with token counts and metadata. No raw text content. Safe to share within a team for cost analysis.

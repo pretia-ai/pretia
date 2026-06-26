@@ -1,4 +1,4 @@
-name: "AgentCost — Pre-deployment Cost Analysis"
+name: "Pretia — Pre-deployment Cost Analysis"
 description: >
   Analyze AI agent workflow costs on every PR. Diff-only mode (default) runs
   static analysis in seconds at zero cost. Full profile mode runs the actual
@@ -15,7 +15,7 @@ inputs:
   baseline_path:
     description: "Path to the saved baseline JSON file."
     required: false
-    default: ".agentcost/baseline.json"
+    default: ".pretia/baseline.json"
   mode:
     description: "Analysis mode: 'diff' (static, free) or 'profile' (full, ~$2)."
     required: false

@@ -1,4 +1,4 @@
-"""Tests for agentcost.estimate — static analysis engine and estimate CLI command."""
+"""Tests for pretia.estimate — static analysis engine and estimate CLI command."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from agentcost.cli import cli
-from agentcost.estimate import (
+from pretia.cli import cli
+from pretia.estimate import (
     ModelEstimate,
     _detect_framework,
     _estimate_cost,
@@ -435,7 +435,7 @@ class TestProfileRunConfirmation:
 
 class TestInferRunCount:
     def test_single_input(self) -> None:
-        from agentcost.cli import _infer_run_count
+        from pretia.cli import _infer_run_count
 
         assert (
             _infer_run_count(
@@ -449,7 +449,7 @@ class TestInferRunCount:
         )
 
     def test_auto_generate_explicit(self) -> None:
-        from agentcost.cli import _infer_run_count
+        from pretia.cli import _infer_run_count
 
         assert (
             _infer_run_count(
@@ -463,7 +463,7 @@ class TestInferRunCount:
         )
 
     def test_auto_generate_default(self) -> None:
-        from agentcost.cli import _infer_run_count
+        from pretia.cli import _infer_run_count
 
         assert (
             _infer_run_count(
@@ -477,7 +477,7 @@ class TestInferRunCount:
         )
 
     def test_from_langfuse(self) -> None:
-        from agentcost.cli import _infer_run_count
+        from pretia.cli import _infer_run_count
 
         assert (
             _infer_run_count(
@@ -491,7 +491,7 @@ class TestInferRunCount:
         )
 
     def test_inputs_file(self, tmp_path: Path) -> None:
-        from agentcost.cli import _infer_run_count
+        from pretia.cli import _infer_run_count
 
         f = tmp_path / "inputs.txt"
         f.write_text("line1\nline2\nline3\n")

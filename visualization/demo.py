@@ -428,7 +428,7 @@ def _generate_backtest_data() -> None:
 
 
 def main() -> None:
-    print("=== AgentCost Visualization Demo ===\n")
+    print("=== Pretia Visualization Demo ===\n")
 
     # Create output dirs
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)

@@ -7,8 +7,8 @@ from datetime import UTC, datetime
 from rich.panel import Panel
 from rich.table import Table
 
-from agentcost.ci.report import format_cli_report, format_cost, format_tokens
-from agentcost.store import ProfilingSession
+from pretia.ci.report import format_cli_report, format_cost, format_tokens
+from pretia.store import ProfilingSession
 
 
 def _make_session(**overrides) -> ProfilingSession:

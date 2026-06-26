@@ -424,7 +424,7 @@ class TestPromptParseability:
             )
 
     def test_no_meta_instructions_leaked(self, manifest, prompt_files):
-        forbidden = ["AgentCost", "profiling run", "backtesting", "projection engine"]
+        forbidden = ["Pretia", "profiling run", "backtesting", "projection engine"]
         for entry in manifest["prompts"]:
             content = prompt_files[entry["file_path"]]
             for term in forbidden:

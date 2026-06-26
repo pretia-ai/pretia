@@ -2,7 +2,7 @@
 
 **Purpose:** This file specifies how Claude Code must build the PDF generation system — the code that produces synthetic PDF corpora for the five workflows that process documents. Each workflow gets its own corpus, generated specifically to exercise that workflow's cost-driving dimensions. There is no shared pre-curated corpus.
 
-**Context for Claude Code:** You have the AgentCost codebase (including the PDF processing pipeline with page-level classification, chunking, and embedding), `projection-engine-recommendation-addition-2.md` (PDF pipeline design, W17 architecture), `cross-cutting-robustness.md`, and the technical spec. This file provides the per-workflow document specifications and the profiling-vs-ground-truth differentiation.
+**Context for Claude Code:** You have the Pretia codebase (including the PDF processing pipeline with page-level classification, chunking, and embedding), `projection-engine-recommendation-addition-2.md` (PDF pipeline design, W17 architecture), `cross-cutting-robustness.md`, and the technical spec. This file provides the per-workflow document specifications and the profiling-vs-ground-truth differentiation.
 
 **What you are building:** A generator module per workflow that produces tagged PDF files with controlled characteristics (page count, section structure, modality, content density). Each generated PDF carries metadata describing its structural properties.
 
@@ -364,7 +364,7 @@ For **Tier B sectional generation** (documents over ~60 pages), the outline call
 
 The prompt should NOT include:
 - Instructions about PDF rendering (that's the code's job)
-- References to AgentCost or backtesting
+- References to Pretia or backtesting
 - Instructions to make the content "diverse" (diversity comes from varying the input parameters across calls, not from a single call)
 
 ### Substantive Content Requirement

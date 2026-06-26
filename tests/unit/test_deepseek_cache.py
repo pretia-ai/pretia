@@ -7,10 +7,10 @@ from datetime import UTC, datetime
 
 import pytest
 
-from agentcost.collectors.base import StepRecord
-from agentcost.collectors.cache_bust import cache_bust_prompt, needs_cache_busting
-from agentcost.collectors.generic import GenericCollector, _try_extract
-from agentcost.pricing.tables import calculate_cost
+from pretia.collectors.base import StepRecord
+from pretia.collectors.cache_bust import cache_bust_prompt, needs_cache_busting
+from pretia.collectors.generic import GenericCollector, _try_extract
+from pretia.pricing.tables import calculate_cost
 
 
 def _make_record(**kwargs: object) -> StepRecord:
@@ -187,7 +187,7 @@ class TestNeedsCacheBusting:
 
 class TestCacheModeColdDefault:
     def test_default_cold(self):
-        from agentcost.runner import ProfileRunner
+        from pretia.runner import ProfileRunner
 
         runner = ProfileRunner(workflow_path="dummy.py")
         assert runner.cache_mode == "cold"

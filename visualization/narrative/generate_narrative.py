@@ -10,8 +10,8 @@ from typing import Any
 
 import jinja2
 
-from agentcost.validation.scoring import ComparisonScore
-from agentcost.validation.suite import FailureAttribution, attribute_failure
+from pretia.validation.scoring import ComparisonScore
+from pretia.validation.suite import FailureAttribution, attribute_failure
 
 logger = logging.getLogger(__name__)
 
@@ -342,7 +342,7 @@ def main() -> None:
     """CLI entry point."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Generate AgentCost narrative report")
+    parser = argparse.ArgumentParser(description="Generate Pretia narrative report")
     parser.add_argument(
         "--results-dir",
         type=Path,

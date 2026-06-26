@@ -6,11 +6,11 @@ Developer reference for every file shipped in Sprint 1. Read Part 1 top-to-botto
 
 ## Part 1: File-by-File Walkthrough
 
-### 1. `agentcost/collectors/base.py`
+### 1. `pretia/collectors/base.py`
 
 #### a) What it does
 
-Defines the two foundational types in AgentCost: `StepRecord` (a frozen dataclass that represents one LLM call or tool invocation) and `BaseCollector` (the abstract base class that every framework adapter must implement). Everything else in the codebase either produces, consumes, or persists `StepRecord` instances.
+Defines the two foundational types in Pretia: `StepRecord` (a frozen dataclass that represents one LLM call or tool invocation) and `BaseCollector` (the abstract base class that every framework adapter must implement). Everything else in the codebase either produces, consumes, or persists `StepRecord` instances.
 
 #### b) Key moving parts
 
@@ -59,7 +59,7 @@ pytest tests/unit/test_step_record.py -v -k "test_invalid_step_type"
 Quick REPL check for serialization round-trip:
 
 ```python
-from agentcost.collectors.base import StepRecord
+from pretia.collectors.base import StepRecord
 from datetime import datetime, UTC
 r = StepRecord(step_name="test", step_type="llm", model="gpt-4o", input_tokens=100, output_tokens=50, context_size=100, tool_definitions_tokens=0, system_prompt_hash="abc", system_prompt_tokens=20, output_format="text", is_retry=False, iteration=1, parent_step=None, duration_ms=500, timestamp=datetime.now(UTC))
 d = r.to_dict()
@@ -70,7 +70,7 @@ assert r == r2
 To see validation in action:
 
 ```python
-from agentcost.collectors.base import StepRecord
+from pretia.collectors.base import StepRecord
 from datetime import datetime, UTC
 try:
     StepRecord(step_name="x", step_type="WRONG", model="m", input_tokens=0, output_tokens=0, context_size=0, tool_definitions_tokens=0, system_prompt_hash="", system_prompt_tokens=0, output_format="text", is_retry=False, iteration=1, parent_step=None, duration_ms=0, timestamp=datetime.now(UTC))
@@ -80,11 +80,11 @@ except ValueError as e:
 
 ---
 
-### 2. `agentcost/pricing/tables.py`
+### 2. `pretia/pricing/tables.py`
 
 #### a) What it does
 
-Maps LLM model names to per-million-token pricing and capability tiers. Provides functions to resolve aliases (e.g., `"claude-opus-4"` to `"claude-opus-4-20250514"`), calculate the dollar cost of a single call, and look up a model's tier (`frontier`/`mid`/`fast`). This is the cost engine — every dollar figure in AgentCost originates here.
+Maps LLM model names to per-million-token pricing and capability tiers. Provides functions to resolve aliases (e.g., `"claude-opus-4"` to `"claude-opus-4-20250514"`), calculate the dollar cost of a single call, and look up a model's tier (`frontier`/`mid`/`fast`). This is the cost engine — every dollar figure in Pretia originates here.
 
 #### b) Key moving parts
 
@@ -111,7 +111,7 @@ Maps LLM model names to per-million-token pricing and capability tiers. Provides
 
 2. **Dicts out of sync.** If you add a model to `MODEL_PRICING` but forget `MODEL_TIERS`, `model_tier()` hits a `KeyError` on `MODEL_TIERS[canonical]`. The structural invariant tests in `test_pricing.py` catch this, but only if you run them.
 
-3. **Stale prices.** Pricing changes don't auto-update. If Anthropic drops Haiku pricing by 50%, every AgentCost report overstates Haiku costs until someone updates `MODEL_PRICING`.
+3. **Stale prices.** Pricing changes don't auto-update. If Anthropic drops Haiku pricing by 50%, every Pretia report overstates Haiku costs until someone updates `MODEL_PRICING`.
 
 #### e) How to debug it
 
@@ -130,7 +130,7 @@ pytest tests/unit/test_pricing.py -v -k "TestStructuralInvariants"
 Quick REPL check for a specific model:
 
 ```python
-from agentcost.pricing.tables import resolve_model, get_model_pricing, calculate_cost, model_tier
+from pretia.pricing.tables import resolve_model, get_model_pricing, calculate_cost, model_tier
 resolve_model("claude-opus-4")          # "claude-opus-4-20250514"
 get_model_pricing("claude-opus-4")      # (1.5e-05, 7.5e-05)
 calculate_cost("gpt-4o", 1000, 500)     # dollar cost
@@ -140,7 +140,7 @@ model_tier("gpt-4o-mini")              # "fast"
 To check if a model name is recognized:
 
 ```python
-from agentcost.pricing.tables import resolve_model
+from pretia.pricing.tables import resolve_model
 try:
     resolve_model("my-custom-model")
 except ValueError as e:
@@ -149,11 +149,11 @@ except ValueError as e:
 
 ---
 
-### 3. `agentcost/store.py`
+### 3. `pretia/store.py`
 
 #### a) What it does
 
-Persists and loads `ProfilingSession` objects as JSON files in the `.agentcost/` directory. A `ProfilingSession` bundles workflow metadata (name, hash, timestamp, input mode) with all the `StepRecord` lists from N profiling runs. `ProfileStore` handles the filesystem operations: save, load, list, and retrieve the latest session for a workflow.
+Persists and loads `ProfilingSession` objects as JSON files in the `.pretia/` directory. A `ProfilingSession` bundles workflow metadata (name, hash, timestamp, input mode) with all the `StepRecord` lists from N profiling runs. `ProfileStore` handles the filesystem operations: save, load, list, and retrieve the latest session for a workflow.
 
 #### b) Key moving parts
 
@@ -162,7 +162,7 @@ Persists and loads `ProfilingSession` objects as JSON files in the `.agentcost/`
 | `ProfilingSession` (dataclass) | Holds one profiling session: workflow name, hash, timestamp, sample size, input mode, all runs (each a `list[StepRecord]`), and a free-form `metadata` dict. | N/A (data container) |
 | `ProfilingSession.to_dict()` | Serializes the session including all nested `StepRecord.to_dict()` calls. | `dict[str, Any]` |
 | `ProfilingSession.from_dict(data)` | Deserializes, reconstructing all `StepRecord` instances from their dicts. | `ProfilingSession` |
-| `ProfileStore.__init__(storage_dir)` | Sets the storage directory. Defaults to `.agentcost/` relative to the current working directory. | N/A |
+| `ProfileStore.__init__(storage_dir)` | Sets the storage directory. Defaults to `.pretia/` relative to the current working directory. | N/A |
 | `ProfileStore.save(session)` | Creates the directory if needed, writes JSON with filename `{workflow_stem}_{YYYYMMDD_HHMMSS}.json`. | `Path` (the saved file) |
 | `ProfileStore.load(path)` | Reads a JSON file and deserializes to `ProfilingSession`. | `ProfilingSession` |
 | `ProfileStore.list_sessions(workflow_name)` | Lists saved JSON files, newest first (by mtime). Optionally filters by workflow name prefix. | `list[Path]` |
@@ -177,7 +177,7 @@ For future features (baseline comparison, reports from saved profiles), `Profile
 
 #### d) Common failure modes
 
-1. **Permission denied on `.agentcost/`.** If the process doesn't have write access to the working directory, `save()` raises `PermissionError` when calling `storage_dir.mkdir()`. Symptom: profiling completes but crashes at the very end when trying to save.
+1. **Permission denied on `.pretia/`.** If the process doesn't have write access to the working directory, `save()` raises `PermissionError` when calling `storage_dir.mkdir()`. Symptom: profiling completes but crashes at the very end when trying to save.
 
 2. **Corrupt JSON file.** If a saved file is manually edited and has invalid JSON, `load()` raises `json.JSONDecodeError`. Symptom: `latest()` or any load call fails.
 
@@ -194,10 +194,10 @@ pytest tests/unit/test_profile_store.py -v
 REPL check for save/load round-trip:
 
 ```python
-from agentcost.store import ProfileStore, ProfilingSession
+from pretia.store import ProfileStore, ProfilingSession
 from datetime import datetime, UTC
 session = ProfilingSession(workflow_name="test.py", workflow_hash="abc123", profiled_at=datetime.now(UTC), sample_size=0, input_mode="manual", runs=[], metadata={})
-store = ProfileStore(storage_dir=__import__("pathlib").Path("/tmp/agentcost_test"))
+store = ProfileStore(storage_dir=__import__("pathlib").Path("/tmp/pretia_test"))
 path = store.save(session)
 loaded = store.load(path)
 assert loaded.workflow_name == session.workflow_name
@@ -206,13 +206,13 @@ assert loaded.workflow_name == session.workflow_name
 Inspect what's on disk:
 
 ```bash
-ls -lt .agentcost/*.json
-python -c "import json, sys; d = json.load(open(sys.argv[1])); [__import__('pprint').pprint((k, type(v).__name__)) for k, v in d.items()]" .agentcost/some_session.json
+ls -lt .pretia/*.json
+python -c "import json, sys; d = json.load(open(sys.argv[1])); [__import__('pprint').pprint((k, type(v).__name__)) for k, v in d.items()]" .pretia/some_session.json
 ```
 
 ---
 
-### 4. `agentcost/collectors/generic.py`
+### 4. `pretia/collectors/generic.py`
 
 #### a) What it does
 
@@ -268,7 +268,7 @@ REPL check for the context manager flow:
 
 ```python
 import asyncio
-from agentcost.collectors.generic import GenericCollector
+from pretia.collectors.generic import GenericCollector
 collector = GenericCollector()
 async def demo():
     collector.new_run()
@@ -291,33 +291,33 @@ logging.basicConfig(level=logging.DEBUG)
 
 ---
 
-### 5. `agentcost/collectors/langgraph.py`
+### 5. `pretia/collectors/langgraph.py`
 
 #### a) What it does
 
-Auto-instruments LangGraph (LangChain) workflows by injecting a callback handler into the graph's execution config. `AgentCostCallbackHandler` intercepts LangChain's `on_chat_model_start`, `on_llm_end`, `on_tool_start`, and `on_tool_end` events and converts them into `StepRecord` instances. `LangGraphCollector` wraps this into the `BaseCollector.collect()` interface.
+Auto-instruments LangGraph (LangChain) workflows by injecting a callback handler into the graph's execution config. `PretiaCallbackHandler` intercepts LangChain's `on_chat_model_start`, `on_llm_end`, `on_tool_start`, and `on_tool_end` events and converts them into `StepRecord` instances. `LangGraphCollector` wraps this into the `BaseCollector.collect()` interface.
 
 #### b) Key moving parts
 
 | Name | What it does | Returns |
 |------|-------------|---------|
-| `AgentCostCallbackHandler` | LangChain `BaseCallbackHandler` subclass. Stores in-flight call metadata keyed by `run_id`, then pairs start+end events to build `StepRecord`s. | N/A |
-| `AgentCostCallbackHandler.on_chat_model_start(...)` | Captures model name, system prompt, tool definitions, context size estimate, and start timestamp. Stores them in `self._inflight[run_id]`. | `None` |
-| `AgentCostCallbackHandler.on_llm_end(response, ...)` | Pairs with the matching `on_chat_model_start`. Extracts input/output tokens from the `LLMResult`, computes duration, detects output format, builds a `StepRecord`, appends to `self.records`. | `None` |
-| `AgentCostCallbackHandler.on_tool_start(...)` | Stores tool name and start timestamp in `self._inflight[run_id]`. | `None` |
-| `AgentCostCallbackHandler.on_tool_end(output, ...)` | Pairs with `on_tool_start`, builds a tool-type `StepRecord` with zero tokens (tools don't consume LLM tokens). | `None` |
-| `AgentCostCallbackHandler._extract_tokens(response)` | Static method. Hunts for token counts in two LangChain locations: `response.llm_output["token_usage"]` and `response.generations[0][0].generation_info["usage"]`. | `tuple[int, int]` |
-| `AgentCostCallbackHandler._extract_output_text(response)` | Pulls the LLM's text output for output format detection. | `str` |
+| `PretiaCallbackHandler` | LangChain `BaseCallbackHandler` subclass. Stores in-flight call metadata keyed by `run_id`, then pairs start+end events to build `StepRecord`s. | N/A |
+| `PretiaCallbackHandler.on_chat_model_start(...)` | Captures model name, system prompt, tool definitions, context size estimate, and start timestamp. Stores them in `self._inflight[run_id]`. | `None` |
+| `PretiaCallbackHandler.on_llm_end(response, ...)` | Pairs with the matching `on_chat_model_start`. Extracts input/output tokens from the `LLMResult`, computes duration, detects output format, builds a `StepRecord`, appends to `self.records`. | `None` |
+| `PretiaCallbackHandler.on_tool_start(...)` | Stores tool name and start timestamp in `self._inflight[run_id]`. | `None` |
+| `PretiaCallbackHandler.on_tool_end(output, ...)` | Pairs with `on_tool_start`, builds a tool-type `StepRecord` with zero tokens (tools don't consume LLM tokens). | `None` |
+| `PretiaCallbackHandler._extract_tokens(response)` | Static method. Hunts for token counts in two LangChain locations: `response.llm_output["token_usage"]` and `response.generations[0][0].generation_info["usage"]`. | `tuple[int, int]` |
+| `PretiaCallbackHandler._extract_output_text(response)` | Pulls the LLM's text output for output format detection. | `str` |
 | `_estimate_tokens(text)` | Quick heuristic: `len(text) // 4`. Used as fallback when real counts aren't available. | `int` |
 | `_detect_output_format(text)` | Classifies output as `"json"` (parseable JSON), `"code"` (contains triple backticks), or `"text"`. | `str` |
-| `LangGraphCollector` | `BaseCollector` subclass. Iterates inputs, injects a fresh `AgentCostCallbackHandler` per run, calls `ainvoke` (or `invoke` via thread). | N/A |
+| `LangGraphCollector` | `BaseCollector` subclass. Iterates inputs, injects a fresh `PretiaCallbackHandler` per run, calls `ainvoke` (or `invoke` via thread). | N/A |
 | `LangGraphCollector.collect(workflow, inputs)` | Creates one handler per input, runs the graph, collects `handler.records`. Falls back to `asyncio.to_thread(workflow.invoke, ...)` if only sync `invoke` is available. | `list[list[StepRecord]]` |
 
 #### c) How data flows through it
 
 `ProfileRunner._select_collector()` detects LangGraph workflows (objects with both `ainvoke` and `nodes` attributes) and instantiates `LangGraphCollector`. When `collect()` runs:
 
-1. For each input string, a fresh `AgentCostCallbackHandler` is created.
+1. For each input string, a fresh `PretiaCallbackHandler` is created.
 2. The handler is injected via `config={"callbacks": [handler]}`.
 3. `workflow.ainvoke({"input": inp}, config=config)` runs the graph.
 4. During execution, LangChain fires `on_chat_model_start` → `on_llm_end` pairs (and `on_tool_start` → `on_tool_end` for tool calls).
@@ -353,8 +353,8 @@ logging.basicConfig(level=logging.DEBUG)
 Test the token extraction in isolation:
 
 ```python
-from agentcost.collectors.langgraph import AgentCostCallbackHandler
-handler = AgentCostCallbackHandler()
+from pretia.collectors.langgraph import PretiaCallbackHandler
+handler = PretiaCallbackHandler()
 # Simulate an LLMResult with token data
 class FakeUsage:
     prompt_tokens = 100
@@ -371,7 +371,7 @@ assert (inp, out) == (100, 50)
 
 ---
 
-### 6. `agentcost/inputs/selector.py`
+### 6. `pretia/inputs/selector.py`
 
 #### a) What it does
 
@@ -415,7 +415,7 @@ pytest tests/unit/test_input_selector.py -v
 Test mode selection logic in the REPL:
 
 ```python
-from agentcost.inputs.selector import select_input_mode
+from pretia.inputs.selector import select_input_mode
 r = select_input_mode(single_input="test question")
 assert r.mode == "single" and r.inputs == ["test question"]
 
@@ -429,14 +429,14 @@ r.mode  # "auto-generate" or "estimate" depending on env
 Test file reading:
 
 ```python
-from agentcost.inputs.selector import read_inputs_file
+from pretia.inputs.selector import read_inputs_file
 # Create a temp file first, then:
 inputs = read_inputs_file("/tmp/test_inputs.txt")
 ```
 
 ---
 
-### 7. `agentcost/inputs/generator.py`
+### 7. `pretia/inputs/generator.py`
 
 #### a) What it does
 
@@ -469,7 +469,7 @@ If the LLM returns fewer inputs than requested, `_parse_response()` logs a warni
 
 #### d) Common failure modes
 
-1. **No SDK installed.** If neither `anthropic` nor `openai` is importable, `_resolve_provider()` raises `ImportError: "Input generation requires either the anthropic or openai package."` This surfaces when the user runs `agentcost profile run` with auto-generate mode.
+1. **No SDK installed.** If neither `anthropic` nor `openai` is importable, `_resolve_provider()` raises `ImportError: "Input generation requires either the anthropic or openai package."` This surfaces when the user runs `pretia profile run` with auto-generate mode.
 
 2. **No API key.** If `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` are both unset (and no key is passed), `_resolve_provider()` raises `ValueError: "No API key found."` The CLI shows this as a clean error.
 
@@ -486,7 +486,7 @@ pytest tests/unit/test_input_generator.py -v
 Test the parser in isolation:
 
 ```python
-from agentcost.inputs.generator import _parse_response
+from pretia.inputs.generator import _parse_response
 text = "Here are the inputs:\n1. How do I reset my password?\n2. What's my balance?\n3. Help"
 result = _parse_response(text, n=3)
 assert result == ["How do I reset my password?", "What's my balance?", "Help"]
@@ -497,18 +497,18 @@ Test provider resolution (without making API calls):
 ```python
 import os
 os.environ["ANTHROPIC_API_KEY"] = "test"
-from agentcost.inputs.generator import _resolve_provider
+from pretia.inputs.generator import _resolve_provider
 provider, key, sdk = _resolve_provider("claude-haiku-3-5-20241022", None)
 assert provider == "anthropic"
 ```
 
 ---
 
-### 8. `agentcost/runner.py`
+### 8. `pretia/runner.py`
 
 #### a) What it does
 
-Orchestrates the full profiling pipeline from start to finish. Loads the workflow module from a Python file, auto-detects the workflow object and system prompt, selects the collector and input mode, runs the collector, computes cost summaries, builds a `ProfilingSession`, saves it to disk, and returns the session. This is the engine behind `agentcost profile run`.
+Orchestrates the full profiling pipeline from start to finish. Loads the workflow module from a Python file, auto-detects the workflow object and system prompt, selects the collector and input mode, runs the collector, computes cost summaries, builds a `ProfilingSession`, saves it to disk, and returns the session. This is the engine behind `pretia profile run`.
 
 #### b) Key moving parts
 
@@ -576,7 +576,7 @@ pytest tests/unit/test_runner.py -v
 Test workflow loading in isolation:
 
 ```python
-from agentcost.runner import _load_workflow_module, _find_workflow, _extract_system_prompt
+from pretia.runner import _load_workflow_module, _find_workflow, _extract_system_prompt
 module = _load_workflow_module("path/to/your/workflow.py")
 workflow = _find_workflow(module)
 prompt = _extract_system_prompt(module)
@@ -585,8 +585,8 @@ prompt = _extract_system_prompt(module)
 Test cost summary with known data:
 
 ```python
-from agentcost.runner import _build_cost_summary
-from agentcost.collectors.base import StepRecord
+from pretia.runner import _build_cost_summary
+from pretia.collectors.base import StepRecord
 from datetime import datetime, UTC
 rec = StepRecord(step_name="test", step_type="llm", model="gpt-4o", input_tokens=1000, output_tokens=500, context_size=1000, tool_definitions_tokens=0, system_prompt_hash="x", system_prompt_tokens=100, output_format="text", is_retry=False, iteration=1, parent_step=None, duration_ms=200, timestamp=datetime.now(UTC))
 summary = _build_cost_summary([[rec]])
@@ -595,19 +595,19 @@ summary["mean_cost_per_run"]
 
 ---
 
-### 9. `agentcost/cli.py`
+### 9. `pretia/cli.py`
 
 #### a) What it does
 
-Defines the Click-based command-line interface. Currently exposes one command: `agentcost profile run <workflow_path>`. Wires CLI options to `ProfileRunner`, runs the profiler, formats the output using `format_cli_report()`, and displays it via `rich.Console`. Handles errors with user-friendly messages.
+Defines the Click-based command-line interface. Currently exposes one command: `pretia profile run <workflow_path>`. Wires CLI options to `ProfileRunner`, runs the profiler, formats the output using `format_cli_report()`, and displays it via `rich.Console`. Handles errors with user-friendly messages.
 
 #### b) Key moving parts
 
 | Name | What it does | Returns |
 |------|-------------|---------|
-| `cli()` | The top-level Click group. Entry point for `agentcost` CLI. Decorated with `@click.version_option()`. | N/A |
-| `profile()` | Click subgroup for `agentcost profile`. Currently only has `run`. | N/A |
-| `run(workflow_path, collector, ...)` | The `agentcost profile run` command. Creates a `ProfileRunner`, calls `runner.run_sync()`, formats the report, handles errors. | `None` (prints to terminal) |
+| `cli()` | The top-level Click group. Entry point for `pretia` CLI. Decorated with `@click.version_option()`. | N/A |
+| `profile()` | Click subgroup for `pretia profile`. Currently only has `run`. | N/A |
+| `run(workflow_path, collector, ...)` | The `pretia profile run` command. Creates a `ProfileRunner`, calls `runner.run_sync()`, formats the report, handles errors. | `None` (prints to terminal) |
 | `console` (module-level) | `rich.Console()` instance used for all terminal output. | N/A |
 
 CLI options:
@@ -619,12 +619,12 @@ CLI options:
 | `--input "..."` | Single input string |
 | `--inputs file.jsonl` | Path to inputs file |
 | `--from-langfuse` | Import from Langfuse traces |
-| `--output-dir` | Where to save profile JSON (default: `.agentcost`) |
+| `--output-dir` | Where to save profile JSON (default: `.pretia`) |
 | `-v / --verbose` | Enable debug logging |
 
 #### c) How data flows through it
 
-User runs `agentcost profile run workflow.py --auto-generate 10`. Click parses the arguments and calls `run()`. Inside `run()`:
+User runs `pretia profile run workflow.py --auto-generate 10`. Click parses the arguments and calls `run()`. Inside `run()`:
 
 1. Logging is configured (DEBUG if `-v`, WARNING otherwise).
 2. `ProfileRunner` is constructed with all the CLI options.
@@ -654,20 +654,20 @@ pytest tests/unit/test_cli.py -v
 Test the CLI without actually profiling (just check help and option parsing):
 
 ```bash
-agentcost --help
-agentcost profile --help
-agentcost profile run --help
+pretia --help
+pretia profile --help
+pretia profile run --help
 ```
 
 Test with verbose mode to see everything:
 
 ```bash
-agentcost profile run workflow.py --input "test" -v
+pretia profile run workflow.py --input "test" -v
 ```
 
 ---
 
-### 10. `agentcost/ci/report.py`
+### 10. `pretia/ci/report.py`
 
 #### a) What it does
 
@@ -713,8 +713,8 @@ pytest tests/unit/test_report.py -v
 Test the formatter in the REPL with fake data:
 
 ```python
-from agentcost.ci.report import format_cli_report
-from agentcost.store import ProfilingSession
+from pretia.ci.report import format_cli_report
+from pretia.store import ProfilingSession
 from datetime import datetime, UTC
 session = ProfilingSession(workflow_name="test.py", workflow_hash="abc", profiled_at=datetime.now(UTC), sample_size=5, input_mode="manual", runs=[], metadata={})
 cost_summary = {"per_step": {"classify": {"cost_mean": 0.001, "cost_p95": 0.003, "input_tokens_mean": 340, "output_tokens_mean": 45, "model": "gpt-4o-mini", "tier": "fast", "step_type": "llm", "count": 5, "max_iteration": 1}}, "mean_cost_per_run": 0.001, "min_cost_per_run": 0.0005, "max_cost_per_run": 0.002, "p95_cost_per_run": 0.0018, "total_session_cost": 0.005, "projection_100_day": 3.0, "projection_1000_day": 30.0, "projection_10000_day": 300.0}
@@ -730,7 +730,7 @@ for r in renderables:
 ## Part 2: Data Flow Diagram
 
 ```
-agentcost profile run workflow.py --auto-generate 10
+pretia profile run workflow.py --auto-generate 10
     |
     v
 cli.py:run()
@@ -772,7 +772,7 @@ runner.py:ProfileRunner.run()
     |       |    GenericCollector: new_run() -> await workflow(inp) -> end_run()
     |       |      StepTracker.__aenter__  -> record_llm_call() -> __aexit__
     |       |        -> builds StepRecord -> appends to _current_run
-    |       |    LangGraphCollector: handler = AgentCostCallbackHandler()
+    |       |    LangGraphCollector: handler = PretiaCallbackHandler()
     |       |      workflow.ainvoke({"input": inp}, config={"callbacks": [handler]})
     |       |        on_chat_model_start -> _inflight[run_id] = {...}
     |       |        on_llm_end -> StepRecord -> handler.records
@@ -793,7 +793,7 @@ runner.py:ProfileRunner.run()
     |
     |--- store.py:ProfileStore.save(session)
     |       |  session.to_dict() -> StepRecord.to_dict() for each record
-    |       |  json.dumps() -> write to .agentcost/{workflow}_{timestamp}.json
+    |       |  json.dumps() -> write to .pretia/{workflow}_{timestamp}.json
     |       v
     |    saved_path: Path
     |
@@ -831,7 +831,7 @@ Five traced examples that exercise every Sprint 1 code path. Each shows the exac
 
 ### Example A: Single-input profiling with GenericCollector — full pipeline
 
-**Scenario:** The user runs `agentcost profile run my_agent.py --input "How do I reset my password?"`. The workflow has two steps manually instrumented with `GenericCollector.step()`. This traces the entire Sprint 1 pipeline from CLI to terminal output.
+**Scenario:** The user runs `pretia profile run my_agent.py --input "How do I reset my password?"`. The workflow has two steps manually instrumented with `GenericCollector.step()`. This traces the entire Sprint 1 pipeline from CLI to terminal output.
 
 **Workflow code (`my_agent.py`):**
 
@@ -1032,11 +1032,11 @@ cli.py:run(workflow_path="my_agent.py", single_input="How do I reset my password
     │       runs=[[classify_record, respond_record]],
     │       metadata={"cost_summary": cost_summary})
     │
-    ├─ 7. ProfileStore(storage_dir=Path(".agentcost")).save(session)
-    │   │   mkdir(".agentcost", parents=True, exist_ok=True)
+    ├─ 7. ProfileStore(storage_dir=Path(".pretia")).save(session)
+    │   │   mkdir(".pretia", parents=True, exist_ok=True)
     │   │   stamp = "20260601_143022"
     │   │   name = _safe_name("my_agent.py") → Path("my_agent.py").stem = "my_agent"
-    │   │   path = .agentcost/my_agent_20260601_143022.json
+    │   │   path = .pretia/my_agent_20260601_143022.json
     │   │
     │   │   session.to_dict():
     │   │     For each run, for each record: StepRecord.to_dict()
@@ -1046,9 +1046,9 @@ cli.py:run(workflow_path="my_agent.py", single_input="How do I reset my password
     │   │          "timestamp": "2026-06-01T14:30:22.123456+00:00"}
     │   │
     │   │   json.dumps(session_dict, indent=2) → write to file
-    │   │   → Path(".agentcost/my_agent_20260601_143022.json")
+    │   │   → Path(".pretia/my_agent_20260601_143022.json")
     │   │
-    │   session.metadata["saved_path"] = ".agentcost/my_agent_20260601_143022.json"
+    │   session.metadata["saved_path"] = ".pretia/my_agent_20260601_143022.json"
     │
     └─ Returns session to CLI
 
@@ -1204,7 +1204,7 @@ ProfileRunner.run():
  │   self.collector_name = "auto"
  │   hasattr(graph, "ainvoke") → True
  │   hasattr(graph, "nodes") → True
- │   Both True → from agentcost.collectors.langgraph import LangGraphCollector
+ │   Both True → from pretia.collectors.langgraph import LangGraphCollector
  │   → LangGraphCollector()
  │
  ├─ _resolve_inputs(system_prompt):
@@ -1251,7 +1251,7 @@ ProfileRunner.run():
  │   │  LangGraphCollector.collect(graph, 3 inputs):
  │   │
  │   │  Input 0: "What are the latest developments in quantum computing?"
- │   │    handler = AgentCostCallbackHandler()   ← fresh handler per run
+ │   │    handler = PretiaCallbackHandler()   ← fresh handler per run
  │   │    config = {"callbacks": [handler]}
  │   │    await graph.ainvoke({"input": "What are the..."}, config=config)
  │   │
@@ -1423,7 +1423,7 @@ Save phase:
     metadata={"cost_summary": {...}}
   )
 
-  ProfileStore(storage_dir=Path(".agentcost")).save(session):
+  ProfileStore(storage_dir=Path(".pretia")).save(session):
     │
     ├─ _safe_name("agents/v2/support_bot.py"):
     │   Path("agents/v2/support_bot.py").stem → "support_bot"
@@ -1433,7 +1433,7 @@ Save phase:
     ├─ stamp = datetime(2026, 6, 1, 14, 30, 22).strftime("%Y%m%d_%H%M%S")
     │   → "20260601_143022"
     │
-    ├─ path = .agentcost/support_bot_20260601_143022.json
+    ├─ path = .pretia/support_bot_20260601_143022.json
     │
     ├─ session.to_dict():
     │   │  "workflow_name": "agents/v2/support_bot.py"
@@ -1455,7 +1455,7 @@ Save phase:
 
 
 Load phase:
-  store.load(Path(".agentcost/support_bot_20260601_143022.json")):
+  store.load(Path(".pretia/support_bot_20260601_143022.json")):
     │
     ├─ path.read_text() → JSON string
     ├─ json.loads(text) → dict
@@ -1540,7 +1540,7 @@ Report rendering:
 | `StepTracker.__aenter__` + `record_llm_call` + `__aexit__` (context manager) | A |
 | `StepTracker.__call__` (decorator) + `_try_extract` | B |
 | `_try_extract` attribute-path extraction (OpenAI response) | B |
-| `LangGraphCollector.collect()` + `AgentCostCallbackHandler` | C |
+| `LangGraphCollector.collect()` + `PretiaCallbackHandler` | C |
 | `on_chat_model_start` + `on_llm_end` pairing via `_inflight[run_id]` | C |
 | `on_tool_start` + `on_tool_end` (zero-token tool records) | C |
 | `_extract_tokens` from `llm_output["token_usage"]` | C |
@@ -1571,7 +1571,7 @@ Work through each exercise by reading the broken code, then answer the four ques
 
 ### Exercise 1: StepRecord validation bypass
 
-**File:** `agentcost/collectors/base.py`
+**File:** `pretia/collectors/base.py`
 **Symptom:** A `StepRecord` is created with `iteration=0`, which is invalid. No error on construction. Later, `ProfileRunner._build_cost_summary()` computes costs normally, but the step appears as "iteration 0" in the report, confusing the user. Worse, any downstream code that assumes `iteration >= 1` (like loop detection) silently produces wrong results.
 
 **Broken code:**
@@ -1628,7 +1628,7 @@ class StepRecord:
 
 ### Exercise 2: Frozen dataclass mutation attempt
 
-**File:** `agentcost/runner.py`
+**File:** `pretia/runner.py`
 **Symptom:** During cost summary computation, the code crashes with `dataclasses.FrozenInstanceError: cannot assign to field 'model'`. The profiling session is lost — the JSON file is never saved.
 
 **Broken code:**
@@ -1644,7 +1644,7 @@ def _build_cost_summary(
         run_cost = 0.0
         for rec in run:
             # Normalize model name before cost lookup
-            from agentcost.pricing.tables import resolve_model
+            from pretia.pricing.tables import resolve_model
             try:
                 rec.model = resolve_model(rec.model)
             except ValueError:
@@ -1681,7 +1681,7 @@ def _build_cost_summary(
 
 ### Exercise 3: Async/sync confusion
 
-**File:** `agentcost/runner.py`
+**File:** `pretia/runner.py`
 **Symptom:** `ProfileRunner.run()` completes without errors, but the `runs` variable is a `list` containing a coroutine object instead of a `list[list[StepRecord]]`. The next line, `_build_cost_summary(runs)`, iterates over the runs and gets zero steps. The profiling session is saved with an empty cost summary and no step data.
 
 **Broken code:**
@@ -1711,7 +1711,7 @@ class ProfileRunner:
 
 ### Exercise 4: Pricing lookup failure
 
-**File:** `agentcost/pricing/tables.py`
+**File:** `pretia/pricing/tables.py`
 **Symptom:** When profiling a workflow that uses `"claude-sonnet-4"`, cost calculation crashes with `KeyError: 'claude-sonnet-4'` deep inside `calculate_cost()`. The error is confusing because `"claude-sonnet-4"` is a valid alias — it should resolve to `"claude-sonnet-4-20250514"`.
 
 **Broken code:**
@@ -1743,14 +1743,14 @@ def get_model_pricing(model: str) -> tuple[float, float]:
 
 ### Exercise 5: Context manager not recording
 
-**File:** User code using `agentcost/collectors/generic.py`
+**File:** User code using `pretia/collectors/generic.py`
 **Symptom:** The user instruments their workflow with `GenericCollector`, but after profiling, the session shows zero steps per run. No errors, no warnings. The report shows all zeros.
 
 **Broken code:**
 
 ```python
 import asyncio
-from agentcost.collectors.generic import GenericCollector
+from pretia.collectors.generic import GenericCollector
 
 collector = GenericCollector()
 
@@ -1782,7 +1782,7 @@ async def my_workflow(user_input: str) -> str:
 
 ### Exercise 6: Input generator response parsing
 
-**File:** `agentcost/inputs/generator.py`
+**File:** `pretia/inputs/generator.py`
 **Symptom:** Generated inputs contain numbered prefixes like `"1. How do I reset my password?"`. These get sent verbatim to the agent workflow as test inputs. The agent may treat the `"1. "` as part of the user's question, producing different (worse) profiling results than real user inputs would.
 
 **Broken code:**
@@ -1951,7 +1951,7 @@ if line:
 ### Create a StepRecord and inspect it
 
 ```python
-from agentcost.collectors.base import StepRecord; from datetime import datetime, UTC
+from pretia.collectors.base import StepRecord; from datetime import datetime, UTC
 r = StepRecord(step_name="classify", step_type="llm", model="gpt-4o", input_tokens=500, output_tokens=120, context_size=800, tool_definitions_tokens=0, system_prompt_hash="abc123", system_prompt_tokens=200, output_format="json", is_retry=False, iteration=1, parent_step=None, duration_ms=340, timestamp=datetime.now(UTC))
 r.step_name, r.total_tokens, r.model
 ```
@@ -1965,36 +1965,36 @@ d = r.to_dict(); r2 = StepRecord.from_dict(d); assert r == r2; d
 ### Look up pricing for a model
 
 ```python
-from agentcost.pricing.tables import resolve_model, get_model_pricing, model_tier
+from pretia.pricing.tables import resolve_model, get_model_pricing, model_tier
 resolve_model("claude-opus-4"), get_model_pricing("claude-opus-4"), model_tier("claude-opus-4")
 ```
 
 ### Calculate cost for known tokens
 
 ```python
-from agentcost.pricing.tables import calculate_cost
+from pretia.pricing.tables import calculate_cost
 calculate_cost("gpt-4o", input_tokens=5000, output_tokens=1500)
 ```
 
 ### Create a ProfilingSession with fake data and save it
 
 ```python
-from agentcost.store import ProfileStore, ProfilingSession; from pathlib import Path; from datetime import datetime, UTC
+from pretia.store import ProfileStore, ProfilingSession; from pathlib import Path; from datetime import datetime, UTC
 session = ProfilingSession(workflow_name="demo.py", workflow_hash="abc", profiled_at=datetime.now(UTC), sample_size=1, input_mode="manual", runs=[[r]], metadata={})
-path = ProfileStore(storage_dir=Path("/tmp/agentcost_test")).save(session); path
+path = ProfileStore(storage_dir=Path("/tmp/pretia_test")).save(session); path
 ```
 
 ### Load a saved session and inspect its runs
 
 ```python
-loaded = ProfileStore(storage_dir=Path("/tmp/agentcost_test")).load(path)
+loaded = ProfileStore(storage_dir=Path("/tmp/pretia_test")).load(path)
 loaded.workflow_name, len(loaded.runs), len(loaded.runs[0])
 ```
 
 ### Call the input selector with different flags
 
 ```python
-from agentcost.inputs.selector import select_input_mode
+from pretia.inputs.selector import select_input_mode
 select_input_mode(single_input="hello").mode
 select_input_mode(auto_generate=10).mode
 select_input_mode(inputs_file="data.jsonl").mode
@@ -2016,5 +2016,5 @@ pytest tests/unit/test_step_record.py -v -k "test_cost_calculation"
 ### Check ruff on a single file
 
 ```bash
-ruff check agentcost/collectors/base.py
+ruff check pretia/collectors/base.py
 ```

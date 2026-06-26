@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from agentcost.collectors.base import StepRecord
+from pretia.collectors.base import StepRecord
 
 
 def test_field_access(sample_record):

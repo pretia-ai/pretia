@@ -1,6 +1,6 @@
 """Async LLM content generation helpers for PDF generation pipeline.
 
-Reuses provider resolution patterns from agentcost/inputs/generator.py.
+Reuses provider resolution patterns from pretia/inputs/generator.py.
 Two-stage pipeline: LLM generates structured text content, Python renders to PDF.
 """
 

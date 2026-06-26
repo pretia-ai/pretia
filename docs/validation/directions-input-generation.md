@@ -2,7 +2,7 @@
 
 **Purpose:** This file specifies how Claude Code must build the input generation system — the code that produces two distinct input sets per workflow: a **profiling set** (n=50) and a **ground truth set** (n=500). The designed drift between these two sets is what the backtesting measures. If the projection engine works, it should project accurately from the profiling set; if it's fragile, the drift will expose that.
 
-**Context for Claude Code:** You have the AgentCost codebase, `projection-engine-recommendation-addition-2.md` (engine design, stratified reweighting A5, `--traffic-mix` flag), `cross-cutting-robustness.md` (dirty input table, non-uniformity requirements, detector validation matrix), and the technical spec. This file provides the per-workflow input specifications and the drift design. Treat it as authoritative for what inputs look like.
+**Context for Claude Code:** You have the Pretia codebase, `projection-engine-recommendation-addition-2.md` (engine design, stratified reweighting A5, `--traffic-mix` flag), `cross-cutting-robustness.md` (dirty input table, non-uniformity requirements, detector validation matrix), and the technical spec. This file provides the per-workflow input specifications and the drift design. Treat it as authoritative for what inputs look like.
 
 **What you are building:** A generator module per workflow that takes a `profile` parameter (`"profiling"` or `"ground_truth"`) and produces tagged, diverse inputs. Each input carries a tier label, a token count, and a structural descriptor. The generator is deterministic given a seed — same seed, same inputs.
 

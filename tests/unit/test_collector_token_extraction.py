@@ -6,7 +6,7 @@ import types
 
 import pytest
 
-from agentcost.collectors.generic import GenericCollector, _try_extract
+from pretia.collectors.generic import GenericCollector, _try_extract
 
 
 def _extract_via_generic(mock_response: object) -> dict | None:
@@ -436,20 +436,20 @@ class TestMultiTurnPerTurnTokens:
 
 class TestNeedsCacheBustingAnthropic:
     def test_anthropic_models(self):
-        from agentcost.collectors.cache_bust import needs_cache_busting
+        from pretia.collectors.cache_bust import needs_cache_busting
 
         assert needs_cache_busting("claude-sonnet-4-6") is True
         assert needs_cache_busting("claude-haiku-4-5") is True
         assert needs_cache_busting("claude-opus-4-7") is True
 
     def test_deepseek_still_works(self):
-        from agentcost.collectors.cache_bust import needs_cache_busting
+        from pretia.collectors.cache_bust import needs_cache_busting
 
         assert needs_cache_busting("deepseek-chat") is True
         assert needs_cache_busting("deepseek-v4-flash") is True
 
     def test_non_cached_providers(self):
-        from agentcost.collectors.cache_bust import needs_cache_busting
+        from pretia.collectors.cache_bust import needs_cache_busting
 
         assert needs_cache_busting("gpt-4o") is False
         assert needs_cache_busting("gemini-2.5-flash") is False

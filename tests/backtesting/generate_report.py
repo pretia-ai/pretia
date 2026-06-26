@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Report generation CLI for the AgentCost backtesting suite.
+"""Report generation CLI for the Pretia backtesting suite.
 
 Collates pilot and backtest results, then calls the existing visualization
 generators: dashboard (HTML), narrative (Markdown), JSON export, and PDF export.

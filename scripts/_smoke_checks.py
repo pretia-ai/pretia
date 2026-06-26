@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from agentcost.collectors.base import StepRecord
-from agentcost.pricing.tables import UnrecognizedModelError, calculate_cost
+from pretia.collectors.base import StepRecord
+from pretia.pricing.tables import UnrecognizedModelError, calculate_cost
 from scripts._validation_types import CheckResult, CheckStatus
 
 _MULTI_PROVIDER_WORKFLOWS = {"W4", "W14", "W15", "W17"}

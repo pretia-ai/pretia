@@ -6,15 +6,15 @@ import dataclasses
 
 import pytest
 
-from agentcost.collectors.base import StepRecord
-from agentcost.pricing import (
+from pretia.collectors.base import StepRecord
+from pretia.pricing import (
     calculate_cost,
     get_model_pricing,
     list_models,
     model_tier,
     resolve_model,
 )
-from agentcost.pricing.tables import MODEL_ALIASES, MODEL_PRICING, MODEL_TIERS
+from pretia.pricing.tables import MODEL_ALIASES, MODEL_PRICING, MODEL_TIERS
 
 
 class TestGetModelPricing:
@@ -267,13 +267,13 @@ class TestAnthropicCacheHitPricing:
         ],
     )
     def test_anthropic_cache_hit_rate_exists(self, model, expected_rate):
-        from agentcost.pricing.tables import MODEL_CACHE_HIT_PRICING
+        from pretia.pricing.tables import MODEL_CACHE_HIT_PRICING
 
         assert model in MODEL_CACHE_HIT_PRICING
         assert MODEL_CACHE_HIT_PRICING[model] == expected_rate
 
     def test_anthropic_cache_rate_is_ten_percent_of_input(self):
-        from agentcost.pricing.tables import MODEL_CACHE_HIT_PRICING
+        from pretia.pricing.tables import MODEL_CACHE_HIT_PRICING
 
         for model in MODEL_PRICING:
             if not model.startswith("claude-"):
@@ -297,12 +297,12 @@ class TestAnthropicCacheHitPricing:
 
 class TestCacheHitPricingInvariants:
     def test_all_cache_models_in_pricing_table(self):
-        from agentcost.pricing.tables import MODEL_CACHE_HIT_PRICING
+        from pretia.pricing.tables import MODEL_CACHE_HIT_PRICING
 
         assert set(MODEL_CACHE_HIT_PRICING).issubset(MODEL_PRICING)
 
     def test_cache_hit_rate_less_than_input_price(self):
-        from agentcost.pricing.tables import MODEL_CACHE_HIT_PRICING
+        from pretia.pricing.tables import MODEL_CACHE_HIT_PRICING
 
         for model, cache_rate in MODEL_CACHE_HIT_PRICING.items():
             input_price = MODEL_PRICING[model][0]

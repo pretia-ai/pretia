@@ -10,7 +10,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from agentcost.projection.patterns import DetectedPattern
+from pretia.projection.patterns import DetectedPattern
 from visualization.colors import EXPECTED_DETECTORS, classify_detector_result
 
 logger = logging.getLogger(__name__)

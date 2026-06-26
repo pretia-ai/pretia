@@ -6,7 +6,7 @@ Developer walkthrough, data flow diagrams, worked example runs, debugging exerci
 
 ## Part 1: File-by-File Walkthrough
 
-### 1. `agentcost/projection/stats.py`
+### 1. `pretia/projection/stats.py`
 
 #### a) What it does
 
@@ -62,7 +62,7 @@ pytest tests/unit/test_stats.py -v -k "test_compute_stats"
 Test percentile computation interactively:
 
 ```python
-from agentcost.projection.stats import compute_percentile_stats
+from pretia.projection.stats import compute_percentile_stats
 ps = compute_percentile_stats([1.0, 2.0, 3.0, 4.0, 5.0])
 ps  # inspect all fields
 ```
@@ -78,8 +78,8 @@ Inspect what `compute_stats` produces for a pair of fake runs:
 ```python
 from dataclasses import replace
 from datetime import UTC, datetime
-from agentcost.collectors.base import StepRecord
-from agentcost.projection.stats import compute_stats
+from pretia.collectors.base import StepRecord
+from pretia.projection.stats import compute_stats
 
 rec = StepRecord(
     step_name="classify", step_type="llm", model="claude-haiku-3",
@@ -96,7 +96,7 @@ stats.cost_per_run
 
 ---
 
-### 2. `agentcost/projection/patterns.py`
+### 2. `pretia/projection/patterns.py`
 
 #### a) What it does
 
@@ -148,8 +148,8 @@ Test context growth detection interactively:
 ```python
 from dataclasses import replace
 from datetime import UTC, datetime
-from agentcost.collectors.base import StepRecord
-from agentcost.projection.patterns import detect_patterns
+from pretia.collectors.base import StepRecord
+from pretia.projection.patterns import detect_patterns
 
 rec = StepRecord(
     step_name="summarize", step_type="llm", model="claude-haiku-3",
@@ -173,18 +173,18 @@ for p in patterns:
 Inspect the Pearson computation directly:
 
 ```python
-from agentcost.projection.patterns import _pearson_r_squared
+from pretia.projection.patterns import _pearson_r_squared
 r2, slope = _pearson_r_squared([1.0, 2.0, 3.0, 4.0], [500.0, 1000.0, 1500.0, 2000.0])
 r2, slope  # should be (1.0, 500.0)
 ```
 
 ---
 
-### 3. `agentcost/collectors/openai_agents.py`
+### 3. `pretia/collectors/openai_agents.py`
 
 #### a) What it does
 
-Auto-instruments OpenAI Agents SDK workflows by injecting `AgentCostRunHooks` into `Runner.run()`. The hooks capture timing, token usage, and metadata for every LLM call, tool call, and handoff event, converting them into `StepRecord` objects. The `OpenAIAgentsCollector` orchestrates running the workflow on each input and collecting the results.
+Auto-instruments OpenAI Agents SDK workflows by injecting `PretiaRunHooks` into `Runner.run()`. The hooks capture timing, token usage, and metadata for every LLM call, tool call, and handoff event, converting them into `StepRecord` objects. The `OpenAIAgentsCollector` orchestrates running the workflow on each input and collecting the results.
 
 #### b) Key moving parts
 
@@ -195,17 +195,17 @@ Auto-instruments OpenAI Agents SDK workflows by injecting `AgentCostRunHooks` in
 | `_extract_model_name(agent)` | Safely reads the model string from an Agent object, handling both string and object model attributes. | `str` |
 | `_extract_agent_name(agent)` | Reads `agent.name`, falls back to `"agent"`. | `str` |
 | `_extract_tool_name(tool)` | Reads `tool.name`, falls back to `"tool_call"`. | `str` |
-| `AgentCostRunHooks` | Subclass of `RunHooksBase`. Accumulates `StepRecord` objects via async hook methods: `on_agent_start`, `on_agent_end`, `on_llm_start`, `on_llm_end`, `on_tool_start`, `on_tool_end`, `on_handoff`. Uses inflight dictionaries to pair start/end events. Each hook is wrapped in try/except so a bug in AgentCost never crashes the user's workflow. | — |
-| `AgentCostRunHooks.steps` | Property returning a copy of the accumulated `list[StepRecord]`. | `list[StepRecord]` |
-| `AgentCostRunHooks.reset()` | Clears all state between profiling runs. | `None` |
+| `PretiaRunHooks` | Subclass of `RunHooksBase`. Accumulates `StepRecord` objects via async hook methods: `on_agent_start`, `on_agent_end`, `on_llm_start`, `on_llm_end`, `on_tool_start`, `on_tool_end`, `on_handoff`. Uses inflight dictionaries to pair start/end events. Each hook is wrapped in try/except so a bug in Pretia never crashes the user's workflow. | — |
+| `PretiaRunHooks.steps` | Property returning a copy of the accumulated `list[StepRecord]`. | `list[StepRecord]` |
+| `PretiaRunHooks.reset()` | Clears all state between profiling runs. | `None` |
 | `_build_fallback_steps(raw_responses, agent_name, model)` | Extracts StepRecords from `RunResult.raw_responses` when hooks captured nothing (e.g., older SDK versions that don't fire hooks). | `list[StepRecord]` |
-| `OpenAIAgentsCollector` | `BaseCollector` subclass. For each input, creates a fresh `AgentCostRunHooks`, calls `Runner.run(workflow, input, hooks=hooks)`, and collects `hooks.steps`. Falls back to `_build_fallback_steps` if hooks captured nothing. | — |
+| `OpenAIAgentsCollector` | `BaseCollector` subclass. For each input, creates a fresh `PretiaRunHooks`, calls `Runner.run(workflow, input, hooks=hooks)`, and collects `hooks.steps`. Falls back to `_build_fallback_steps` if hooks captured nothing. | — |
 
 #### c) How data flows through it
 
 `OpenAIAgentsCollector.collect()` is called by `ProfileRunner.run()` when the collector is auto-detected as `"openai"` (workflow has `name` and `instructions` attributes) or explicitly selected. For each input string:
 
-1. Creates a fresh `AgentCostRunHooks()` instance.
+1. Creates a fresh `PretiaRunHooks()` instance.
 2. Calls `await Runner.run(workflow, inp, hooks=hooks)`.
 3. During execution, the SDK fires hook callbacks: `on_llm_start` stores inflight state (model, timestamp, context estimate) keyed by agent name in `_inflight_llm`; `on_llm_end` pops the inflight entry, extracts token usage from `response.usage`, and creates a `StepRecord`. Similarly for tool calls via `_inflight_tool`.
 4. After execution, reads `hooks.steps`. If empty, falls back to parsing `result.raw_responses`.
@@ -215,11 +215,11 @@ The returned `list[list[StepRecord]]` feeds into `compute_stats()` and `detect_p
 
 #### d) Common failure modes
 
-1. **Missing try/except on a hook method.** Every hook method wraps its body in `try/except Exception` so that a bug in AgentCost (e.g., `response.usage` being `None`) doesn't propagate into the user's workflow execution. If you remove the try/except from `on_llm_end` and the SDK returns a response where `usage` is `None`, the `getattr(usage, "input_tokens", 0)` on line 160 would succeed (returns `None`), but `getattr(usage, "input_tokens", 0) or 0` on a `None` usage would fail at `getattr(None, "input_tokens", 0)` — actually `getattr` works on `None`, so the real failure is if `usage` itself raises on attribute access. The more likely failure: a response object with no `output` attribute causes an `AttributeError` at line 168. Without the try/except, this surfaces as a crash inside `Runner.run()`, making the user think their agent is broken.
+1. **Missing try/except on a hook method.** Every hook method wraps its body in `try/except Exception` so that a bug in Pretia (e.g., `response.usage` being `None`) doesn't propagate into the user's workflow execution. If you remove the try/except from `on_llm_end` and the SDK returns a response where `usage` is `None`, the `getattr(usage, "input_tokens", 0)` on line 160 would succeed (returns `None`), but `getattr(usage, "input_tokens", 0) or 0` on a `None` usage would fail at `getattr(None, "input_tokens", 0)` — actually `getattr` works on `None`, so the real failure is if `usage` itself raises on attribute access. The more likely failure: a response object with no `output` attribute causes an `AttributeError` at line 168. Without the try/except, this surfaces as a crash inside `Runner.run()`, making the user think their agent is broken.
 
 2. **Inflight key collision.** The inflight dictionaries are keyed by agent name (LLM) or tool name (tool). If two concurrent LLM calls happen for the same agent name, the second `on_llm_start` overwrites the first entry in `_inflight_llm`, and the first `on_llm_end` finds no entry. Symptom: missing StepRecords for some LLM calls, plus "on_llm_end for unknown agent" debug warnings. In practice this doesn't happen because the OpenAI SDK processes agents sequentially, but custom runners could trigger it.
 
-3. **Import error at module level.** The `from agents import Runner` at the top of the file raises `ImportError` immediately if `openai-agents` isn't installed. This is intentional, but it means importing `agentcost.collectors.openai_agents` fails even if you're not using it. The `__init__.py` uses lazy `__getattr__` to defer this import.
+3. **Import error at module level.** The `from agents import Runner` at the top of the file raises `ImportError` immediately if `openai-agents` isn't installed. This is intentional, but it means importing `pretia.collectors.openai_agents` fails even if you're not using it. The `__init__.py` uses lazy `__getattr__` to defer this import.
 
 #### e) How to debug it
 
@@ -245,7 +245,7 @@ Inspect the fallback path:
 
 ```python
 # Only works if openai-agents is installed
-from agentcost.collectors.openai_agents import _build_fallback_steps
+from pretia.collectors.openai_agents import _build_fallback_steps
 
 class FakeUsage:
     input_tokens = 500
@@ -260,7 +260,7 @@ steps[0].input_tokens, steps[0].output_tokens
 
 ---
 
-### 4. `agentcost/inputs/importer.py`
+### 4. `pretia/inputs/importer.py`
 
 #### a) What it does
 
@@ -285,9 +285,9 @@ Imports production traces from Langfuse's API and converts them into the standar
 
 Two entry paths:
 
-**Path 1: `agentcost analyze --from-langfuse`** (CLI `analyze_cmd` in `cli.py`). Calls `create_langfuse_client()` → `fetch_traces(client, last_n)` → `traces_to_step_records(traces)` → result feeds into `compute_stats()` and `detect_patterns()`.
+**Path 1: `pretia analyze --from-langfuse`** (CLI `analyze_cmd` in `cli.py`). Calls `create_langfuse_client()` → `fetch_traces(client, last_n)` → `traces_to_step_records(traces)` → result feeds into `compute_stats()` and `detect_patterns()`.
 
-**Path 2: `agentcost profile run --from-langfuse`** (via `ProfileRunner._resolve_inputs()`). Calls `create_langfuse_client()` → `fetch_traces()` → `extract_inputs(traces)` → the extracted input strings are used as workflow inputs for re-execution profiling (not the same as analyze — this re-runs the workflow with production-like inputs).
+**Path 2: `pretia profile run --from-langfuse`** (via `ProfileRunner._resolve_inputs()`). Calls `create_langfuse_client()` → `fetch_traces()` → `extract_inputs(traces)` → the extracted input strings are used as workflow inputs for re-execution profiling (not the same as analyze — this re-runs the workflow with production-like inputs).
 
 Inside `traces_to_step_records()`, for each trace: builds an `obs_name_map` (observation ID → name) for parent resolution, resets `iteration_counts` per trace, skips `EVENT` observations, classifies step type, and creates `StepRecord` objects with `system_prompt_hash="imported"` and `context_size=input_tokens`.
 
@@ -317,7 +317,7 @@ Test `traces_to_step_records` interactively with fake data:
 
 ```python
 from datetime import UTC, datetime
-from agentcost.inputs.importer import LangfuseTrace, LangfuseObservation, traces_to_step_records
+from pretia.inputs.importer import LangfuseTrace, LangfuseObservation, traces_to_step_records
 
 obs = LangfuseObservation(
     observation_id="obs-1", name="classify", observation_type="GENERATION",
@@ -357,7 +357,7 @@ len(runs2[0])  # should be 1, not 2
 
 ---
 
-### 5. `agentcost/ci/report.py`
+### 5. `pretia/ci/report.py`
 
 #### a) What it does
 
@@ -415,7 +415,7 @@ pytest tests/unit/test_report.py -v -k "TestFormatCost"
 Test `format_cost` on edge cases:
 
 ```python
-from agentcost.ci.report import format_cost
+from pretia.ci.report import format_cost
 format_cost(0.0)       # "$0.00"
 format_cost(0.0034)    # "$0.0034"
 format_cost(0.50)      # "$0.50"
@@ -426,8 +426,8 @@ Build a fake session and render the report:
 
 ```python
 from datetime import UTC, datetime
-from agentcost.store import ProfilingSession
-from agentcost.ci.report import format_cli_report
+from pretia.store import ProfilingSession
+from pretia.ci.report import format_cli_report
 from rich.console import Console
 
 session = ProfilingSession(
@@ -455,7 +455,7 @@ for r in renderables:
 
 ---
 
-### 6. `agentcost/runner.py` — Sprint 2 Changes
+### 6. `pretia/runner.py` — Sprint 2 Changes
 
 #### What changed
 
@@ -469,23 +469,23 @@ The `_build_cost_summary()` function is retained for backward compatibility — 
 
 ---
 
-### 7. `agentcost/cli.py` — Sprint 2 Changes
+### 7. `pretia/cli.py` — Sprint 2 Changes
 
 #### What changed
 
-**`report` command** (lines 169–218): New top-level command (`agentcost report <profile.json>`). Loads a saved profile JSON via `ProfileStore`, optionally recomputes stats/patterns if they're missing from the metadata (backward compat with Sprint 1 profiles), and renders via `format_cli_report()`. Supports `agentcost report latest` to load the most recent profile.
+**`report` command** (lines 169–218): New top-level command (`pretia report <profile.json>`). Loads a saved profile JSON via `ProfileStore`, optionally recomputes stats/patterns if they're missing from the metadata (backward compat with Sprint 1 profiles), and renders via `format_cli_report()`. Supports `pretia report latest` to load the most recent profile.
 
-**`analyze` command** (lines 221–351): New top-level command (`agentcost analyze --from-langfuse`). Validates Langfuse env vars, imports traces, converts to step records, computes stats and patterns, saves the session, and renders the report. Options: `--last N` (number of traces, default 10), `--name` (filter by workflow name), `--traffic` (custom daily runs for projection), `--output-dir`, `-v` verbose.
+**`analyze` command** (lines 221–351): New top-level command (`pretia analyze --from-langfuse`). Validates Langfuse env vars, imports traces, converts to step records, computes stats and patterns, saves the session, and renders the report. Options: `--last N` (number of traces, default 10), `--name` (filter by workflow name), `--traffic` (custom daily runs for projection), `--output-dir`, `-v` verbose.
 
 **`--from-langfuse` flag on `profile run`** (lines 57–68): Added to the existing `profile run` command. When set, the runner's `_resolve_inputs()` uses Langfuse traces as a source of input strings for re-execution profiling (via `extract_inputs()`), rather than auto-generating synthetic inputs.
 
-The CLI structure is now: `agentcost profile run` (execute + profile), `agentcost report` (render saved profile), `agentcost analyze` (import + analyze without execution).
+The CLI structure is now: `pretia profile run` (execute + profile), `pretia report` (render saved profile), `pretia analyze` (import + analyze without execution).
 
 ---
 
 ## Part 2: Data Flow Diagrams
 
-### Pipeline A: `agentcost report profile.json`
+### Pipeline A: `pretia report profile.json`
 
 ```
 profile.json (on disk)
@@ -516,7 +516,7 @@ list[Rich renderables]
 console.print() each renderable → terminal output
 ```
 
-### Pipeline B: `agentcost analyze --from-langfuse --last 10`
+### Pipeline B: `pretia analyze --from-langfuse --last 10`
 
 ```
 LANGFUSE_SECRET_KEY + LANGFUSE_PUBLIC_KEY (env vars)
@@ -541,7 +541,7 @@ detect_patterns(runs, stats) ──▶ list[DetectedPattern]
     ▼
 ProfilingSession(... metadata={"stats": ..., "patterns": ...})
     │
-    ├──▶ ProfileStore.save(session) ──▶ .agentcost/{name}_{timestamp}.json
+    ├──▶ ProfileStore.save(session) ──▶ .pretia/{name}_{timestamp}.json
     │
     ▼
 format_cli_report(session, traffic=traffic) ──▶ list[Rich renderables]
@@ -875,7 +875,7 @@ detect_patterns(runs, stats):
 
 ---
 
-### Example D: OpenAI Agents hooks — `AgentCostRunHooks` lifecycle
+### Example D: OpenAI Agents hooks — `PretiaRunHooks` lifecycle
 
 **Scenario:** An OpenAI Agents SDK workflow with one agent that makes 2 LLM calls and 1 tool call. This traces the hook-based collection mechanism including the inflight pairing, fallback path, and try/except safety.
 
@@ -892,7 +892,7 @@ detect_patterns(runs, stats):
 OpenAIAgentsCollector.collect(workflow=agent, inputs=["reset my password"]):
   │
   ├─ Input 0: "reset my password"
-  │    hooks = AgentCostRunHooks()   ← fresh per run
+  │    hooks = PretiaRunHooks()   ← fresh per run
   │    hooks._steps = []
   │    hooks._inflight_llm = {}
   │    hooks._inflight_tool = {}
@@ -997,13 +997,13 @@ OpenAIAgentsCollector.collect(workflow=agent, inputs=["reset my password"]):
   └─ → runs = [[llm_1, tool, llm_2]]
 ```
 
-**Key takeaway:** Every hook method is wrapped in `try/except Exception` — a bug in AgentCost never crashes the user's workflow. The inflight dict pairs start/end events by agent name (LLM) or tool name (tool). The `_next_iteration` counter increments per `step_name`, so `support_bot/llm` gets iterations 1 and 2. The fallback path (`_build_fallback_steps`) only activates if hooks capture nothing — it reads `result.raw_responses` as a last resort.
+**Key takeaway:** Every hook method is wrapped in `try/except Exception` — a bug in Pretia never crashes the user's workflow. The inflight dict pairs start/end events by agent name (LLM) or tool name (tool). The `_next_iteration` counter increments per `step_name`, so `support_bot/llm` gets iterations 1 and 2. The fallback path (`_build_fallback_steps`) only activates if hooks capture nothing — it reads `result.raw_responses` as a last resort.
 
 ---
 
 ### Example E: Langfuse trace analysis — full `analyze` pipeline with EVENT filtering
 
-**Scenario:** `agentcost analyze --from-langfuse --last 3`. Three Langfuse traces are imported, one contains an EVENT observation that should be filtered. This traces the full import → stats → patterns → report pipeline.
+**Scenario:** `pretia analyze --from-langfuse --last 3`. Three Langfuse traces are imported, one contains an EVENT observation that should be filtered. This traces the full import → stats → patterns → report pipeline.
 
 **Input data:**
 
@@ -1123,7 +1123,7 @@ cli.py:analyze_cmd(from_langfuse=True, last_n=3, name=None, ...)
   │    metadata = {"stats": stats.to_dict(), "patterns": [],
   │                "langfuse_trace_count": 3, "langfuse_trace_ids": [...]}
   │
-  ├─ ProfileStore.save(session) → .agentcost/support-workflow_20260601_143022.json
+  ├─ ProfileStore.save(session) → .pretia/support-workflow_20260601_143022.json
   │
   └─ format_cli_report(session):
       reads session.metadata["stats"] → dict (the stats-based path, not legacy)
@@ -1142,9 +1142,9 @@ cli.py:analyze_cmd(from_langfuse=True, last_n=3, name=None, ...)
 
 ---
 
-### Example F: `agentcost report` on a Sprint 1 profile — legacy fallback + recomputation
+### Example F: `pretia report` on a Sprint 1 profile — legacy fallback + recomputation
 
-**Scenario:** The user runs `agentcost report .agentcost/old_profile.json` on a profile saved by Sprint 1 code. The JSON has `cost_summary` but no `stats` key. The `report` command detects this, recomputes stats and patterns from the stored runs, then renders.
+**Scenario:** The user runs `pretia report .pretia/old_profile.json` on a profile saved by Sprint 1 code. The JSON has `cost_summary` but no `stats` key. The `report` command detects this, recomputes stats and patterns from the stored runs, then renders.
 
 **Input data:**
 
@@ -1156,10 +1156,10 @@ cli.py:analyze_cmd(from_langfuse=True, last_n=3, name=None, ...)
 **Trace:**
 
 ```
-cli.py:report_cmd(profile_path=".agentcost/old_profile.json", traffic=None):
+cli.py:report_cmd(profile_path=".pretia/old_profile.json", traffic=None):
   │
   ├─ store = ProfileStore()
-  │  p = Path(".agentcost/old_profile.json") → exists
+  │  p = Path(".pretia/old_profile.json") → exists
   │  session = store.load(p):
   │    json.loads(file content) → dict
   │    ProfilingSession.from_dict(data):
@@ -1246,8 +1246,8 @@ cli.py:report_cmd(profile_path=".agentcost/old_profile.json", traffic=None):
 | `_detect_loop_count_variance` → CV ≤ 0.5 skips | B |
 | `_detect_loop_count_variance` → severity "danger" vs "warning" | C (warning) |
 | `_detect_high_token_variance` → p95/p50 ≤ 3 skip | B, C, E |
-| `AgentCostRunHooks.on_llm_start` + `on_llm_end` pairing | D |
-| `AgentCostRunHooks.on_tool_start` + `on_tool_end` pairing | D |
+| `PretiaRunHooks.on_llm_start` + `on_llm_end` pairing | D |
+| `PretiaRunHooks.on_tool_start` + `on_tool_end` pairing | D |
 | `_extract_model_name` from agent object | D |
 | `_extract_tool_name` from tool object | D |
 | `_next_iteration` counter (incrementing per step_name) | D |
@@ -1278,7 +1278,7 @@ Work through each exercise: read the broken code, answer the four questions. Sol
 
 ### Exercise 1: Percentile on empty data
 
-**File:** `agentcost/projection/stats.py`
+**File:** `pretia/projection/stats.py`
 **Symptom:** `ValueError: Cannot compute stats on empty data` — traceback points deep inside `compute_stats()` with no indication of which step caused the problem.
 
 **Broken code:**
@@ -1395,7 +1395,7 @@ def compute_stats(
 
 ### Exercise 2: Correlation with zero variance
 
-**File:** `agentcost/projection/patterns.py`
+**File:** `pretia/projection/patterns.py`
 **Symptom:** `ZeroDivisionError` when running `detect_patterns()` on data where a step has constant `context_size` across all iterations.
 
 **Broken code:**
@@ -1438,8 +1438,8 @@ def _pearson_r_squared(
 
 ### Exercise 3: Hook exception crashes user workflow
 
-**File:** `agentcost/collectors/openai_agents.py`
-**Symptom:** `AttributeError: 'NoneType' object has no attribute 'input_tokens'` — but the traceback appears inside the user's agent execution via `Runner.run()`, making the user think their agent code is broken, not AgentCost.
+**File:** `pretia/collectors/openai_agents.py`
+**Symptom:** `AttributeError: 'NoneType' object has no attribute 'input_tokens'` — but the traceback appears inside the user's agent execution via `Runner.run()`, making the user think their agent code is broken, not Pretia.
 
 **Broken code:**
 
@@ -1531,7 +1531,7 @@ class MalformedResponse:
 
 ### Exercise 4: Langfuse observation type filter missing
 
-**File:** `agentcost/inputs/importer.py`
+**File:** `pretia/inputs/importer.py`
 **Symptom:** No error. But the cost report shows mean cost per run lower than expected, and the step breakdown includes entries with `model="unknown"` and `$0.00` cost. The monthly projection underestimates because zero-cost junk records dilute the average.
 
 **Broken code:**
@@ -1605,7 +1605,7 @@ def traces_to_step_records(
 
 ### Exercise 5: Cost formatting precision loss
 
-**File:** `agentcost/ci/report.py`
+**File:** `pretia/ci/report.py`
 **Symptom:** Steps that cost $0.0034 per call display as "$0.00" in the step breakdown table. The monthly projection panel shows the correct dollar amount (it uses raw floats), creating a confusing discrepancy where a "free" step somehow contributes $1,020/month.
 
 **Broken code:**
@@ -1632,7 +1632,7 @@ def format_cost(value: float) -> str:
 
 ### Exercise 6: Iteration counting across runs
 
-**File:** `agentcost/inputs/importer.py`
+**File:** `pretia/inputs/importer.py`
 **Symptom:** The loop count variance detector fires a false positive "Loop Count Variance" warning. If trace 1 has a "review" step running 3 times and trace 2 also has "review" running 3 times, the second trace's iterations are labeled 4,5,6 instead of 1,2,3. The detector sees `max_iteration=6` for run 2, which triggers the warning.
 
 **Broken code:**
@@ -1816,15 +1816,15 @@ for trace in traces:
 ### Stats and percentiles
 
 ```python
-from agentcost.projection.stats import compute_percentile_stats
+from pretia.projection.stats import compute_percentile_stats
 ps = compute_percentile_stats([1.0, 2.0, 3.0, 4.0, 5.0]); ps
 ```
 
 ```python
 from dataclasses import replace
 from datetime import UTC, datetime
-from agentcost.collectors.base import StepRecord
-from agentcost.projection.stats import compute_stats
+from pretia.collectors.base import StepRecord
+from pretia.projection.stats import compute_stats
 
 rec = StepRecord(step_name="classify", step_type="llm", model="claude-haiku-3", input_tokens=500, output_tokens=50, context_size=600, tool_definitions_tokens=0, system_prompt_hash="abc", system_prompt_tokens=100, output_format="json", is_retry=False, iteration=1, parent_step=None, duration_ms=200, timestamp=datetime(2026, 5, 20, tzinfo=UTC))
 stats = compute_stats([[rec], [replace(rec, input_tokens=800)]]); stats.cost_per_run
@@ -1835,8 +1835,8 @@ stats = compute_stats([[rec], [replace(rec, input_tokens=800)]]); stats.cost_per
 ```python
 from dataclasses import replace
 from datetime import UTC, datetime
-from agentcost.collectors.base import StepRecord
-from agentcost.projection.patterns import detect_patterns
+from pretia.collectors.base import StepRecord
+from pretia.projection.patterns import detect_patterns
 
 rec = StepRecord(step_name="summarize", step_type="llm", model="claude-haiku-3", input_tokens=500, output_tokens=50, context_size=500, tool_definitions_tokens=0, system_prompt_hash="abc", system_prompt_tokens=100, output_format="text", is_retry=False, iteration=1, parent_step=None, duration_ms=200, timestamp=datetime(2026, 5, 20, tzinfo=UTC))
 run = [replace(rec, iteration=i, context_size=500*i) for i in range(1, 5)]
@@ -1846,19 +1846,19 @@ patterns = detect_patterns([run]); [(p.pattern_type, p.severity) for p in patter
 ### DetectedPattern serialization
 
 ```python
-from agentcost.projection.patterns import DetectedPattern
+from pretia.projection.patterns import DetectedPattern
 p = DetectedPattern(pattern_type="context_growth", step_name="summarize", severity="warning", evidence={"r_squared": 0.95}, description="test"); p.to_dict()
 ```
 
 ### Cost and token formatting
 
 ```python
-from agentcost.ci.report import format_cost, format_tokens
+from pretia.ci.report import format_cost, format_tokens
 [format_cost(v) for v in [0, 0.0034, 0.50, 12.34, 12345.67]]
 ```
 
 ```python
-from agentcost.ci.report import format_tokens
+from pretia.ci.report import format_tokens
 [format_tokens(v) for v in [0, 500, 12345, 1000000]]
 ```
 
@@ -1866,8 +1866,8 @@ from agentcost.ci.report import format_tokens
 
 ```python
 from datetime import UTC, datetime
-from agentcost.store import ProfilingSession
-from agentcost.ci.report import format_cli_report
+from pretia.store import ProfilingSession
+from pretia.ci.report import format_cli_report
 from rich.console import Console
 
 session = ProfilingSession(workflow_name="test", workflow_hash="abc", profiled_at=datetime(2026, 5, 20, tzinfo=UTC), sample_size=3, input_mode="auto-generate", runs=[], metadata={"stats": {"total_runs": 3, "total_steps": 9, "cost_per_run": {"mean": 0.05, "p50": 0.04, "p95": 0.09, "p99": 0.12, "min": 0.02, "max": 0.15, "std": 0.03}, "step_stats": {}, "run_stats": []}, "patterns": []})
@@ -1878,7 +1878,7 @@ c = Console(); [c.print(r) for r in format_cli_report(session)]
 
 ```python
 from datetime import UTC, datetime
-from agentcost.inputs.importer import LangfuseTrace, LangfuseObservation, traces_to_step_records
+from pretia.inputs.importer import LangfuseTrace, LangfuseObservation, traces_to_step_records
 
 obs = LangfuseObservation(observation_id="o1", name="classify", observation_type="GENERATION", model="gpt-4o", input_tokens=500, output_tokens=50, start_time=datetime(2026, 5, 20, tzinfo=UTC), end_time=datetime(2026, 5, 20, 0, 0, 1, tzinfo=UTC), duration_ms=1000, parent_observation_id=None)
 trace = LangfuseTrace(trace_id="t1", name="wf", input_text="Hi", timestamp=datetime(2026, 5, 20, tzinfo=UTC), observations=[obs], total_input_tokens=500, total_output_tokens=50, total_cost=0.005)
@@ -1898,7 +1898,7 @@ pytest tests/unit/test_stats.py -v -k "test_percentile_stats_basic"
 pytest tests/unit/test_stats.py tests/unit/test_patterns.py tests/unit/test_openai_agents_collector.py tests/unit/test_langfuse_importer.py tests/unit/test_report.py -v
 
 # Check ruff on a single file
-ruff check agentcost/projection/stats.py
+ruff check pretia/projection/stats.py
 
 # Run with debug logging
 pytest tests/unit/test_patterns.py -v --log-cli-level=DEBUG

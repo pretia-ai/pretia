@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import types
 
-from agentcost.graph.extractor import extract_step_names
+from pretia.graph.extractor import extract_step_names
 
 
 class TestExtractStepNamesLangGraph:

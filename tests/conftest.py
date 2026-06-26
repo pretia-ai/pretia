@@ -1,4 +1,4 @@
-"""Shared test fixtures for AgentCost."""
+"""Shared test fixtures for Pretia."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from agentcost.collectors.base import StepRecord
+from pretia.collectors.base import StepRecord
 
 
 @pytest.fixture

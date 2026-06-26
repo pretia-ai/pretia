@@ -1,4 +1,4 @@
-"""Test suite for AgentCost."""
+"""Test suite for Pretia."""
 
 from __future__ import annotations
 

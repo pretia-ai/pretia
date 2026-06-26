@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 
-from agentcost.projection.stats import PercentileStats, StepStats
-from agentcost.store import ProfilingSession
-from agentcost.validation.suite import (
+from pretia.projection.stats import PercentileStats, StepStats
+from pretia.store import ProfilingSession
+from pretia.validation.suite import (
     BacktestConfig,
     check_directional_bias,
     run_backtesting_suite,

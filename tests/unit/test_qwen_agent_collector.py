@@ -49,7 +49,7 @@ sys.modules.setdefault("qwen_agent.llm.schema", _mock_llm_schema)
 sys.modules.setdefault("qwen_agent.tools", MagicMock())
 sys.modules.setdefault("qwen_agent.tools.base", _mock_tools_base)
 
-from agentcost.collectors.qwen_agent import (  # noqa: E402, I001
+from pretia.collectors.qwen_agent import (  # noqa: E402, I001
     QwenAgentCollector,
     _CapturedCall,
     _InstrumentedChatModel,
@@ -515,17 +515,17 @@ class TestCollectorStreaming:
 
 class TestLazyImport:
     def test_lazy_import_in_collectors_package(self):
-        from agentcost.collectors import QwenAgentCollector
+        from pretia.collectors import QwenAgentCollector
 
         assert QwenAgentCollector is not None
         assert QwenAgentCollector.__name__ == "QwenAgentCollector"
 
-    def test_import_agentcost_without_sdk(self):
+    def test_import_pretia_without_sdk(self):
         saved = {}
         for mod_name in list(sys.modules):
             if mod_name.startswith("qwen_agent"):
                 saved[mod_name] = sys.modules.pop(mod_name)
-        saved_qa = sys.modules.pop("agentcost.collectors.qwen_agent", None)
+        saved_qa = sys.modules.pop("pretia.collectors.qwen_agent", None)
 
         try:
             with patch.dict(
@@ -543,11 +543,11 @@ class TestLazyImport:
                 with pytest.raises(ImportError, match="Qwen-Agent"):
                     import importlib
 
-                    importlib.import_module("agentcost.collectors.qwen_agent")
+                    importlib.import_module("pretia.collectors.qwen_agent")
         finally:
             sys.modules.update(saved)
             if saved_qa is not None:
-                sys.modules["agentcost.collectors.qwen_agent"] = saved_qa
+                sys.modules["pretia.collectors.qwen_agent"] = saved_qa
 
 
 # ---------------------------------------------------------------------------
@@ -557,7 +557,7 @@ class TestLazyImport:
 
 class TestRunnerAutoDetection:
     def test_runner_detects_qwen_agent(self):
-        from agentcost.runner import ProfileRunner
+        from pretia.runner import ProfileRunner
 
         agent = MockAgent(name="qwen_test", system_message="Be helpful")
         runner = ProfileRunner(workflow_path="fake.py", single_input="test")
@@ -565,7 +565,7 @@ class TestRunnerAutoDetection:
         assert type(coll).__name__ == "QwenAgentCollector"
 
     def test_runner_explicit_qwen(self):
-        from agentcost.runner import ProfileRunner
+        from pretia.runner import ProfileRunner
 
         runner = ProfileRunner(
             workflow_path="fake.py",
@@ -576,7 +576,7 @@ class TestRunnerAutoDetection:
         assert type(coll).__name__ == "QwenAgentCollector"
 
     def test_runner_openai_agent_not_confused_with_qwen(self):
-        from agentcost.runner import ProfileRunner
+        from pretia.runner import ProfileRunner
 
         class OpenAIAgent:
             name = "oai"

@@ -11,7 +11,7 @@ from typing import Any
 import litellm
 from litellm import aembedding
 
-from agentcost.pricing.tables import resolve_model
+from pretia.pricing.tables import resolve_model
 
 logger = logging.getLogger(__name__)
 

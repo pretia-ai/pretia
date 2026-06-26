@@ -7,13 +7,13 @@ from datetime import UTC, datetime
 
 import pytest
 
-from agentcost.ci.baseline import (
+from pretia.ci.baseline import (
     Baseline,
     create_baseline,
     load_baseline,
     save_baseline,
 )
-from agentcost.store import ProfilingSession
+from pretia.store import ProfilingSession
 
 
 def _make_stats_metadata(

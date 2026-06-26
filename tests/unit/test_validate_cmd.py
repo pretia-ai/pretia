@@ -5,8 +5,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from unittest.mock import patch
 
-from agentcost.collectors.base import StepRecord
-from agentcost.validation.validate_cmd import (
+from pretia.collectors.base import StepRecord
+from pretia.validation.validate_cmd import (
     format_validate_report,
     run_validation,
 )
@@ -39,7 +39,7 @@ def _make_record(
 
 
 def _make_mock_session(runs):
-    from agentcost.store import ProfilingSession
+    from pretia.store import ProfilingSession
 
     return ProfilingSession(
         workflow_name="test.py",
@@ -74,7 +74,7 @@ class TestRunValidation:
         small_session = _make_mock_session(small_runs)
         large_session = _make_mock_session(large_runs)
 
-        with patch("agentcost.runner.ProfileRunner") as mock_cls:
+        with patch("pretia.runner.ProfileRunner") as mock_cls:
             instance = mock_cls.return_value
             instance.run_sync.side_effect = [small_session, large_session]
 
@@ -100,7 +100,7 @@ class TestRunValidationSufficientSamples:
         small_session = _make_mock_session(runs[:20])
         large_session = _make_mock_session(runs)
 
-        with patch("agentcost.runner.ProfileRunner") as mock_cls:
+        with patch("pretia.runner.ProfileRunner") as mock_cls:
             instance = mock_cls.return_value
             instance.run_sync.side_effect = [small_session, large_session]
 
@@ -119,7 +119,7 @@ class TestRunValidationInsufficientSamples:
         small_session = _make_mock_session(small_runs)
         large_session = _make_mock_session(large_runs)
 
-        with patch("agentcost.runner.ProfileRunner") as mock_cls:
+        with patch("pretia.runner.ProfileRunner") as mock_cls:
             instance = mock_cls.return_value
             instance.run_sync.side_effect = [small_session, large_session]
 
@@ -144,7 +144,7 @@ class TestFormatValidateReport:
         small_session = _make_mock_session(runs[:20])
         large_session = _make_mock_session(runs)
 
-        with patch("agentcost.runner.ProfileRunner") as mock_cls:
+        with patch("pretia.runner.ProfileRunner") as mock_cls:
             instance = mock_cls.return_value
             instance.run_sync.side_effect = [small_session, large_session]
 

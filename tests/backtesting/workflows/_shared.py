@@ -37,7 +37,7 @@ _QWEN_TIERS = {
 def get_anthropic_model(tier: str) -> str:
     """Return a canonical Anthropic model string validated against the pricing table."""
     try:
-        from agentcost.pricing.tables import resolve_model
+        from pretia.pricing.tables import resolve_model
 
         return resolve_model(_ANTHROPIC_TIERS[tier])
     except Exception:
@@ -47,7 +47,7 @@ def get_anthropic_model(tier: str) -> str:
 def get_openai_model(tier: str) -> str:
     """Return a canonical OpenAI model string validated against the pricing table."""
     try:
-        from agentcost.pricing.tables import resolve_model
+        from pretia.pricing.tables import resolve_model
 
         return resolve_model(_OPENAI_TIERS[tier])
     except Exception:
@@ -57,7 +57,7 @@ def get_openai_model(tier: str) -> str:
 def get_gemini_model(tier: str) -> str:
     """Return a canonical Gemini model string validated against the pricing table."""
     try:
-        from agentcost.pricing.tables import resolve_model
+        from pretia.pricing.tables import resolve_model
 
         return resolve_model(_GEMINI_TIERS[tier])
     except Exception:
@@ -67,7 +67,7 @@ def get_gemini_model(tier: str) -> str:
 def get_deepseek_model(tier: str) -> str:
     """Return a canonical DeepSeek model string validated against the pricing table."""
     try:
-        from agentcost.pricing.tables import resolve_model
+        from pretia.pricing.tables import resolve_model
 
         return resolve_model(_DEEPSEEK_TIERS[tier])
     except Exception:
@@ -77,7 +77,7 @@ def get_deepseek_model(tier: str) -> str:
 def get_qwen_model(tier: str) -> str:
     """Return a canonical Qwen model string validated against the pricing table."""
     try:
-        from agentcost.pricing.tables import resolve_model
+        from pretia.pricing.tables import resolve_model
 
         return resolve_model(_QWEN_TIERS[tier])
     except Exception:

@@ -2,7 +2,7 @@
 
 This is the ONLY module that creates StepRecord instances in the agent suite.
 All patterns and workflows delegate to these builder functions, guaranteeing
-schema compliance with the existing ``agentcost.collectors.base.StepRecord``.
+schema compliance with the existing ``pretia.collectors.base.StepRecord``.
 """
 
 from __future__ import annotations
@@ -11,8 +11,8 @@ import hashlib
 from datetime import UTC, datetime
 from typing import Any
 
-from agentcost.collectors.base import StepRecord
-from agentcost.pricing.tables import resolve_model
+from pretia.collectors.base import StepRecord
+from pretia.pricing.tables import resolve_model
 
 from bt_agents.providers.embeddings import EmbeddingResponse
 from bt_agents.providers.llm import LLMResponse

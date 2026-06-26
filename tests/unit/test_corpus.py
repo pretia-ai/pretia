@@ -1,4 +1,4 @@
-"""Tests for agentcost.inputs.corpus — document corpus loading."""
+"""Tests for pretia.inputs.corpus — document corpus loading."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from agentcost.inputs.corpus import load_corpus_context
+from pretia.inputs.corpus import load_corpus_context
 
 
 class TestLoadCorpusFile:
@@ -76,7 +76,7 @@ class TestLoadCorpusErrors:
     def test_pdf_without_pdfplumber(self, tmp_path: Path) -> None:
         pdf = tmp_path / "doc.pdf"
         pdf.write_bytes(b"%PDF-1.4 fake pdf content")
-        with patch("agentcost.inputs.corpus.logger") as mock_logger:
+        with patch("pretia.inputs.corpus.logger") as mock_logger:
             result = load_corpus_context(str(tmp_path))
         assert "doc.pdf" not in result or result == ""
         mock_logger.warning.assert_called()
@@ -86,7 +86,7 @@ class TestLoadCorpusCLI:
     def test_corpus_in_help(self) -> None:
         from click.testing import CliRunner
 
-        from agentcost.cli import cli
+        from pretia.cli import cli
 
         runner = CliRunner()
         result = runner.invoke(cli, ["profile", "run", "--help"])

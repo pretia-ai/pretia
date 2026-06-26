@@ -1,10 +1,10 @@
 # PLANNING.md
 
-Product specification and architecture reference for AgentCost. For dev commands, code conventions, and testing patterns, see [CLAUDE.md](CLAUDE.md).
+Product specification and architecture reference for Pretia. For dev commands, code conventions, and testing patterns, see [CLAUDE.md](CLAUDE.md).
 
 ## Product Overview
 
-AgentCost is an open-source Python SDK that answers two questions before you deploy an AI agent: "How much will this cost at scale?" and "How do I make it cheaper?"
+Pretia is an open-source Python SDK that answers two questions before you deploy an AI agent: "How much will this cost at scale?" and "How do I make it cheaper?"
 
 You point it at your agent workflow, it auto-generates diverse test inputs, profiles the workflow, projects costs at 10x/100x/1000x traffic with distributional statistics (not just averages), detects cost time-bombs like context growth and stuck loops, and produces dollar-denominated optimization recommendations.
 
@@ -13,8 +13,8 @@ You point it at your agent workflow, it auto-generates diverse test inputs, prof
 Two commands from install to first report:
 
 ```bash
-pip install agentcost
-agentcost profile run my_agent.py
+pip install pretia
+pretia profile run my_agent.py
 ```
 
 No config files, no JSONL datasets, no setup. The SDK reads the workflow's system prompt, generates 50 diverse synthetic inputs via a cheap LLM call (~$0.02), runs the workflow on each, captures per-step token usage, computes cost distributions, detects patterns, and produces a full report with recommendations. Cost: ~$5. Time: ~5 minutes.
@@ -23,10 +23,10 @@ No config files, no JSONL datasets, no setup. The SDK reads the workflow's syste
 
 A friction ladder from zero-effort to maximum precision:
 
-- **Level 0** — `agentcost estimate workflow.py`: Static code analysis only. No execution, instant, free. Wide confidence intervals. Archetype-based priors in v1, ML cost predictor in v2.
+- **Level 0** — `pretia estimate workflow.py`: Static code analysis only. No execution, instant, free. Wide confidence intervals. Archetype-based priors in v1, ML cost predictor in v2.
 - **Level 1** — `--input "How do I reset my password?"`: One example input. One run + priors for variance.
-- **Level 2** — `--auto-generate N` (DEFAULT): LLM generates diverse inputs from system prompt + type hints. ~$0.02 for generation. `agentcost profile run workflow.py` with no flags defaults to `--auto-generate 50`.
-- **Level 3** — `--from-langfuse --last 100`: Pull real inputs from Langfuse/Braintrust production traces. Zero cost if analyzing traces directly (`agentcost analyze --from-langfuse`).
+- **Level 2** — `--auto-generate N` (DEFAULT): LLM generates diverse inputs from system prompt + type hints. ~$0.02 for generation. `pretia profile run workflow.py` with no flags defaults to `--auto-generate 50`.
+- **Level 3** — `--from-langfuse --last 100`: Pull real inputs from Langfuse/Braintrust production traces. Zero cost if analyzing traces directly (`pretia analyze --from-langfuse`).
 - **Level 4** — `--inputs samples.jsonl`: User-curated test dataset. Maximum precision, maximum friction.
 
 The CLI auto-detects the best mode: if Langfuse credentials are in the environment, it suggests trace import. Otherwise defaults to auto-generate.
@@ -35,19 +35,19 @@ The CLI auto-detects the best mode: if Langfuse credentials are in the environme
 
 Full command surface:
 
-- `agentcost profile run workflow.py` — Profile a workflow. Defaults to `--auto-generate 50`. Use `--allow-cache` to disable cache-busting for DeepSeek models.
-- `agentcost estimate workflow.py` — Instant cost estimate from code structure (no execution).
-- `agentcost report profile.json --traffic 1000/day` — Generate cost report from a saved profile.
-- `agentcost recommend profile.json` — Generate optimization recommendations.
-- `agentcost analyze --from-langfuse --last 100` — Analyze existing Langfuse traces (no execution).
-- `agentcost ui` — Launch local web UI on localhost:7100.
-- `agentcost baseline update` — Save current profile as baseline to `.agentcost/baseline.json`.
-- `agentcost diff baseline.json new_profile.json` — Compare two profiles, show per-step deltas with Mann-Whitney U significance testing.
-- `agentcost validate workflow.py --budget 10` — Run projection quality check (50-vs-100 comparison).
-- `agentcost update-pricing` — Show instructions for updating pricing data (manual in v1).
-- `agentcost verify --baseline .agentcost/baseline.json` — Re-profile and compare against baseline.
+- `pretia profile run workflow.py` — Profile a workflow. Defaults to `--auto-generate 50`. Use `--allow-cache` to disable cache-busting for DeepSeek models.
+- `pretia estimate workflow.py` — Instant cost estimate from code structure (no execution).
+- `pretia report profile.json --traffic 1000/day` — Generate cost report from a saved profile.
+- `pretia recommend profile.json` — Generate optimization recommendations.
+- `pretia analyze --from-langfuse --last 100` — Analyze existing Langfuse traces (no execution).
+- `pretia ui` — Launch local web UI on localhost:7100.
+- `pretia baseline update` — Save current profile as baseline to `.pretia/baseline.json`.
+- `pretia diff baseline.json new_profile.json` — Compare two profiles, show per-step deltas with Mann-Whitney U significance testing.
+- `pretia validate workflow.py --budget 10` — Run projection quality check (50-vs-100 comparison).
+- `pretia update-pricing` — Show instructions for updating pricing data (manual in v1).
+- `pretia verify --baseline .pretia/baseline.json` — Re-profile and compare against baseline.
 
-Note: `agentcost profile run` also generates an HTML report (`.agentcost/report.html`) and auto-opens it in the browser, in addition to the rich terminal output.
+Note: `pretia profile run` also generates an HTML report (`.pretia/report.html`) and auto-opens it in the browser, in addition to the rich terminal output.
 
 ## User Interface Layer
 
@@ -55,11 +55,11 @@ Three visual output channels share the same profiling pipeline:
 
 ### HTML Report
 
-Generated by `agentcost profile run` as `.agentcost/report.html`. Single self-contained file built with Jinja2 template + inline CSS + inline SVG charts (no JS framework at runtime). Contents: score ring (0-100), cost waterfall chart (horizontal SVG bars), context growth sparklines, recommendation cards, projection table, raw data toggle. Auto-opens in the browser via `webbrowser.open()`. Shareable, screenshottable.
+Generated by `pretia profile run` as `.pretia/report.html`. Single self-contained file built with Jinja2 template + inline CSS + inline SVG charts (no JS framework at runtime). Contents: score ring (0-100), cost waterfall chart (horizontal SVG bars), context growth sparklines, recommendation cards, projection table, raw data toggle. Auto-opens in the browser via `webbrowser.open()`. Shareable, screenshottable.
 
 ### Local Web UI
 
-`agentcost ui` launches FastAPI on `localhost:7100`. Serves a pre-built React bundle (~200KB) shipped inside the pip package. No Node.js required by the user. Three screens:
+`pretia ui` launches FastAPI on `localhost:7100`. Serves a pre-built React bundle (~200KB) shipped inside the pip package. No Node.js required by the user. Three screens:
 
 - **Setup**: Workflow file input, framework auto-detection card, input mode selector (2×2 grid), profiling settings (input count slider, traffic volume dropdown), "Run Profiling" button with cost/time estimate.
 - **Live**: Progress bar, three metric cards (cost so far, avg per run, projected monthly), live cost table with share bars, pattern flag pills, current-run status card. Updates via WebSocket.
@@ -94,7 +94,7 @@ Eight endpoints served by the FastAPI backend:
 
 ### Technical Decisions
 
-FastAPI over Streamlit/Gradio: smaller footprint, full UX control, reusable frontend. React source lives in `ui-frontend/`, built separately, output goes to `agentcost/ui/static/`.
+FastAPI over Streamlit/Gradio: smaller footprint, full UX control, reusable frontend. React source lives in `ui-frontend/`, built separately, output goes to `pretia/ui/static/`.
 
 ## Architecture
 
@@ -151,14 +151,14 @@ Design note: `system_prompt_hash`, `system_prompt_tokens`, and `output_format` a
 - `async collect(workflow, inputs) -> list[list[StepRecord]]` — Run the workflow on each input, return a list of runs, each run a list of StepRecords.
 - **LangGraphCollector**: Hooks into LangChain's callback system via `BaseCallbackHandler` (langchain-core 1.x). Maps `on_chat_model_start` (capture model, messages, system prompt), `on_llm_end` (capture output tokens from `LLMResult.llm_output` or `generation_info`), and `on_tool_start/end` (capture tool calls) to StepRecords. Verified compatible with langchain-core 1.4.0 and langgraph 1.2.2 (May 2026).
 - **OpenAIAgentsCollector**: Hooks into `RunHooks` lifecycle (`on_agent_start/end`, `on_llm_start/end`, `on_tool_start/end`, `on_handoff`). Includes a `_build_fallback_steps()` path for when hooks capture nothing but `raw_responses` has usage data.
-- **QwenAgentCollector**: Wraps the agent's `BaseChatModel.chat()` method with an `_InstrumentedChatModel` proxy that captures per-call token usage, timing, and output format. Handles both streaming (generator) and non-streaming modes. Extracts DashScope usage from `Message.extra['model_service_info']`. Installed via `pip install agentcost[qwen]`.
+- **QwenAgentCollector**: Wraps the agent's `BaseChatModel.chat()` method with an `_InstrumentedChatModel` proxy that captures per-call token usage, timing, and output format. Handles both streaming (generator) and non-streaming modes. Extracts DashScope usage from `Message.extra['model_service_info']`. Installed via `pip install pretia[qwen]`.
 - **GenericCollector**: User-facing `@collector.step()` decorator and `async with collector.step() as s` context manager. Auto-extracts tokens from OpenAI/Anthropic response objects.
 
 **DeepSeek compatibility:** DeepSeek models use an OpenAI-compatible API endpoint (`https://api.deepseek.com`). The existing `LangGraphCollector` and `OpenAIAgentsCollector` capture tokens from DeepSeek calls with zero changes — the response format is standard OpenAI. Collectors extract `prompt_cache_hit_tokens` and `prompt_cache_miss_tokens` from DeepSeek responses. `calculate_cost()` applies differential pricing when cache tokens are present (cache hits at ~2% of standard rate). Cache-busting is on by default during profiling (`--allow-cache` to disable) to ensure cold-start cost accuracy.
 
 ### Baseline Format
 
-A baseline is a JSON file (`.agentcost/baseline.json`) storing the cost profile at a point in time:
+A baseline is a JSON file (`.pretia/baseline.json`) storing the cost profile at a point in time:
 
 - Top level: `version`, `workflow` (file path), `profiled_at` (ISO timestamp), `sample_size`, `traffic_assumption`.
 - `steps`: dict keyed by step name. Each step: `model`, `tokens` (input/output with p50 and p95), `cost_per_run` (p50 and p95), `iterations` (mean and max), `system_prompt_hash`, `system_prompt_tokens`, `output_format`, `task_complexity_tier` (null in v1, filled by classifier in v1.5), optional `flags` and `context_growth_rate`.
@@ -187,10 +187,10 @@ Detects steps using a higher-tier model than the task requires. v1: keyword heur
 
 The optimize → verify → iterate cycle makes recommendations actionable and measurable:
 
-1. **Profile** — `agentcost profile run workflow.py` captures the baseline cost profile.
-2. **Recommend** — `agentcost recommend` generates prioritized optimization recommendations.
+1. **Profile** — `pretia profile run workflow.py` captures the baseline cost profile.
+2. **Recommend** — `pretia recommend` generates prioritized optimization recommendations.
 3. **Implement** — Implementation prompts (see below) guide the developer through each recommendation.
-4. **Re-profile** — `agentcost verify --baseline .agentcost/baseline.json` re-profiles the workflow and compares to the saved baseline.
+4. **Re-profile** — `pretia verify --baseline .pretia/baseline.json` re-profiles the workflow and compares to the saved baseline.
 5. **Iterate** — The verify output shows which recommendations were applied, actual vs predicted savings, and an updated optimization score.
 
 ### Score Gamification
@@ -213,7 +213,7 @@ Recommendations are only useful if developers can act on them. Implementation pr
 
 ### Optimization Loop Closure
 
-All prompts end with `agentcost profile run {file_path}` to verify the change. This closes the optimization loop: every recommendation leads to a measurable before/after comparison.
+All prompts end with `pretia profile run {file_path}` to verify the change. This closes the optimization loop: every recommendation leads to a measurable before/after comparison.
 
 ### Framework-Specific Helpers
 
@@ -314,7 +314,7 @@ Ground truth percentiles computed with BCa bootstrap 90% CIs (1,000 bootstrap sa
 
 All 14 workflows must pass p50 ratio AND top step correct (hard gates — core value propositions). At least 80% of workflows must pass each remaining metric. Tail metrics (p95 coverage, range ratio, ranking correlation, conformal coverage, CVaR accuracy) are diagnostic but don't individually block launch.
 
-### `agentcost validate` Command
+### `pretia validate` Command
 
 Runs a 50-vs-100 comparison test on any user workflow: profiles at 50 samples, then at 100, compares the projections, and reports whether 50 samples is sufficient for that specific workflow. Users can run this on their own workflows to check projection quality.
 
@@ -455,7 +455,7 @@ n=20 is dropped. The 36% probability of missing the true p95 is unacceptable, an
 
 ## GitHub Action
 
-AgentCost ships a GitHub Action that comments on PRs touching agent workflow code. The comment shows: projected monthly cost change (before → after), per-step breakdown with flags, and recommendations.
+Pretia ships a GitHub Action that comments on PRs touching agent workflow code. The comment shows: projected monthly cost change (before → after), per-step breakdown with flags, and recommendations.
 
 Four CI modes:
 
@@ -464,7 +464,7 @@ Four CI modes:
 - `sample` (~$2-5): Run workflow on user-curated inputs from JSONL file.
 - `import` (free): Pull latest Langfuse traces, analyze without re-execution.
 
-Configurable threshold: block merge if cost increase exceeds X%. Config lives in `.github/workflows/agentcost.yml`.
+Configurable threshold: block merge if cost increase exceeds X%. Config lives in `.github/workflows/pretia.yml`.
 
 ## Key Design Decisions
 
@@ -479,7 +479,7 @@ Configurable threshold: block merge if cost increase exceeds X%. Config lives in
 
 - **v1.0** (weeks 1-20): Core SDK. Collectors (LangGraph, OpenAI Agents SDK, Qwen-Agent, CrewAI, Generic), pricing for Anthropic/OpenAI/Google/DeepSeek/Qwen/Llama/Mistral, auto input generation (with DashScope and DeepSeek as provider options), projection engine with confidence tiers, backtesting suite, heuristic recommendations with implementation prompts, verify loop, GitHub Action, HTML report with graph view, local web UI (FastAPI + React), polish + PyPI publish. No ML.
 - **v1.5** (weeks 21-24): Task Complexity Classifier. Logistic regression on 800K+ RouterBench/LLMRouterBench examples + 1K synthetic agent prompts. MiniLM embeddings (384d) + 9 numerical features = 393 features. Trains in <30s on CPU. Ships as ~2MB .pkl. ML-powered model swap recommendations.
-- **v2.0** (weeks 25-34): Live monitoring (`agentcost monitor` daemon) + Cost Prediction Model. XGBoost on 20 workflow-level features. Predicts cost from code structure alone. `agentcost estimate` becomes ML-powered.
+- **v2.0** (weeks 25-34): Live monitoring (`pretia monitor` daemon) + Cost Prediction Model. XGBoost on 20 workflow-level features. Predicts cost from code structure alone. `pretia estimate` becomes ML-powered.
 - **v3.0** (weeks 35-48): Spend Governance (budget circuit breakers, intelligent degradation) + Workflow Benchmarking. HDBSCAN clustering on accumulated workflow data. "Your support agent costs 2.3x the median for similar workflows." Requires ~500 workflows minimum.
 
 ## Sprint Plan
@@ -511,7 +511,7 @@ These are fundamental to the "profile a sample, project to production" methodolo
 
 ## What We Don't Build
 
-AgentCost sits above the LLM tooling stack. No proxy (use LiteLLM). No model routing (use Martian). No tracing (use Langfuse). No context compaction (use Morph). No quality evals (use Braintrust). We detect when compaction or caching is needed; we don't do it ourselves.
+Pretia sits above the LLM tooling stack. No proxy (use LiteLLM). No model routing (use Martian). No tracing (use Langfuse). No context compaction (use Morph). No quality evals (use Braintrust). We detect when compaction or caching is needed; we don't do it ourselves.
 
 - Cloud-hosted SaaS — local only in v1. Cloud is a v3+ consideration.
 - TypeScript SDK — Python first. TS only if demand proves out.

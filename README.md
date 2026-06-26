@@ -1,4 +1,4 @@
-# AgentCost
+# Pretia
 
 **Know what your agent will cost before you deploy.**
 
@@ -9,7 +9,7 @@ Pre-deployment cost intelligence for AI agent workflows. Two commands, zero conf
 ## Install
 
 ```bash
-pip install agentcost
+pip install pretia
 ```
 
 ## Quick Start
@@ -17,16 +17,16 @@ pip install agentcost
 **Zero-cost estimate** (static analysis, no execution):
 
 ```bash
-agentcost estimate my_agent.py
+pretia estimate my_agent.py
 ```
 
 **Full profile** (runs your workflow, ~$2, ~3 minutes):
 
 ```bash
-agentcost profile run my_agent.py
+pretia profile run my_agent.py
 ```
 
-No config files, no JSONL datasets, no setup. AgentCost reads your workflow, generates diverse synthetic inputs, runs 20 profiling runs, detects patterns, and opens an HTML report with projections and recommendations.
+No config files, no JSONL datasets, no setup. Pretia reads your workflow, generates diverse synthetic inputs, runs 20 profiling runs, detects patterns, and opens an HTML report with projections and recommendations.
 
 <!-- Report screenshot: add after rendering -->
 
@@ -34,7 +34,7 @@ No config files, no JSONL datasets, no setup. AgentCost reads your workflow, gen
 
 ### Distributional Projections
 
-Cost projections at p50, p75, p90, p95, and p99 — not just averages. For workflows with non-linear behavior (context growth, variable loop counts), AgentCost uses Monte Carlo simulation (10K runs) instead of linear scaling.
+Cost projections at p50, p75, p90, p95, and p99 — not just averages. For workflows with non-linear behavior (context growth, variable loop counts), Pretia uses Monte Carlo simulation (10K runs) instead of linear scaling.
 
 ### 8 Pattern Detectors
 
@@ -70,7 +70,7 @@ A friction ladder from zero-effort to maximum precision:
 
 | Level | Command | What happens | Cost |
 |-------|---------|-------------|------|
-| 0 | `agentcost estimate workflow.py` | Static code analysis only. No execution. | Free |
+| 0 | `pretia estimate workflow.py` | Static code analysis only. No execution. | Free |
 | 1 | `--input "How do I reset my password?"` | One run + priors for variance estimation. | ~$0.10 |
 | 2 | `--auto-generate N` **(default)** | LLM generates diverse inputs from system prompt. | ~$2 |
 | 3 | `--from-langfuse --last 100` | Pull real inputs from Langfuse production traces. | Free |
@@ -78,13 +78,13 @@ A friction ladder from zero-effort to maximum precision:
 
 ## Add to Your CI in 2 Minutes
 
-AgentCost ships a GitHub Action that comments on every PR with cost analysis.
+Pretia ships a GitHub Action that comments on every PR with cost analysis.
 
 **Diff-only mode** (free, default) — static analysis in seconds:
 
 ```yaml
-# .github/workflows/agentcost.yml
-name: AgentCost
+# .github/workflows/pretia.yml
+name: Pretia
 on: [pull_request]
 
 jobs:
@@ -92,7 +92,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: agentcost/agentcost/action@v1
+      - uses: pretia/pretia/action@v1
         with:
           workflow_path: src/agent.py
           cost_threshold: "20"  # fail if cost increases >20%
@@ -103,7 +103,7 @@ jobs:
 **Full profile mode** (opt-in, ~$2) — real profiling with recommendations:
 
 ```yaml
-      - uses: agentcost/agentcost/action@v1
+      - uses: pretia/pretia/action@v1
         with:
           workflow_path: src/agent.py
           mode: profile
@@ -118,23 +118,23 @@ The PR comment shows: optimization score, projected monthly cost, cost delta vs.
 ## CLI Commands
 
 ```bash
-agentcost estimate workflow.py             # Instant cost estimate (no execution)
-agentcost profile run workflow.py          # Full profiling (default: --auto-generate 20)
-agentcost report profile.json              # Generate HTML report from saved profile
-agentcost recommend profile.json           # Generate optimization recommendations
-agentcost analyze --from-langfuse          # Analyze Langfuse traces (no execution)
-agentcost baseline update profile.json     # Save baseline for CI diffing
-agentcost diff baseline.json new.json      # Compare profiles, show per-step deltas
+pretia estimate workflow.py             # Instant cost estimate (no execution)
+pretia profile run workflow.py          # Full profiling (default: --auto-generate 20)
+pretia report profile.json              # Generate HTML report from saved profile
+pretia recommend profile.json           # Generate optimization recommendations
+pretia analyze --from-langfuse          # Analyze Langfuse traces (no execution)
+pretia baseline update profile.json     # Save baseline for CI diffing
+pretia diff baseline.json new.json      # Compare profiles, show per-step deltas
 ```
 
 ## Supported Frameworks
 
 | Framework | Collection method | Install |
 |-----------|------------------|---------|
-| **LangGraph** | Callback handler | `pip install agentcost[langgraph]` |
-| **OpenAI Agents SDK** | RunHooks lifecycle | `pip install agentcost[openai]` |
-| **Qwen-Agent** | LLM proxy | `pip install agentcost[qwen]` |
-| **Generic** | `@collector.step()` decorator | `pip install agentcost` |
+| **LangGraph** | Callback handler | `pip install pretia[langgraph]` |
+| **OpenAI Agents SDK** | RunHooks lifecycle | `pip install pretia[openai]` |
+| **Qwen-Agent** | LLM proxy | `pip install pretia[qwen]` |
+| **Generic** | `@collector.step()` decorator | `pip install pretia` |
 
 ## How It Works
 
@@ -150,26 +150,26 @@ The projection engine is validated against 13 real-world workflow archetypes (12
 
 ## Positioning
 
-**Langfuse** tells you what you spent. **AgentCost** tells you what you'll spend. Use both.
+**Langfuse** tells you what you spent. **Pretia** tells you what you'll spend. Use both.
 
-AgentCost sits above the LLM tooling stack. It detects when other tools are needed — it doesn't replace them. No proxy (use LiteLLM), no routing (use Martian), no tracing (use Langfuse), no evals (use Braintrust).
+Pretia sits above the LLM tooling stack. It detects when other tools are needed — it doesn't replace them. No proxy (use LiteLLM), no routing (use Martian), no tracing (use Langfuse), no evals (use Braintrust).
 
 ## Development
 
 ```bash
 uv pip install -e ".[dev]"
 pytest tests/unit/ -v
-ruff check agentcost/ tests/
-ruff format agentcost/ tests/
-pyright agentcost/
+ruff check pretia/ tests/
+ruff format pretia/ tests/
+pyright pretia/
 ```
 
 See [CLAUDE.md](CLAUDE.md) for architecture details and coding conventions.
 
 ## Contributing
 
-Issues and PRs welcome. Run `pytest tests/unit/` and `ruff check agentcost/ tests/` before opening a PR.
+Issues and PRs welcome. Run `pytest tests/unit/` and `ruff check pretia/ tests/` before opening a PR.
 
 ## License
 
-[BSL 1.1](LICENSE) (Business Source License). Free for all use except offering AgentCost as a commercial hosted service. Converts to Apache 2.0 on 2030-06-13.
+[BSL 1.1](LICENSE) (Business Source License). Free for all use except offering Pretia as a commercial hosted service. Converts to Apache 2.0 on 2030-06-13.

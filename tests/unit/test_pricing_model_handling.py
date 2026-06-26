@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from agentcost.pricing import calculate_cost, register_model
-from agentcost.pricing.tables import MODEL_PRICING, UnrecognizedModelError
+from pretia.pricing import calculate_cost, register_model
+from pretia.pricing.tables import MODEL_PRICING, UnrecognizedModelError
 
 
 class TestUnrecognizedModelRaisesError:

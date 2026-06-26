@@ -3,15 +3,15 @@ set -euo pipefail
 
 # ── Inputs from GitHub Action ───────────────────────────────────────────
 WORKFLOW_PATH="${INPUT_WORKFLOW_PATH:?workflow_path input is required}"
-BASELINE_PATH="${INPUT_BASELINE_PATH:-.agentcost/baseline.json}"
+BASELINE_PATH="${INPUT_BASELINE_PATH:-.pretia/baseline.json}"
 MODE="${INPUT_MODE:-diff}"
 FRAMEWORK="${INPUT_FRAMEWORK:-auto}"
 DAILY_VOLUME="${INPUT_DAILY_VOLUME:-1000}"
 POST_COMMENT="${INPUT_POST_COMMENT:-true}"
 COST_THRESHOLD="${INPUT_COST_THRESHOLD:-}"
 
-RESULT_FILE="/tmp/agentcost_result.json"
-COMMENT_MARKER="<!-- agentcost-pr-comment -->"
+RESULT_FILE="/tmp/pretia_result.json"
+COMMENT_MARKER="<!-- pretia-pr-comment -->"
 
 # ── Run analysis ────────────────────────────────────────────────────────
 THRESHOLD_ARG=""
@@ -19,7 +19,7 @@ if [ -n "$COST_THRESHOLD" ]; then
     THRESHOLD_ARG="--cost-threshold $COST_THRESHOLD"
 fi
 
-python -m agentcost.ci.github \
+python -m pretia.ci.github \
     --workflow-path "$WORKFLOW_PATH" \
     --baseline-path "$BASELINE_PATH" \
     --mode "$MODE" \
@@ -73,7 +73,7 @@ sys.stdout.write(d.get('comment_markdown', ''))
 
         API_URL="https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments"
 
-        # Search for an existing AgentCost comment to update
+        # Search for an existing Pretia comment to update
         EXISTING_ID=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
             -H "Accept: application/vnd.github.v3+json" \
             "$API_URL?per_page=100" | \
@@ -94,7 +94,7 @@ for c in comments:
                 "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/comments/${EXISTING_ID}" \
                 -d "$(python3 -c "import json; print(json.dumps({'body': open('$RESULT_FILE').read() and json.load(open('$RESULT_FILE'))['comment_markdown']}))")" \
                 > /dev/null
-            echo "Updated existing AgentCost PR comment."
+            echo "Updated existing Pretia PR comment."
         else
             # Post new comment
             curl -s -X POST \
@@ -103,7 +103,7 @@ for c in comments:
                 "$API_URL" \
                 -d "$(python3 -c "import json; print(json.dumps({'body': json.load(open('$RESULT_FILE'))['comment_markdown']}))")" \
                 > /dev/null
-            echo "Posted AgentCost PR comment."
+            echo "Posted Pretia PR comment."
         fi
     fi
 fi

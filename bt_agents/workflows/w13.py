@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from agentcost.collectors.base import StepRecord
+from pretia.collectors.base import StepRecord
 
 from bt_agents import BaseAgent
 from bt_agents.harness.tool_sim import TOOL_SCHEMAS, simulate_tool_call

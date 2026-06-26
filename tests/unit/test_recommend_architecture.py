@@ -1,4 +1,4 @@
-"""Tests for agentcost.recommend.architecture — architecture generators."""
+"""Tests for pretia.recommend.architecture — architecture generators."""
 
 from __future__ import annotations
 
@@ -6,15 +6,15 @@ from datetime import UTC, datetime
 
 import pytest
 
-from agentcost.collectors.base import StepRecord
-from agentcost.pricing.tables import MODEL_CACHE_HIT_PRICING, get_model_pricing
-from agentcost.recommend.architecture import (
+from pretia.collectors.base import StepRecord
+from pretia.pricing.tables import MODEL_CACHE_HIT_PRICING, get_model_pricing
+from pretia.recommend.architecture import (
     CacheContextGenerator,
     PromptCachingGenerator,
     ToolFilterGenerator,
 )
-from agentcost.recommend.base import _DEFAULT_DAILY_VOLUME
-from agentcost.store import ProfilingSession
+from pretia.recommend.base import _DEFAULT_DAILY_VOLUME
+from pretia.store import ProfilingSession
 
 _PER_MILLION = 1_000_000
 

@@ -6,10 +6,10 @@ from datetime import UTC, datetime
 
 import pytest
 
-from agentcost.collectors.base import StepRecord
-from agentcost.projection.montecarlo import _safe_cost, _sample_step_cost, simulate
-from agentcost.projection.patterns import DetectedPattern
-from agentcost.projection.stats import compute_stats
+from pretia.collectors.base import StepRecord
+from pretia.projection.montecarlo import _safe_cost, _sample_step_cost, simulate
+from pretia.projection.patterns import DetectedPattern
+from pretia.projection.stats import compute_stats
 
 
 def _make_record(

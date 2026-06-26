@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from agentcost.ci.diff import mann_whitney_u, significance_label
-from agentcost.validation.visibility import (
+from pretia.ci.diff import mann_whitney_u, significance_label
+from pretia.validation.visibility import (
     format_projection_output,
     get_profiling_recommendation,
     sample_coverage_statement,
@@ -48,7 +48,7 @@ class TestRecommendationSufficientData:
 
 class TestDefaultNChangedTo50:
     def test_default_help_text(self):
-        from agentcost.cli import run
+        from pretia.cli import run
 
         for param in run.params:
             if param.name == "auto_generate":
@@ -146,7 +146,7 @@ class TestSignificanceLabelMapping:
 
 class TestPricingStalenessWarning:
     def test_stale_warning(self):
-        import agentcost.pricing.tables as tables
+        import pretia.pricing.tables as tables
 
         original = tables.PRICING_LAST_UPDATED
         try:
@@ -160,7 +160,7 @@ class TestPricingStalenessWarning:
 
 class TestPricingFreshNoWarning:
     def test_fresh(self):
-        import agentcost.pricing.tables as tables
+        import pretia.pricing.tables as tables
 
         original = tables.PRICING_LAST_UPDATED
         try:

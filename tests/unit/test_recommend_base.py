@@ -1,4 +1,4 @@
-"""Tests for agentcost.recommend.base — Recommendation dataclass and helpers."""
+"""Tests for pretia.recommend.base — Recommendation dataclass and helpers."""
 
 from __future__ import annotations
 
@@ -7,15 +7,15 @@ from datetime import UTC, datetime
 
 import pytest
 
-from agentcost.collectors.base import StepRecord
-from agentcost.recommend.base import (
+from pretia.collectors.base import StepRecord
+from pretia.recommend.base import (
     CONFIDENCE_WEIGHTS,
     Recommendation,
     _extract_pattern_dicts,
     _safe_record_cost,
     compute_priority,
 )
-from agentcost.store import ProfilingSession
+from pretia.store import ProfilingSession
 
 
 def _make_record(

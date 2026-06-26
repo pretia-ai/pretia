@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import logging
 
-from agentcost.collectors.base import StepRecord
+from pretia.collectors.base import StepRecord
 
 from bt_agents.harness.retrieval_sim import load_corpus, retrieve
 from bt_agents.harness.step_builder import build_embedding_step, build_llm_step

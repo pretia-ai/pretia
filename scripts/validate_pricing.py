@@ -25,7 +25,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from agentcost.pricing.tables import MODEL_PRICING, calculate_cost
+from pretia.pricing.tables import MODEL_PRICING, calculate_cost
 
 _PER_MILLION = 1_000_000
 

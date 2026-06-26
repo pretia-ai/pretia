@@ -459,7 +459,7 @@ def export_analytics_pdf(
     elements: list = []
 
     # Title page
-    elements.append(Paragraph("AgentCost Backtest Analytics", title_style))
+    elements.append(Paragraph("Pretia Backtest Analytics", title_style))
     elements.append(Paragraph(
         f"Generated {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} | "
         f"{len(results)} workflows",

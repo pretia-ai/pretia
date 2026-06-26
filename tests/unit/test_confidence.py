@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 import math
 
-from agentcost.projection.patterns import DetectedPattern
-from agentcost.projection.stats import PercentileStats, StepStats
-from agentcost.validation.confidence import (
+from pretia.projection.patterns import DetectedPattern
+from pretia.projection.stats import PercentileStats, StepStats
+from pretia.validation.confidence import (
     compute_confidence,
     compute_conformal_interval,
     compute_effective_sample_size,
@@ -146,7 +146,7 @@ class TestConformalMonthlyPropagation:
 
 class TestConfidenceTierFromWidth:
     def test_tiers(self):
-        from agentcost.validation.confidence import _tier_from_relative_width
+        from pretia.validation.confidence import _tier_from_relative_width
 
         assert _tier_from_relative_width(1.5) == "HIGH"
         assert _tier_from_relative_width(3.0) == "MODERATE"
@@ -219,9 +219,9 @@ class TestTailInflationRemoved:
     def test_no_tail_inflation_in_mc(self):
         from datetime import UTC, datetime
 
-        from agentcost.collectors.base import StepRecord
-        from agentcost.projection.montecarlo import simulate
-        from agentcost.projection.stats import compute_stats
+        from pretia.collectors.base import StepRecord
+        from pretia.projection.montecarlo import simulate
+        from pretia.projection.stats import compute_stats
 
         runs = [
             [

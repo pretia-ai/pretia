@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from agentcost.projection.patterns import DetectedPattern
+from pretia.projection.patterns import DetectedPattern
 from tests.backtesting.detector_validation import (
     DetectorResult,
     _strip_workflow_id,
