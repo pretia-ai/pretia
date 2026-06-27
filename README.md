@@ -87,12 +87,16 @@ Pretia ships a GitHub Action that comments on every PR with cost analysis.
 name: Pretia
 on: [pull_request]
 
+permissions:
+  contents: read
+  pull-requests: write  # required for PR comments
+
 jobs:
   cost-check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pretia/pretia/action@v1
+      - uses: pretia-ai/pretia/action@v1
         with:
           workflow_path: src/agent.py
           cost_threshold: "20"  # fail if cost increases >20%
@@ -103,7 +107,7 @@ jobs:
 **Full profile mode** (opt-in, ~$2) — real profiling with recommendations:
 
 ```yaml
-      - uses: pretia/pretia/action@v1
+      - uses: pretia-ai/pretia/action@v1
         with:
           workflow_path: src/agent.py
           mode: profile

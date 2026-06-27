@@ -152,7 +152,7 @@ def format_diff_only_comment(
     lines.append("---")
     lines.append(
         "<sub>Mode: diff-only (static analysis, no LLM calls) | "
-        "[Powered by Pretia](https://github.com/pretia/pretia)</sub>"
+        "[Powered by Pretia](https://github.com/pretia-ai/pretia)</sub>"
     )
 
     return "\n".join(lines)
@@ -205,7 +205,7 @@ def format_full_profile_comment(
     footer_parts = ["Mode: full profile"]
     if report_url:
         footer_parts.append(f"[View full report]({report_url})")
-    footer_parts.append("[Powered by Pretia](https://github.com/pretia/pretia)")
+    footer_parts.append("[Powered by Pretia](https://github.com/pretia-ai/pretia)")
     lines.append(f"<sub>{' | '.join(footer_parts)}</sub>")
 
     return "\n".join(lines)
