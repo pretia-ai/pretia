@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.5 (2026-06-29)
+
+- Fix: `pretia.inputs` subpackage was missing from the published wheel (v1.0.0-1.0.4 broken on PyPI)
+- Fix: LICENSE references updated from "AgentCost" to "Pretia"
+- Exclude unimplemented stub modules from the wheel (`pretia/ui/`, graph stubs, `report/graph.py`)
+
 ## 1.0.4 (2026-06-29)
 
 - Smarter workflow discovery: finds `run`, `call`, `process`, `execute`, `handle`, `main`, or any solo async callable — no longer limited to `graph`/`workflow`/`agent`/`app`

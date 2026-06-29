@@ -54,10 +54,10 @@ PRE_LAUNCH_TESTS.md
 SESSION_9_PROMPT.md
 pretia-technical-spec-v5.md
 bt_agents/
-inputs/
-prompts/
-pdfs/
-scripts/
+/inputs/
+/prompts/
+/pdfs/
+/scripts/
 visualization/
 ui-frontend/
 qwen-workspace-germany.csv
