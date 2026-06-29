@@ -4,7 +4,7 @@
 
 <!-- Terminal GIF: add after recording with VHS or asciinema -->
 
-Pre-deployment cost intelligence for AI agent workflows. Two commands, zero config, ~$2. Get distributional cost projections (p50-p99), detect cost time-bombs, and receive dollar-denominated optimization recommendations.
+Pre-deployment cost intelligence for AI agent workflows. Two commands, zero config, ~$2. Get distributional cost projections (p50-p99), detect cost risks, and see exactly where the money goes.
 
 ## Install
 
@@ -34,31 +34,15 @@ No config files, no JSONL datasets, no setup. Pretia reads your workflow, genera
 
 ### Distributional Projections
 
-Cost projections at p50, p75, p90, p95, and p99 — not just averages. For workflows with non-linear behavior (context growth, variable loop counts), Pretia uses Monte Carlo simulation (10K runs) instead of linear scaling.
+Cost projections at p50, p75, p90, p95, and p99. Not averages. For workflows with non-linear behavior (context growth, variable loop counts), Pretia uses Monte Carlo simulation (10,000 runs) instead of linear scaling.
 
-### 8 Pattern Detectors
+### Automatic Pattern Detection
 
-Automatically detects cost risks in your workflow:
+Pretia scans your profiling data for cost risks: context windows that grow with each iteration, unpredictable retry loops, wide variance between typical and worst-case runs, routing branches that change cost profiles, and bimodal distributions where a cheap path and an expensive path create two distinct cost clusters. If something will surprise you at scale, the report flags it.
 
-- **Context growth** — input tokens increasing with each iteration
-- **Loop count variance** — unpredictable iteration counts
-- **High token variance** — wide spread between typical and worst-case calls
-- **Step count variance** — routing variability across runs
-- **Bimodality** — two distinct cost clusters (e.g., cache hit vs. miss)
-- **Cache utilization opportunity** — missing prompt caching on supported providers
-- **Zero-execution steps** — workflow paths never triggered during profiling
-- **Output token budget** — wasteful max_tokens settings or truncation risk
+### Optimization Recommendations
 
-### 6 Optimization Recommendations
-
-Each recommendation comes with estimated monthly savings in dollars:
-
-- **Model swap** — downshift steps using frontier models for classification tasks
-- **Loop iteration cap** — cap iterations where marginal returns diminish
-- **Circuit breaker** — hard exit for stuck loops consuming >15% of cost
-- **Enable prompt caching** — activate provider caching for repeated system prompts
-- **Filter tool definitions** — remove unused tools from step context
-- **Cache re-sent context** — eliminate redundant system prompts across consecutive steps
+Each recommendation comes with estimated monthly savings in dollars. Pretia identifies where you're overspending and suggests specific changes to bring costs down.
 
 ### Optimization Score
 
@@ -80,7 +64,7 @@ A friction ladder from zero-effort to maximum precision:
 
 Pretia ships a GitHub Action that comments on every PR with cost analysis.
 
-**Diff-only mode** (free, default) — static analysis in seconds:
+**Diff-only mode** (free, default): static analysis in seconds.
 
 ```yaml
 # .github/workflows/pretia.yml
@@ -104,7 +88,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-**Full profile mode** (opt-in, ~$2) — real profiling with recommendations:
+**Full profile mode** (opt-in, ~$2): real profiling with recommendations.
 
 ```yaml
       - uses: pretia-ai/pretia/action@v1
@@ -117,7 +101,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}  # or your provider key
 ```
 
-The PR comment shows: optimization score, projected monthly cost, cost delta vs. baseline, and recommendations in a collapsible section.
+The PR comment shows the optimization score, projected monthly cost, cost delta vs. baseline, and recommendations in a collapsible section.
 
 ## CLI Commands
 
@@ -144,11 +128,11 @@ pretia diff baseline.json new.json      # Compare profiles, show per-step deltas
 
 Data flows through a five-stage pipeline:
 
-1. **Collector** — Framework adapters instrument your workflow and emit unified StepRecords
-2. **StepRecord** — Frozen dataclass capturing one LLM call: model, tokens, cost, timing, tool usage
-3. **ProfileStore** — Persists profiling sessions as JSON (one workflow x N input runs)
-4. **Projection** — Distributional scaling (p50-p99) for stable workflows, Monte Carlo for non-linear cases
-5. **Recommendation** — Rule-based generators produce dollar-denominated optimization suggestions
+1. **Collector**: framework adapters instrument your workflow and emit unified StepRecords
+2. **StepRecord**: frozen dataclass capturing one LLM call (model, tokens, cost, timing, tool usage)
+3. **ProfileStore**: persists profiling sessions as JSON (one workflow x N input runs)
+4. **Projection**: distributional scaling (p50-p99) for stable workflows, Monte Carlo for non-linear cases
+5. **Recommendation**: rule-based generators produce dollar-denominated optimization suggestions
 
 The projection engine is validated against 13 real-world workflow archetypes (12/13 within 10% projection error).
 
@@ -156,7 +140,7 @@ The projection engine is validated against 13 real-world workflow archetypes (12
 
 **Langfuse** tells you what you spent. **Pretia** tells you what you'll spend. Use both.
 
-Pretia sits above the LLM tooling stack. It detects when other tools are needed — it doesn't replace them. No proxy (use LiteLLM), no routing (use Martian), no tracing (use Langfuse), no evals (use Braintrust).
+Pretia sits above the LLM tooling stack. It detects when other tools are needed. No proxy (use LiteLLM), no routing (use Martian), no tracing (use Langfuse), no evals (use Braintrust).
 
 ## Development
 
