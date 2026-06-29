@@ -9,11 +9,11 @@ from html import escape
 from pretia.ci.report import format_cost
 
 _CIRCUMFERENCE = 2 * math.pi * 80  # 502.654...
-_BAR_HEIGHT = 24
-_BAR_GAP = 8
-_MAX_BAR_WIDTH = 420
-_LABEL_X = 110
-_SVG_WIDTH = 600
+_BAR_HEIGHT = 28
+_BAR_GAP = 12
+_MAX_BAR_WIDTH = 480
+_LABEL_X = 120
+_SVG_WIDTH = 700
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,12 +37,12 @@ def render_score_ring(score: int, zone_color: str, zone_label: str) -> str:
     safe_color = escape(zone_color)
 
     return (
-        '<svg viewBox="0 0 200 200" width="200" height="200" '
+        '<svg class="score-ring" viewBox="0 0 200 200" width="260" height="260" '
         'xmlns="http://www.w3.org/2000/svg" role="img" '
         f'aria-label="Optimization score: {score} of 100">'
         '<circle cx="100" cy="100" r="80" fill="none" '
         'stroke="#e2e8f0" stroke-width="12"/>'
-        f'<circle cx="100" cy="100" r="80" fill="none" '
+        f'<circle class="score-ring-progress" cx="100" cy="100" r="80" fill="none" '
         f'stroke="{safe_color}" stroke-width="12" '
         f'stroke-dasharray="{_CIRCUMFERENCE:.2f}" '
         f'stroke-dashoffset="{offset:.2f}" '
@@ -109,19 +109,19 @@ def render_cost_waterfall(steps: list[StepCostEntry]) -> str:
 
         parts.append(
             f'<text x="{_LABEL_X - 8}" y="{y + 17}" '
-            f'text-anchor="end" font-size="13" fill="#4a5568">'
+            f'text-anchor="end" font-size="14" font-weight="600" fill="#4a5568">'
             f"{safe_name}</text>"
         )
 
         parts.append(
-            f'<rect x="{_LABEL_X}" y="{y}" '
+            f'<rect class="waterfall-bar" x="{_LABEL_X}" y="{y}" '
             f'width="{bar_width:.1f}" height="{_BAR_HEIGHT}" '
-            f'rx="3" fill="{color}"/>'
+            f'rx="6" fill="{color}" style="animation-delay:{i * 0.08:.2f}s"/>'
         )
 
         parts.append(
             f'<text x="{_LABEL_X + bar_width + 8}" y="{y + 17}" '
-            f'font-size="12" fill="#4a5568">'
+            f'font-size="13" fill="#4a5568">'
             f"{cost_label} ({pct_label})</text>"
         )
 

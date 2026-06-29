@@ -1,4 +1,3 @@
-CLAUDE.md
 # Python
 __pycache__/
 *.pyc
@@ -23,18 +22,12 @@ build/
 .coverage
 htmlcov/
 
-# AgentCost runtime data
+# Runtime data
+.pretia/
 .agentcost/
 
 # Model artifacts
 *.pkl
-
-# SWE-bench cached data (large, downloaded on demand)
-tests/synthetic/swebench/data/*.json
-tests/synthetic/swebench/data/*.jsonl
-
-# Generated PDFs and corpora
-pdfs/generated/
 
 # IDE
 .vscode/
@@ -43,38 +36,45 @@ pdfs/generated/
 .DS_Store
 .env
 
-# Generated pipeline output (PDFs, descriptors, manifests)
+# Generated output
 output/
-
-# Generated reports and analysis artifacts
 reports/
+results/
 
-# Auto-generated workflow inputs (regenerated on demand)
-inputs/generated/
+# Lock file
+uv.lock
 
-# Claude Code local config
-.claude/
+# Internal infrastructure (local only, not shipped)
+CLAUDE.md
+PLANNING.md
+PLAN.md
+HANDOVER.md
+STATUS.md
+PRE_LAUNCH_TESTS.md
+SESSION_9_PROMPT.md
+pretia-technical-spec-v5.md
+bt_agents/
+inputs/
+prompts/
+pdfs/
+scripts/
+visualization/
+ui-frontend/
 qwen-workspace-germany.csv
 qwen-workspace-singapore.csv
 
-# Backtesting results and datasets (regenerated on demand)
+# Docs (most are local-only; public ones are force-tracked)
+docs/
+!docs/system-architecture-guide.md
+!docs/known-limitations.md
+
+# Claude Code local config
+.claude/
+
+# Test data (regenerated on demand)
 tests/backtesting/results/
 tests/backtesting/dataset/
-
-# Pre-computed embedding corpora (regenerated via scripts/build_rag_corpus.py)
-pdfs/w14_corpus/
-pdfs/w15_corpus/
-pdfs/w17_corpus/
-
-# Archived design docs (local reference only)
-docs/archive/
-
-# Session handover notes
-HANDOVER.md
-prompts/v1_brainstorm_prompt.md
-PLAN.md
-PRE_LAUNCH_TESTS.md
-SESSION_9_PROMPT.md
-STATUS.md
+tests/synthetic/swebench/data/*.json
+tests/synthetic/swebench/data/*.jsonl
 tests/manual/USE_CASE_PROMPT.md
 tests/manual/PRE_LAUNCH_SESSION_PROMPT.md

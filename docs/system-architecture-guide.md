@@ -1,11 +1,24 @@
 # Pretia System Architecture Guide
 
-Complete architecture reference for the Pretia codebase as of Sprint 3. Covers every layer from data collection through validated cost projections — how each module works, how they connect, where data transforms, and where to look when something breaks.
+Complete architecture reference for the Pretia codebase (v1.0). Covers every layer from data collection through validated cost projections — how each module works, how they connect, where data transforms, and where to look when something breaks.
 
-For sprint-specific deep dives with function-level documentation, worked examples, and debugging exercises:
-- [Sprint 1 Code Guide](sprint-01-code-guide.md) — collectors, pricing, store, runner, CLI, inputs
-- [Sprint 2 Code Guide](sprint-02-code-guide.md) — stats, patterns, projector, Langfuse, OpenAI/Qwen collectors, CI
-- [Sprint 3 Code Guide](sprint-03-code-guide.md) — Monte Carlo fixes, new detectors, validation, synthetic testing
+For function-level documentation, worked examples, and debugging exercises, see the domain guides:
+
+| Guide | Modules Covered | Key Concepts |
+|-------|-----------------|--------------|
+| [01-collectors.md](01-collectors.md) | base.py, generic.py, langgraph.py, openai_agents.py, qwen_agent.py, cache_bust.py | StepRecord, BaseCollector, auto-detection, token extraction |
+| [02-pricing.md](02-pricing.md) | tables.py | MODEL_PRICING, calculate_cost, cache-aware pricing |
+| [03-inputs.md](03-inputs.md) | selector.py, generator.py, importer.py, corpus.py | Input mode cascade, LLM generation, Langfuse import |
+| [04-statistics-patterns.md](04-statistics-patterns.md) | stats.py, patterns.py | ProfilingStats, 8 pattern detectors, significance testing |
+| [05-projection.md](05-projection.md) | montecarlo.py, projector.py | Monte Carlo simulation, CLT, growth models, linear fallback |
+| [06-validation-confidence.md](06-validation-confidence.md) | confidence.py, scoring.py, suite.py, data_checks.py, validate_cmd.py | n_eff, calibration, launch gates |
+| [07-orchestration-cli.md](07-orchestration-cli.md) | runner.py, cli.py, config.py, schema.py, estimate.py, store.py | ProfileRunner, CLI commands, config, persistence |
+| [08-ci-baselines.md](08-ci-baselines.md) | baseline.py, diff.py, report.py, github.py | Baselines, diffing, Mann-Whitney, GitHub Action |
+| [09-recommendations.md](09-recommendations.md) | base.py, architecture.py, model_swap.py, workflow.py, registry.py, score.py | Recommendation engine, model swap, loop cap, scoring |
+| [10-reporting.md](10-reporting.md) | renderer.py, charts.py, graph.py, extractor.py | HTML reports, SVG charts, graph extraction |
+| [11-testing-infrastructure.md](11-testing-infrastructure.md) | tests/synthetic/, tests/backtesting/ | Synthetic calibration, SWE-bench, backtesting suite |
+
+Historical sprint guides are archived in [archive/](archive/).
 
 ---
 
@@ -349,6 +362,8 @@ explicit_inputs → inputs_file → single_input → from_langfuse → auto_gene
 
 `importer.py` fetches Langfuse traces, converts them to `list[list[StepRecord]]` for analysis without re-executing the workflow. Filters EVENT observations. Resets iteration counter per trace. Detects "retrieval" step type via `"retriev"` substring matching.
 
+> **Full reference:** [01-collectors.md](01-collectors.md) (StepRecord, collectors) | [03-inputs.md](03-inputs.md) (input resolution, generation, Langfuse import)
+
 ---
 
 ## 4. Layer 2 — Pricing Engine
@@ -406,6 +421,8 @@ calculate_cost("deepseek-v4-flash", 1200, 300, cache_hit_tokens=1000, cache_miss
 **Runtime registration:** `register_model(name, input_price, output_price, tier)` adds to `MODEL_PRICING` and `MODEL_TIERS`. Used by synthetic testing to register `_synthetic_unit_cost_`.
 
 **Structural invariants:** Tests enforce that every key in `MODEL_PRICING` has an entry in `MODEL_TIERS` and vice versa.
+
+> **Full reference:** [02-pricing.md](02-pricing.md)
 
 ---
 
@@ -479,6 +496,8 @@ detect_patterns(runs, stats) → list[DetectedPattern]  (sorted: danger first)
 
 `DetectedPattern` carries 20 fields — 5 core (type, step, severity, evidence, description) plus 15 optional metadata fields populated only by the relevant detector.
 
+> **Full reference:** [04-statistics-patterns.md](04-statistics-patterns.md)
+
 ---
 
 ## 6. Layer 4 — Projection Engine
@@ -547,6 +566,8 @@ simulate(stats, patterns, daily_volume, runs, n_simulations=10000)
 
 `ProjectionResult` contains: method ("linear" or "montecarlo"), projections at each traffic volume, `ConfidenceResult`, warnings, detected patterns, and the raw `MonteCarloResult` (if MC was used).
 
+> **Full reference:** [05-projection.md](05-projection.md)
+
 ---
 
 ## 7. Layer 5 — Confidence & Validation
@@ -613,6 +634,8 @@ overall_passed = hard_gates AND soft_gates
 Directional bias check: if ≥ 80% of workflows skew one direction → diagnostic flag
 ```
 
+> **Full reference:** [06-validation-confidence.md](06-validation-confidence.md)
+
 ---
 
 ## 8. Layer 6 — CI, Baselines & Diffing
@@ -644,6 +667,8 @@ DiffResult
 ### Significance testing
 
 `mann_whitney_u(x, y)` — two-tailed p-value via normal approximation. All stdlib (Abramowitz & Stegun CDF). `significance_label(p)` → "significant" / "possibly significant" / "not significant".
+
+> **Full reference:** [08-ci-baselines.md](08-ci-baselines.md)
 
 ---
 
@@ -700,6 +725,8 @@ class ProfileRunner:
 | `pretia ui` | (Sprint 6) | Launch local web UI on :7100 |
 
 Key flags: `--auto-generate N`, `--input "..."`, `--inputs file.jsonl`, `--from-langfuse`, `--last N`, `--allow-cache`, `--traffic N`, `--threshold N`, `-v/--verbose`.
+
+> **Full reference:** [07-orchestration-cli.md](07-orchestration-cli.md)
 
 ---
 
@@ -759,6 +786,8 @@ class ProfilingSession:
 `format_cost()` switches precision by magnitude: sub-cent → 4 decimals, $0.01–$999 → 2 decimals, $1000+ → 0 decimals with comma.
 
 Supports both Sprint 2+ stats-based path and Sprint 1 legacy `cost_summary` fallback. The `report` command recomputes stats from stored runs if the `stats` key is missing.
+
+> **Full reference:** [08-ci-baselines.md](08-ci-baselines.md) (baselines, diff, report) | [10-reporting.md](10-reporting.md) (HTML reports, charts)
 
 ---
 
@@ -821,6 +850,8 @@ Supports both Sprint 2+ stats-based path and Sprint 1 legacy `cost_summary` fall
 Skipped: 4 bimodality tests (require sklearn)
 Xfailed: 1 Gemini thoughts token extraction (no native collector)
 ```
+
+> **Full reference:** [11-testing-infrastructure.md](11-testing-infrastructure.md)
 
 ---
 
@@ -1081,27 +1112,33 @@ simulate ← projector.py
 
 ---
 
-## 15. Stubbed Modules
+## 15. Implementation Status
 
-These exist as docstring placeholders. They define intended scope but contain no implementation.
+### Implemented (v1.0)
 
-| Module | Sprint | Purpose |
-|--------|--------|---------|
-| `recommend/heuristics.py` | 4 | Rule-based recommendations: model swap, context compaction, iteration cap |
-| `recommend/classifier.py` | 4 | ML-powered model swap (logistic regression on RouterBench) |
-| `recommend/rules.py` | 4 | Recommendation type definitions, savings calculation |
-| `inputs/schema.py` | 4 | Extract input schemas from type hints for better input generation |
-| `report/renderer.py` | 6 | Jinja2 + inline CSS/SVG → self-contained HTML report |
-| `report/charts.py` | 6 | Inline SVG: cost waterfall, context growth sparklines, score ring |
-| `report/graph.py` | 6 | Render workflow DAG as SVG with cost overlays |
-| `graph/extractor.py` | 6 | DAG extraction from LangGraph, OpenAI Agents, CrewAI |
-| `graph/layout.py` | 6 | Position graph nodes (top-to-bottom layout) |
-| `graph/colorizer.py` | 6 | Map per-step cost shares to node colors (white → amber → red) |
-| `graph/transform.py` | 6 | Apply recommendations to graph for "after" view |
-| `ui/app.py` | 6 | FastAPI + pre-built React bundle on localhost:7100 |
-| `ui/ws.py` | 6 | WebSocket for live profiling progress |
+| Module | Guide | What it does |
+|--------|-------|-------------|
+| `recommend/base.py` | [09-recommendations.md](09-recommendations.md) | Recommendation dataclass, ABC, priority scoring |
+| `recommend/architecture.py` | [09-recommendations.md](09-recommendations.md) | Prompt caching, tool filtering, cache context generators |
+| `recommend/model_swap.py` | [09-recommendations.md](09-recommendations.md) | Classification-aware model tier downgrade suggestions |
+| `recommend/workflow.py` | [09-recommendations.md](09-recommendations.md) | Loop cap and circuit breaker generators |
+| `recommend/registry.py` | [09-recommendations.md](09-recommendations.md) | Decorator-based generator registration |
+| `recommend/score.py` | [09-recommendations.md](09-recommendations.md) | 0-100 optimization score with zone classification |
+| `report/renderer.py` | [10-reporting.md](10-reporting.md) | Jinja2 + Plotly → self-contained HTML report |
+| `report/charts.py` | [10-reporting.md](10-reporting.md) | Plotly cost distribution, step comparison, projection charts |
+| `graph/extractor.py` | [10-reporting.md](10-reporting.md) | Step name and model extraction from LangGraph/OpenAI Agents |
 
-**Already implemented** in `recommend/`: `prompts.py` (framework-specific implementation prompts, Tier 1/2/3) and `verify.py` (compare old/new profiles for applied recommendations).
+### Still Stubbed
+
+| Module | Purpose |
+|--------|---------|
+| `inputs/schema.py` | Extract input schemas from type hints for better input generation |
+| `report/graph.py` | Render workflow DAG as SVG with cost overlays |
+| `graph/layout.py` | Position graph nodes (top-to-bottom layout) |
+| `graph/colorizer.py` | Map per-step cost shares to node colors (white → amber → red) |
+| `graph/transform.py` | Apply recommendations to graph for "after" view |
+| `ui/app.py` | FastAPI + pre-built React bundle on localhost:7100 |
+| `ui/ws.py` | WebSocket for live profiling progress |
 
 ---
 

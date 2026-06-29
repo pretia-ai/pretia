@@ -1,0 +1,236 @@
+{
+  "workflow_name": "claims_processing_agent.py",
+  "workflow_hash": "a1b2c3d4e5f6",
+  "profiled_at": "2026-06-29T14:30:00+00:00",
+  "sample_size": 50,
+  "input_mode": "auto-generate",
+  "runs": [
+    [
+      {"step_name": "intake", "step_type": "llm", "model": "claude-sonnet-4-6", "input_tokens": 820, "output_tokens": 650, "context_size": 820, "tool_definitions_tokens": 0, "system_prompt_hash": "abc1", "system_prompt_tokens": 380, "output_format": "text", "is_retry": false, "iteration": 1, "parent_step": null, "duration_ms": 2800, "timestamp": "2026-06-29T14:30:01+00:00"},
+      {"step_name": "policy_lookup", "step_type": "llm", "model": "claude-sonnet-4-6", "input_tokens": 1450, "output_tokens": 900, "context_size": 1450, "tool_definitions_tokens": 0, "system_prompt_hash": "abc2", "system_prompt_tokens": 520, "output_format": "text", "is_retry": false, "iteration": 1, "parent_step": null, "duration_ms": 3400, "timestamp": "2026-06-29T14:30:04+00:00"},
+      {"step_name": "fraud_check", "step_type": "llm", "model": "claude-opus-4-7", "input_tokens": 2800, "output_tokens": 1200, "context_size": 2800, "tool_definitions_tokens": 0, "system_prompt_hash": "abc3", "system_prompt_tokens": 640, "output_format": "text", "is_retry": false, "iteration": 1, "parent_step": null, "duration_ms": 5200, "timestamp": "2026-06-29T14:30:08+00:00"},
+      {"step_name": "decision", "step_type": "llm", "model": "claude-sonnet-4-6", "input_tokens": 4200, "output_tokens": 1100, "context_size": 4200, "tool_definitions_tokens": 0, "system_prompt_hash": "abc4", "system_prompt_tokens": 480, "output_format": "text", "is_retry": false, "iteration": 1, "parent_step": null, "duration_ms": 4100, "timestamp": "2026-06-29T14:30:12+00:00"}
+    ],
+    [
+      {"step_name": "intake", "step_type": "llm", "model": "claude-sonnet-4-6", "input_tokens": 750, "output_tokens": 580, "context_size": 750, "tool_definitions_tokens": 0, "system_prompt_hash": "abc1", "system_prompt_tokens": 380, "output_format": "text", "is_retry": false, "iteration": 1, "parent_step": null, "duration_ms": 2500, "timestamp": "2026-06-29T14:30:15+00:00"},
+      {"step_name": "policy_lookup", "step_type": "llm", "model": "claude-sonnet-4-6", "input_tokens": 1300, "output_tokens": 850, "context_size": 1300, "tool_definitions_tokens": 0, "system_prompt_hash": "abc2", "system_prompt_tokens": 520, "output_format": "text", "is_retry": false, "iteration": 1, "parent_step": null, "duration_ms": 3100, "timestamp": "2026-06-29T14:30:18+00:00"},
+      {"step_name": "fraud_check", "step_type": "llm", "model": "claude-opus-4-7", "input_tokens": 2500, "output_tokens": 1100, "context_size": 2500, "tool_definitions_tokens": 0, "system_prompt_hash": "abc3", "system_prompt_tokens": 640, "output_format": "text", "is_retry": false, "iteration": 1, "parent_step": null, "duration_ms": 4800, "timestamp": "2026-06-29T14:30:22+00:00"},
+      {"step_name": "decision", "step_type": "llm", "model": "claude-sonnet-4-6", "input_tokens": 3800, "output_tokens": 950, "context_size": 3800, "tool_definitions_tokens": 0, "system_prompt_hash": "abc4", "system_prompt_tokens": 480, "output_format": "text", "is_retry": false, "iteration": 1, "parent_step": null, "duration_ms": 3700, "timestamp": "2026-06-29T14:30:26+00:00"}
+    ]
+  ],
+  "metadata": {
+    "cost_summary": {
+      "per_step": {
+        "intake": {"count": 50, "cost_mean": 0.0122, "cost_p95": 0.0168},
+        "policy_lookup": {"count": 50, "cost_mean": 0.0178, "cost_p95": 0.0234},
+        "fraud_check": {"count": 50, "cost_mean": 0.0440, "cost_p95": 0.0620},
+        "decision": {"count": 50, "cost_mean": 0.0291, "cost_p95": 0.0385}
+      },
+      "run_totals": [0.1031, 0.0924, 0.1120, 0.0985, 0.1055, 0.0890, 0.1180, 0.0945, 0.1065, 0.0978],
+      "mean_cost_per_run": 0.1031,
+      "min_cost_per_run": 0.0720,
+      "max_cost_per_run": 0.1580,
+      "p95_cost_per_run": 0.1420,
+      "total_session_cost": 5.155,
+      "projection_100_day": 309.3,
+      "projection_1000_day": 3093.0,
+      "projection_10000_day": 30930.0
+    },
+    "stats": {
+      "step_stats": {
+        "intake": {
+          "cost": {"mean": 0.0122, "p50": 0.0118, "p95": 0.0168, "min": 0.0085, "max": 0.0210},
+          "tokens": {"mean_input": 790, "mean_output": 620, "p95_total": 1680},
+          "model": "claude-sonnet-4-6",
+          "step_type": "llm",
+          "call_count_per_run": {"mean": 1.0, "max": 1}
+        },
+        "policy_lookup": {
+          "cost": {"mean": 0.0178, "p50": 0.0172, "p95": 0.0234, "min": 0.0120, "max": 0.0310},
+          "tokens": {"mean_input": 1380, "mean_output": 870, "p95_total": 2680},
+          "model": "claude-sonnet-4-6",
+          "step_type": "llm",
+          "call_count_per_run": {"mean": 1.0, "max": 1}
+        },
+        "fraud_check": {
+          "cost": {"mean": 0.0440, "p50": 0.0425, "p95": 0.0620, "min": 0.0280, "max": 0.0850},
+          "tokens": {"mean_input": 2650, "mean_output": 1150, "p95_total": 4520},
+          "model": "claude-opus-4-7",
+          "step_type": "llm",
+          "call_count_per_run": {"mean": 1.0, "max": 1}
+        },
+        "decision": {
+          "cost": {"mean": 0.0291, "p50": 0.0280, "p95": 0.0385, "min": 0.0190, "max": 0.0520},
+          "tokens": {"mean_input": 4000, "mean_output": 1020, "p95_total": 5850},
+          "model": "claude-sonnet-4-6",
+          "step_type": "llm",
+          "call_count_per_run": {"mean": 1.0, "max": 1}
+        }
+      },
+      "run_stats": [
+        {"run_index": 0, "total_cost": 0.1031, "total_tokens": 13740, "total_input_tokens": 9270, "total_output_tokens": 3850, "step_count": 4, "duration_ms": 15500},
+        {"run_index": 1, "total_cost": 0.0924, "total_tokens": 12330, "total_input_tokens": 8350, "total_output_tokens": 3480, "step_count": 4, "duration_ms": 14100}
+      ],
+      "cost_per_run": {
+        "min": 0.0720,
+        "max": 0.1580,
+        "mean": 0.1031,
+        "std": 0.0185,
+        "p50": 0.0998,
+        "p75": 0.1120,
+        "p90": 0.1310,
+        "p95": 0.1420,
+        "p99": 0.1540
+      },
+      "tokens_per_run": {
+        "min": 10200,
+        "max": 16800,
+        "mean": 13100,
+        "std": 1850,
+        "p50": 12900,
+        "p75": 14200,
+        "p90": 15600,
+        "p95": 16100,
+        "p99": 16600
+      },
+      "total_runs": 50,
+      "total_steps": 200
+    },
+    "patterns": [
+      {
+        "pattern_type": "context_growth",
+        "step_name": "decision",
+        "severity": "danger",
+        "description": "Input tokens for 'decision' grow linearly with prior step outputs. At 10K daily runs, accumulated context adds ~$1,200/month over baseline projection.",
+        "metric_value": 0.94,
+        "threshold": 0.85
+      },
+      {
+        "pattern_type": "high_token_variance",
+        "step_name": "fraud_check",
+        "severity": "warning",
+        "description": "Token usage for 'fraud_check' varies 3.8x between typical and worst-case runs (1,850 vs 7,020 tokens). Complex claims trigger significantly longer analysis, driving cost unpredictability.",
+        "metric_value": 3.8,
+        "threshold": 2.5
+      },
+      {
+        "pattern_type": "cache_utilization",
+        "step_name": "intake",
+        "severity": "warning",
+        "description": "System prompt for 'intake' (380 tokens) is repeated identically across all 50 runs but prompt caching is not enabled. Enabling cache would save ~$45/month at 1K daily runs.",
+        "metric_value": 0.0,
+        "threshold": 0.5
+      }
+    ],
+    "projection": {
+      "method": "montecarlo",
+      "traffic_volumes": [100, 1000, 10000],
+      "projections": {
+        "100": {
+          "daily_volume": 100,
+          "monthly_cost": {"p50": 312.0, "p75": 348.0, "p90": 405.0, "p95": 438.0, "p99": 510.0, "mean": 320.0},
+          "daily_cost": {"p50": 10.4, "p75": 11.6, "p90": 13.5, "p95": 14.6, "p99": 17.0, "mean": 10.67},
+          "cost_per_run": {"p50": 0.0998, "p75": 0.1120, "p90": 0.1310, "p95": 0.1420, "p99": 0.1540, "mean": 0.1031}
+        },
+        "1000": {
+          "daily_volume": 1000,
+          "monthly_cost": {"p50": 3120.0, "p75": 3540.0, "p90": 4200.0, "p95": 4680.0, "p99": 5580.0, "mean": 3280.0},
+          "daily_cost": {"p50": 104.0, "p75": 118.0, "p90": 140.0, "p95": 156.0, "p99": 186.0, "mean": 109.3},
+          "cost_per_run": {"p50": 0.0998, "p75": 0.1120, "p90": 0.1310, "p95": 0.1420, "p99": 0.1540, "mean": 0.1031}
+        },
+        "10000": {
+          "daily_volume": 10000,
+          "monthly_cost": {"p50": 33600.0, "p75": 38400.0, "p90": 46800.0, "p95": 52200.0, "p99": 64800.0, "mean": 35400.0},
+          "daily_cost": {"p50": 1120.0, "p75": 1280.0, "p90": 1560.0, "p95": 1740.0, "p99": 2160.0, "mean": 1180.0},
+          "cost_per_run": {"p50": 0.0998, "p75": 0.1120, "p90": 0.1310, "p95": 0.1420, "p99": 0.1540, "mean": 0.1031}
+        }
+      },
+      "confidence": {
+        "tier": "MODERATE",
+        "conformal_lower": 0.078,
+        "conformal_upper": 0.142,
+        "monthly_lower": 2340.0,
+        "monthly_upper": 4260.0,
+        "alpha": 0.1,
+        "relative_width": 0.58,
+        "effective_sample_size": 42.0,
+        "patterns_detected": ["context_growth", "high_token_variance", "cache_utilization"]
+      },
+      "warnings": ["Monte Carlo projection used due to detected non-linear patterns."],
+      "patterns_detected": [
+        {"pattern_type": "context_growth", "step_name": "decision", "severity": "danger"},
+        {"pattern_type": "high_token_variance", "step_name": "fraud_check", "severity": "warning"},
+        {"pattern_type": "cache_utilization", "step_name": "intake", "severity": "warning"}
+      ],
+      "montecarlo_result": {
+        "n_simulations": 10000,
+        "cvar_95": 0.225
+      }
+    },
+    "confidence": {
+      "tier": "MODERATE",
+      "conformal_lower": 0.078,
+      "conformal_upper": 0.142,
+      "monthly_lower": 2340.0,
+      "monthly_upper": 4260.0,
+      "alpha": 0.1,
+      "relative_width": 0.58,
+      "effective_sample_size": 42.0,
+      "patterns_detected": ["context_growth", "high_token_variance", "cache_utilization"]
+    },
+    "score": {
+      "score": 32,
+      "zone_color": "#E53E3E",
+      "zone_label": "needs optimization",
+      "total_savings": 1580.0,
+      "waste_pct": 0.48,
+      "recommendation_count": 3,
+      "scope_note": "Fraud check step uses frontier model for a task achievable with mid-tier. Context accumulation in decision step inflates costs non-linearly at scale."
+    },
+    "recommendations": [
+      {
+        "type": "model_swap",
+        "title": "Downgrade fraud_check from Opus to Sonnet",
+        "description": "The fraud scoring task uses claude-opus-4-7 ($5/$25 per M) but the output is a structured risk assessment — not a task requiring frontier reasoning. Claude Sonnet 4.6 ($3/$15 per M) handles structured analysis at comparable quality. Based on 50 profiled runs, output quality metrics show <2% degradation on the scoring rubric.",
+        "monthly_savings": 890.0,
+        "confidence": "HIGH",
+        "step_name": "fraud_check",
+        "current_model": "claude-opus-4-7",
+        "suggested_model": "claude-sonnet-4-6",
+        "implementation": "Change model=\"claude-opus-4-7\" to model=\"claude-sonnet-4-6\" in the fraud_check step. Re-profile to verify."
+      },
+      {
+        "type": "architecture",
+        "title": "Enable prompt caching on intake and policy_lookup",
+        "description": "Both 'intake' (380 tokens) and 'policy_lookup' (520 tokens) use identical system prompts across all runs. Anthropic's prompt caching reduces input token cost by 90% for cached prefixes. At current volumes, 900 cached tokens per run × 1K daily runs saves significant input costs.",
+        "monthly_savings": 420.0,
+        "confidence": "HIGH",
+        "step_name": "intake",
+        "implementation": "Add cache_control={'type': 'ephemeral'} to the system message block in both steps. Requires anthropic SDK ≥0.28."
+      },
+      {
+        "type": "workflow",
+        "title": "Compress context passed to decision step",
+        "description": "The 'decision' step receives the full output of all three prior steps (~4,000 input tokens). Context grows linearly with claim complexity (r²=0.94). Summarizing prior step outputs before passing to 'decision' would cap input tokens at ~1,500 regardless of claim complexity, eliminating the context growth pattern.",
+        "monthly_savings": 270.0,
+        "confidence": "MODERATE",
+        "step_name": "decision",
+        "implementation": "Add a summarization step between fraud_check and decision, or use structured JSON output from prior steps instead of free-text."
+      }
+    ]
+  },
+  "python_version": "3.12.12",
+  "sdk_versions": {"anthropic": "0.112.0"},
+  "api_endpoints": null,
+  "git_commit_hash": null,
+  "git_branch": null,
+  "git_diff_summary": null,
+  "profiling_start_time": "2026-06-29T14:30:00+00:00",
+  "profiling_end_time": "2026-06-29T14:42:15+00:00",
+  "inter_request_delay_ms": null,
+  "workflow_id": "claims_processing_agent",
+  "run_id": "demo-dramatic-001",
+  "framework": "generic",
+  "pretia_version": "1.0.2",
+  "profiling_cost": 5.155
+}

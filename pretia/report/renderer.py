@@ -35,6 +35,15 @@ def _load_template() -> jinja2.Template:
 
     env = jinja2.Environment(autoescape=True)
     env.filters["format_cost"] = format_cost
+
+    def format_volume(v: int) -> str:
+        if v >= 1_000_000:
+            return f"{v // 1_000_000}M"
+        if v >= 1_000:
+            return f"{v // 1_000}K"
+        return str(v)
+
+    env.filters["format_volume"] = format_volume
     return env.from_string(text)
 
 
@@ -67,6 +76,28 @@ def _prepare_context(session: ProfilingSession) -> dict[str, Any]:
         _extract_projection(projection, cost_per_run)
     )
 
+    # Hero projected cost — pick the middle traffic volume (prefer 1K)
+    hero_projected_cost = ""
+    if traffic_volumes:
+        hero_vol = 1_000 if 1_000 in traffic_volumes else traffic_volumes[0]
+        hero_p50 = projection_rows.get(hero_vol, {}).get("p50", 0)
+        if hero_vol >= 1_000_000:
+            vol_label = f"{hero_vol // 1_000_000}M"
+        elif hero_vol >= 1_000:
+            vol_label = f"{hero_vol // 1_000}K"
+        else:
+            vol_label = str(hero_vol)
+        hero_projected_cost = f"{format_cost(hero_p50)}/mo at {vol_label} daily runs"
+
+    projection_labels = {
+        "p50": "Expected",
+        "p90": "Likely high",
+        "p95": "Bad month",
+        "p99": "Worst case",
+    }
+
+    projection_display_pcts = ["p50", "p90", "p95", "p99"]
+
     raw_dict = _truncated_session_dict(session)
     raw_json = json.dumps(raw_dict, indent=2, default=str)
 
@@ -97,6 +128,9 @@ def _prepare_context(session: ProfilingSession) -> dict[str, Any]:
         "cvar_values": cvar_values,
         "confidence": confidence,
         "projection_method": method,
+        "hero_projected_cost": hero_projected_cost,
+        "projection_labels": projection_labels,
+        "projection_display_pcts": projection_display_pcts,
         "patterns": patterns,
         "has_patterns": bool(patterns),
         "recommendations": recommendations,
@@ -187,7 +221,15 @@ def _extract_projection(
                 "p95": p95 * v * 30,
                 "p99": p95 * v * 30 * 1.1,
             }
-        return rows, volumes, False, {}, None, "linear (estimated)"
+        # Filter out traffic volumes where ALL percentile values round to less than $0.01
+        filtered_volumes = [
+            v
+            for v in volumes
+            if any(rows[v][pct] >= 0.01 for pct in ["p50", "p75", "p90", "p95", "p99"])
+        ]
+        if not filtered_volumes:
+            filtered_volumes = volumes  # keep all if everything is near-zero
+        return rows, filtered_volumes, False, {}, None, "linear (estimated)"
 
     method = projection.get("method", "linear")
     confidence = projection.get("confidence")
@@ -212,14 +254,23 @@ def _extract_projection(
             "p99": monthly.get("p99", 0),
         }
 
+    # Filter out traffic volumes where ALL percentile values round to less than $0.01
+    filtered_volumes = [
+        v
+        for v in volumes
+        if any(rows[v][pct] >= 0.01 for pct in ["p50", "p75", "p90", "p95", "p99"])
+    ]
+    if not filtered_volumes:
+        filtered_volumes = volumes  # keep all if everything is near-zero
+
     has_cvar = mc_result is not None and "cvar_95" in (mc_result or {})
     cvar_values: dict[int, float] = {}
     if has_cvar and mc_result:
         cvar_base = mc_result.get("cvar_95", 0)
-        for v in volumes:
+        for v in filtered_volumes:
             cvar_values[v] = cvar_base * v * 30
 
-    return rows, volumes, has_cvar, cvar_values, confidence, method_label
+    return rows, filtered_volumes, has_cvar, cvar_values, confidence, method_label
 
 
 def _truncated_session_dict(session: ProfilingSession) -> dict[str, Any]:

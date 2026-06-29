@@ -3,112 +3,544 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Pretia Report — {{ workflow_name }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+<title>{{ workflow_name }} | Pretia Report</title>
 <style>
-*,*::before,*::after{box-sizing:border-box}
-body{
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-  color:#1a202c;background:#fff;margin:0;padding:0;line-height:1.6;
-}
-.container{max-width:900px;margin:0 auto;padding:1.5rem 1rem}
-h1{font-size:1.75rem;margin:0 0 .25rem}
-h2{font-size:1.25rem;margin:1.75rem 0 .75rem;padding-bottom:.4rem;border-bottom:2px solid #e2e8f0}
-h3{font-size:1rem;margin:.25rem 0}
-.subtitle{color:#718096;font-size:.875rem;margin:0 0 1.5rem}
-
-/* Score hero */
-.score-hero{text-align:center;padding:1.5rem 0}
-.zone-badge{
-  display:inline-block;padding:.25rem .75rem;border-radius:9999px;
-  color:#fff;font-weight:600;font-size:.875rem;margin-top:.5rem;
-}
-.scope-note{color:#a0aec0;font-size:.8rem;font-style:italic;margin-top:.35rem}
-
-/* Stat cards row */
-.stat-cards{display:flex;gap:1rem;flex-wrap:wrap;margin:1rem 0}
-.stat-card{
-  flex:1;min-width:120px;background:#f7fafc;border:1px solid #e2e8f0;
-  border-radius:6px;padding:.75rem 1rem;text-align:center;
-}
-.stat-card .label{font-size:.75rem;color:#718096;text-transform:uppercase;letter-spacing:.5px}
-.stat-card .value{font-size:1.25rem;font-weight:700;margin-top:.15rem}
-
-/* Tables */
-table{width:100%;border-collapse:collapse;margin:.5rem 0 1rem}
-th,td{padding:.5rem .75rem;text-align:right;border-bottom:1px solid #e2e8f0;font-size:.875rem}
-th{font-weight:600;color:#4a5568;background:#f7fafc}
-th:first-child,td:first-child{text-align:left}
-tr.row-emphasis td{font-weight:700;background:#fffff0}
-tr.cvar-row td{border-top:2px solid #e2e8f0;color:#718096;font-style:italic}
-
-/* Confidence badge */
-.confidence-label{font-size:.8rem;font-weight:600;padding:.15rem .5rem;border-radius:4px}
-.confidence-label--high{background:#c6f6d5;color:#276749}
-.confidence-label--moderate{background:#fefcbf;color:#975a16}
-.confidence-label--low{background:#fed7d7;color:#9b2c2c}
-.confidence-label--very_low{background:#feb2b2;color:#742a2a}
-
-/* Patterns */
-.pattern-item{padding:.5rem 0;border-bottom:1px solid #edf2f7}
-.pattern-item:last-child{border-bottom:none}
-.pattern-type{font-weight:600}
-.pattern-step{color:#718096}
-.severity-warning{color:#d69e2e}
-.severity-danger{color:#e53e3e}
-.no-data{color:#38a169;padding:.75rem 0}
-
-/* Recommendation cards */
-.rec-card{
-  border-left:4px solid #e2e8f0;padding:1rem;margin:.75rem 0;
-  background:#f8fafc;border-radius:0 6px 6px 0;
-}
-.rec-card--model_swap{border-left-color:#319795}
-.rec-card--architecture{border-left-color:#3182ce}
-.rec-card--workflow{border-left-color:#805ad5}
-.type-badge{
-  display:inline-block;font-size:.7rem;font-weight:700;text-transform:uppercase;
-  letter-spacing:.5px;padding:.15rem .4rem;border-radius:3px;color:#fff;
-}
-.type-badge--model_swap{background:#319795}
-.type-badge--architecture{background:#3182ce}
-.type-badge--workflow{background:#805ad5}
-.top-label{
-  display:inline-block;font-size:.7rem;font-weight:700;text-transform:uppercase;
-  background:#ecc94b;color:#744210;padding:.1rem .4rem;border-radius:3px;margin-left:.4rem;
-}
-.rec-desc{color:#4a5568;margin:.4rem 0}
-.rec-meta{font-size:.85rem;color:#718096}
-.rec-savings{font-weight:700}
-.rec-savings--model_swap{color:#319795}
-.rec-savings--architecture{color:#3182ce}
-.rec-savings--workflow{color:#805ad5}
-
-/* Waterfall */
-.waterfall-wrap{overflow-x:auto}
-
-/* Raw data toggle */
-details{margin-top:1.5rem}
-details summary{cursor:pointer;font-weight:600;padding:.5rem 0;color:#4a5568}
-details pre{
-  background:#f7fafc;border:1px solid #e2e8f0;border-radius:6px;
-  padding:1rem;overflow-x:auto;font-size:.75rem;line-height:1.4;
-  max-height:400px;overflow-y:auto;
+:root {
+  --bg: #0F1117;
+  --bg2: #161920;
+  --bg3: #1E222A;
+  --fg: #E2E8F0;
+  --fg2: #A0AEC0;
+  --fg-dim: #4A5568;
+  --border: #2D3748;
+  --blue: #63B3ED;
+  --green: #68D391;
+  --amber: #F6AD55;
+  --red: #FC8181;
+  --purple: #B794F4;
+  --teal: #4FD1C5;
+  --cyan: #76E4F7;
+  --orange: #F6AD55;
 }
 
-/* Footer */
-footer{
-  margin-top:2rem;padding-top:1rem;border-top:1px solid #e2e8f0;
-  text-align:center;color:#a0aec0;font-size:.8rem;
-}
-footer a{color:#718096}
-.meta{margin-top:.25rem}
+*,*::before,*::after { box-sizing: border-box; }
 
-/* Responsive */
-@media(max-width:640px){
-  .container{padding:.75rem .5rem}
-  .stat-cards{flex-direction:column}
-  table{font-size:.8rem}
-  th,td{padding:.35rem .5rem}
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-weight: 400;
+  color: var(--fg);
+  background: var(--bg);
+  margin: 0;
+  padding: 0;
+  line-height: 1.7;
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.container {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem;
+}
+
+/* --- Animations --- */
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes score-ring-fill {
+  from { stroke-dashoffset: 502.65; }
+}
+
+@keyframes bar-grow {
+  from { transform: scaleX(0); }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* --- Header --- */
+h1 {
+  font-size: 1.5rem;
+  font-weight: 500;
+  margin: 0 0 0.15rem;
+  color: var(--fg);
+  letter-spacing: -0.01em;
+}
+
+.header-meta {
+  color: var(--fg-dim);
+  font-size: 0.8rem;
+  margin: 0 0 2rem;
+}
+
+/* --- Section labels (replacing colored h2s) --- */
+.section-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--fg-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 2.5rem 0 0.8rem;
+  animation: fade-in-up 0.4s ease-out both;
+}
+
+h2 { display: none; }
+
+h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0.3rem 0;
+  color: var(--fg);
+}
+
+p { color: var(--fg2); }
+strong { color: var(--fg); }
+
+/* --- Hero Section --- */
+.hero-section {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 2rem 2rem;
+  margin-bottom: 2rem;
+  animation: fade-in-up 0.5s ease-out both;
+  width: 100%;
+  overflow: hidden;
+}
+
+.score-hero {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2rem;
+}
+
+.score-ring-left {
+  flex-shrink: 0;
+  text-align: center;
+  position: relative;
+}
+
+/* Score ring glow */
+.score-ring-left::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -55%);
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  filter: blur(16px);
+  opacity: 0.25;
+  animation: glow-pulse 4s ease-in-out infinite;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Glow colors by score zone */
+.score-ring-left.glow-green::before { background: var(--green); }
+.score-ring-left.glow-amber::before { background: var(--amber); }
+.score-ring-left.glow-red::before { background: var(--red); }
+
+.score-ring-left .score-ring {
+  position: relative;
+  z-index: 1;
+}
+
+.score-ring text { fill: var(--fg) !important; }
+
+.score-ring-progress {
+  animation: score-ring-fill 1.2s ease-out both;
+}
+
+.zone-badge {
+  display: inline-block;
+  padding: 0.2rem 0.7rem;
+  border-radius: 9999px;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.75rem;
+  margin-top: 0.5rem;
+  position: relative;
+  z-index: 1;
+}
+
+.scope-note { display: none; }
+
+.hero-metrics {
+  flex: 1;
+  min-width: 200px;
+  overflow: hidden;
+}
+
+.hero-projected-cost {
+  font-size: 0.68rem;
+  font-weight: 400;
+  color: var(--fg-dim);
+  margin-bottom: 0.4rem;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.hero-projected-cost strong {
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: var(--blue);
+  display: inline;
+  margin-left: 0.3rem;
+  letter-spacing: -0.03em;
+}
+
+.hero-summary {
+  color: var(--fg-dim);
+  font-size: 0.82rem;
+  font-style: italic;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  line-height: 1.5;
+}
+
+.hero-savings {
+  font-size: 2.2rem;
+  font-weight: 500;
+  color: var(--teal);
+  line-height: 1.15;
+  margin-bottom: 0.1rem;
+  letter-spacing: -0.03em;
+}
+
+.hero-savings-label {
+  font-size: 0.68rem;
+  color: var(--fg-dim);
+  font-weight: 400;
+  margin-bottom: 0.8rem;
+  letter-spacing: 0.02em;
+}
+
+.hero-waste {
+  font-size: 1.75rem;
+  font-weight: 500;
+  color: var(--amber);
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+}
+
+.hero-waste-label {
+  font-size: 0.68rem;
+  color: var(--fg-dim);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+.hero-clean {
+  color: var(--fg-dim);
+  font-size: 0.9rem;
+  margin-top: 0.25rem;
+}
+
+/* --- Tables --- */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0 1rem;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.9rem;
+}
+
+th, td {
+  padding: 0.6rem 0.9rem;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+}
+
+th {
+  font-weight: 600;
+  color: var(--fg-dim);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--bg3);
+}
+
+th:first-child, td:first-child {
+  text-align: left;
+}
+
+td {
+  color: var(--fg2);
+  font-size: 0.95rem;
+}
+
+tr:last-child td {
+  border-bottom: none;
+}
+
+tr.row-emphasis td {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--fg);
+  background: rgba(99,179,237,0.06);
+}
+
+tr.cvar-row td {
+  border-top: 2px solid var(--border);
+  color: var(--amber);
+  font-style: italic;
+  font-size: 0.88rem;
+}
+
+/* --- Confidence Badge --- */
+.confidence-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+  display: inline-block;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.confidence-label--high { background: rgba(104,211,145,0.15); color: var(--green); }
+.confidence-label--moderate { background: rgba(246,173,85,0.15); color: var(--amber); }
+.confidence-label--low { background: rgba(252,129,129,0.15); color: var(--red); }
+.confidence-label--very_low { background: rgba(252,129,129,0.15); color: var(--red); }
+
+/* --- Patterns --- */
+.pattern-item {
+  padding: 0.85rem 1.2rem;
+  margin-bottom: 0.5rem;
+  border-radius: 8px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--amber);
+  animation: fade-in-up 0.4s ease-out both;
+}
+
+.pattern-item:last-child { margin-bottom: 0; }
+
+.severity-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 0.4rem;
+  vertical-align: middle;
+}
+
+.severity-dot--warning { background-color: var(--amber); box-shadow: 0 0 6px var(--amber); }
+.severity-dot--danger { background-color: var(--red); box-shadow: 0 0 6px var(--red); }
+
+.pattern-type { font-weight: 600; color: var(--fg); }
+.pattern-step { color: var(--fg-dim); }
+
+.pattern-description {
+  margin-top: 0.3rem;
+  color: var(--fg2);
+  font-size: 0.88rem;
+}
+
+.no-patterns {
+  color: var(--green);
+  padding: 1rem 1.2rem;
+  background: rgba(104,211,145,0.06);
+  border-left: 4px solid var(--green);
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.no-data {
+  color: var(--green);
+  padding: 0.75rem 0;
+}
+
+/* --- Recommendation Cards --- */
+.rec-card {
+  border-left: 4px solid var(--border);
+  padding: 1.25rem 1.5rem;
+  margin: 0.85rem 0;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  animation: fade-in-up 0.4s ease-out both;
+  transition: background 0.2s ease;
+}
+
+.rec-card--model_swap { border-left: 4px solid var(--teal); background: rgba(79,209,197,0.04); }
+.rec-card--architecture { border-left: 4px solid var(--blue); background: rgba(99,179,237,0.04); }
+.rec-card--workflow { border-left: 4px solid var(--purple); background: rgba(183,148,244,0.04); }
+
+.rec-card:hover { background: var(--bg3); }
+
+.type-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+}
+
+.type-badge--model_swap { background: rgba(79,209,197,0.15); color: var(--teal); }
+.type-badge--architecture { background: rgba(99,179,237,0.15); color: var(--blue); }
+.type-badge--workflow { background: rgba(183,148,244,0.15); color: var(--purple); }
+
+.top-label {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: var(--amber);
+  color: var(--bg);
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  margin-left: 0.4rem;
+  letter-spacing: 0.03em;
+}
+
+.rec-savings-hero {
+  font-size: 1.75rem;
+  font-weight: 500;
+  margin: 0.6rem 0 0.25rem;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+}
+
+.rec-savings-hero--model_swap { color: var(--teal); }
+.rec-savings-hero--architecture { color: var(--blue); }
+.rec-savings-hero--workflow { color: var(--purple); }
+
+.rec-desc {
+  color: var(--fg2);
+  margin: 0.35rem 0;
+  font-size: 0.88rem;
+}
+
+.rec-meta {
+  font-size: 0.78rem;
+  color: var(--fg-dim);
+  margin-top: 0.3rem;
+}
+
+/* --- Waterfall --- */
+.waterfall-wrap {
+  overflow-x: auto;
+  animation: fade-in-up 0.4s ease-out both;
+}
+
+.waterfall-bar {
+  animation: bar-grow 0.6s ease-out both;
+  transform-origin: left center;
+}
+
+svg { max-width: 100%; height: auto; }
+
+/* Override waterfall SVG text for dark bg */
+.waterfall-wrap text { fill: var(--fg2) !important; }
+
+/* --- Raw Data Toggle --- */
+details { margin-top: 2.5rem; }
+
+details summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.82rem;
+  padding: 0.55rem 1rem;
+  color: var(--fg-dim);
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+details[open] summary {
+  border-radius: 8px 8px 0 0;
+  border-bottom: none;
+}
+
+details summary::-webkit-details-marker { display: none; }
+
+details summary::before {
+  content: "";
+  display: inline-block;
+  width: 0; height: 0;
+  border-left: 5px solid var(--fg-dim);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform 0.2s ease;
+}
+
+details[open] summary::before { transform: rotate(90deg); }
+
+details pre {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  padding: 1rem 1.2rem;
+  overflow-x: auto;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  max-height: 400px;
+  overflow-y: auto;
+  margin: 0;
+}
+
+details pre code {
+  color: var(--green);
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+  font-size: 0.75rem;
+  background: none;
+  padding: 0;
+}
+
+/* --- Footer --- */
+footer {
+  margin-top: 3rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  color: var(--fg-dim);
+  font-size: 0.78rem;
+}
+
+footer a { color: var(--fg-dim); text-decoration: none; }
+footer a:hover { color: var(--fg2); }
+.footer-brand { margin: 0 0 0.15rem; }
+.footer-meta { margin: 0; }
+
+/* --- Responsive --- */
+@media (max-width: 640px) {
+  .container { padding: 1rem 0.75rem; }
+  .hero-section { padding: 1.25rem 1rem; }
+  .score-hero { flex-direction: column; text-align: center; }
+  .hero-metrics { text-align: center; min-width: 0; }
+  .hero-projected-cost { white-space: normal; }
+  .hero-savings { font-size: 1.75rem; }
+  .hero-waste { font-size: 1.35rem; }
+  table { display: block; overflow-x: auto; font-size: 0.78rem; }
+  th, td { padding: 0.4rem 0.5rem; }
+  .rec-savings-hero { font-size: 1.35rem; }
 }
 </style>
 </head>
@@ -116,81 +548,63 @@ footer a{color:#718096}
 <div class="container">
 
   <!-- Header -->
-  <h1>Pretia Report</h1>
-  <p class="subtitle">
-    Workflow: <strong>{{ workflow_name }}</strong>
-    &nbsp;|&nbsp; {{ total_runs }} run{{ "s" if total_runs != 1 else "" }}
-    {%- if total_steps %}, {{ total_steps }} step{{ "s" if total_steps != 1 else "" }}{% endif %}
-    &nbsp;|&nbsp; {{ profiled_at_display }}
+  <h1>{{ workflow_name | replace('/tmp/pretia-launch-test/', '') }}</h1>
+  <p class="header-meta">
+    {{ total_runs }} run{{ "s" if total_runs != 1 else "" }}
+    {%- if total_steps %} &middot; {{ total_steps }} step{{ "s" if total_steps != 1 else "" }}{% endif %}
+    &middot; {{ profiled_at_display }}
+    {%- if framework %} &middot; {{ framework }}{% endif %}
   </p>
 
-  <!-- Score Ring Hero -->
+  <!-- Score Ring + Hero Section -->
   {% if score %}
-  <div class="score-hero">
-    {{ score_ring_svg | safe }}
-    <div>
-      <span class="zone-badge" style="background:{{ score.zone_color }}">
-        {{ score.zone_label }}
-      </span>
+  <div class="hero-section">
+    <div class="score-hero">
+      <div class="score-ring-left {% if score.score > 70 %}glow-green{% elif score.score > 40 %}glow-amber{% else %}glow-red{% endif %}">
+        {{ score_ring_svg | safe }}
+        <div>
+          <span class="zone-badge" style="background:{{ score.zone_color }}">
+            {{ score.zone_label }}
+          </span>
+        </div>
+      </div>
+      <div class="hero-metrics">
+        {% if score.total_savings > 0 %}
+        <div class="hero-savings">{{ score.total_savings | format_cost }}</div>
+        <div class="hero-savings-label">Recoverable savings</div>
+        <div class="hero-waste">{{ "%.0f" | format(score.waste_pct * 100) }}%</div>
+        <div class="hero-waste-label">Waste</div>
+        {% else %}
+        <div class="hero-clean">&#10003; No waste detected</div>
+        {% endif %}
+        {% if hero_projected_cost %}
+        <div class="hero-projected-cost" style="margin-top:0.8rem">
+          Projected monthly cost <strong>{{ hero_projected_cost }}</strong>
+        </div>
+        {% endif %}
+      </div>
     </div>
     {% if score.score <= 70 and score.scope_note %}
-    <div class="scope-note">{{ score.scope_note }}</div>
+    <div class="hero-summary">{{ score.scope_note }}</div>
     {% endif %}
-  </div>
-
-  <!-- Score summary cards -->
-  <div class="stat-cards">
-    <div class="stat-card">
-      <div class="label">Recoverable Savings</div>
-      <div class="value">{{ score.total_savings | format_cost }}</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Waste</div>
-      <div class="value">{{ "%.0f" | format(score.waste_pct * 100) }}%</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Recommendations</div>
-      <div class="value">{{ score.recommendation_count }}</div>
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- Cost Per Run -->
-  {% if cost_per_run %}
-  <h2>Cost Per Run</h2>
-  <div class="stat-cards">
-    <div class="stat-card">
-      <div class="label">Median (p50)</div>
-      <div class="value">{{ cost_per_run.p50 | format_cost }}</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Mean</div>
-      <div class="value">{{ cost_per_run.mean | format_cost }}</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">p95</div>
-      <div class="value">{{ cost_per_run.p95 | format_cost }}</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">p99</div>
-      <div class="value">{{ cost_per_run.p99 | format_cost }}</div>
-    </div>
   </div>
   {% endif %}
 
   <!-- Projection Table -->
   {% if projection_rows %}
-  <h2>Monthly Cost Projection</h2>
+  <div class="section-label">Monthly Cost Projection</div>
   {% if confidence %}
-  <p>
-    Method: <strong>{{ projection_method }}</strong>
-    &nbsp;|&nbsp; Confidence:
+  <p style="font-size:0.82rem;color:var(--fg-dim);margin:0 0 0.5rem">
+    {{ projection_method }}
+    &middot;
     <span class="confidence-label confidence-label--{{ confidence.tier | lower }}">
       {{ confidence.tier }}
     </span>
   </p>
   {% endif %}
   <div style="overflow-x:auto">
+  {%- set percentiles = projection_display_pcts | default(["p50", "p90", "p95", "p99"]) -%}
+  {%- set pct_labels = projection_labels | default({"p50": "Expected", "p90": "Likely high", "p95": "Bad month", "p99": "Worst case"}) -%}
   <table>
     <thead>
       <tr>
@@ -201,17 +615,37 @@ footer a{color:#718096}
       </tr>
     </thead>
     <tbody>
-      {% for pct in ["p50", "p75", "p90", "p95", "p99"] %}
+      {%- set ns = namespace(global_max=0) -%}
+      {%- for vol in traffic_volumes -%}
+        {%- for pct in percentiles -%}
+          {%- set val = projection_rows[vol][pct] -%}
+          {%- if val > ns.global_max -%}
+            {%- set ns = namespace(global_max=val) -%}
+          {%- endif -%}
+        {%- endfor -%}
+      {%- endfor -%}
+      {% for pct in percentiles %}
       <tr{% if pct == "p50" %} class="row-emphasis"{% endif %}>
-        <td>{{ pct }}</td>
+        <td>{{ pct_labels[pct] | default(pct) }}</td>
         {% for vol in traffic_volumes %}
-        <td>{{ projection_rows[vol][pct] | format_cost }}</td>
+        {%- set val = projection_rows[vol][pct] -%}
+        {%- set heat = (val / ns.global_max) if ns.global_max > 0 else 0 -%}
+        {%- if heat < 0.3 -%}
+          {%- set heat_bg = "transparent" -%}
+        {%- elif heat < 0.6 -%}
+          {%- set heat_bg = "rgba(246,173,85," ~ "%.2f" | format((heat - 0.3) * 0.25) ~ ")" -%}
+        {%- else -%}
+          {%- set heat_bg = "rgba(252,129,129," ~ "%.2f" | format((heat - 0.3) * 0.18) ~ ")" -%}
+        {%- endif -%}
+        <td style="{% if heat_bg != 'transparent' %}background:{{ heat_bg }};{% endif %}{% if heat > 0.8 %}color:var(--red);font-weight:700{% endif %}">
+          {{ val | format_cost }}
+        </td>
         {% endfor %}
       </tr>
       {% endfor %}
       {% if has_cvar %}
       <tr class="cvar-row">
-        <td>CVaR (p95)</td>
+        <td>Tail risk (avg above p95)</td>
         {% for vol in traffic_volumes %}
         <td>{{ cvar_values[vol] | format_cost }}</td>
         {% endfor %}
@@ -220,73 +654,67 @@ footer a{color:#718096}
     </tbody>
   </table>
   </div>
-  {% if has_cvar %}
-  <p style="font-size:.8rem;color:#718096;font-style:italic">
-    CVaR (p95): When monthly cost exceeds p95, expect this amount on average.
-  </p>
-  {% endif %}
   {% endif %}
 
   <!-- Cost Waterfall Chart -->
-  {% if steps %}
-  <h2>Cost Breakdown by Step</h2>
+  {% if steps and steps | length > 1 %}
+  <div class="section-label">Where does the money go?</div>
   <div class="waterfall-wrap">
     {{ waterfall_svg | safe }}
   </div>
   {% endif %}
 
   <!-- Patterns -->
-  <h2>Detected Patterns</h2>
+  <div class="section-label">Detected Patterns</div>
   {% if has_patterns %}
   {% for p in patterns %}
-  <div class="pattern-item">
-    <span class="severity-{{ p.severity | default('warning') }}">
-      {% if p.severity == "danger" %}&#x1f534;{% else %}&#x1f7e1;{% endif %}
-    </span>
+  <div class="pattern-item" style="{% if p.severity == 'danger' %}border-left-color:var(--red){% endif %}">
+    <span class="severity-dot severity-dot--{{ p.severity | default('warning') }}"></span>
     <span class="pattern-type">{{ p.pattern_type | default("unknown") | replace("_", " ") | title }}</span>
-    <span class="pattern-step">&mdash; Step &lsquo;{{ p.step_name }}&rsquo;</span>
-    <div style="margin-left:1.5rem;color:#4a5568">{{ p.description }}</div>
+    <span class="pattern-step">&middot; {{ p.step_name }}</span>
+    <div class="pattern-description">{{ p.description }}</div>
   </div>
   {% endfor %}
   {% else %}
-  <p class="no-data">No non-linear cost patterns detected. Linear projection is reliable.</p>
+  <p class="no-patterns">&#10003; No cost risks detected &middot; projections are stable and reliable.</p>
   {% endif %}
 
   <!-- Recommendations -->
-  <h2>Recommendations</h2>
   {% if has_recommendations %}
+  <div class="section-label">Recommendations</div>
   {% for rec in recommendations %}
   <div class="rec-card rec-card--{{ rec.type }}">
     <span class="type-badge type-badge--{{ rec.type }}">{{ rec.type | replace("_", " ") }}</span>
     {% if loop.first %}<span class="top-label">Top Recommendation</span>{% endif %}
+    <div class="rec-savings-hero rec-savings-hero--{{ rec.type }}">{{ rec.monthly_savings | format_cost }}/mo</div>
     <h3>{{ rec.title }}</h3>
     <p class="rec-desc">{{ rec.description }}</p>
     <div class="rec-meta">
-      Saves <span class="rec-savings rec-savings--{{ rec.type }}">{{ rec.monthly_savings | format_cost }}</span>/month
-      &nbsp;|&nbsp; Confidence:
+      Confidence:
       <span class="confidence-label confidence-label--{{ rec.confidence | lower }}">{{ rec.confidence }}</span>
     </div>
   </div>
   {% endfor %}
-  {% else %}
-  <p class="no-data">No recommendations &mdash; your workflow is already well optimized.</p>
+  {% elif score %}
+  <div class="section-label">Recommendations</div>
+  <p class="no-data">No recommendations &middot; your workflow is already well optimized.</p>
   {% endif %}
 
   <!-- Raw Data Toggle -->
   <details>
-    <summary>Raw profile data (JSON)</summary>
+    <summary>Raw profile data</summary>
     <pre><code>{{ raw_json }}</code></pre>
   </details>
 
   <!-- Footer -->
   <footer>
-    <p>Profiled with <a href="https://github.com/pretia-ai/pretia">Pretia</a></p>
-    <p class="meta">
+    <p class="footer-brand">Profiled with <a href="https://github.com/pretia-ai/pretia">Pretia</a></p>
+    <p class="footer-meta">
       {{ total_runs }} run{{ "s" if total_runs != 1 else "" }}
-      {%- if profiling_cost %} | Cost: {{ profiling_cost | format_cost }}{% endif %}
-      {%- if framework %} | Framework: {{ framework }}{% endif %}
-      | {{ profiled_at_display }}
-      {%- if pretia_version %} | v{{ pretia_version }}{% endif %}
+      {%- if profiling_cost %} &middot; {{ profiling_cost | format_cost }}{% endif %}
+      {%- if framework %} &middot; {{ framework }}{% endif %}
+      &middot; {{ profiled_at_display }}
+      {%- if pretia_version %} &middot; v{{ pretia_version }}{% endif %}
     </p>
   </footer>
 

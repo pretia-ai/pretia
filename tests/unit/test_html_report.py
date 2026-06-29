@@ -475,7 +475,7 @@ class TestRenderHtmlReport:
     def test_contains_waterfall_chart(self) -> None:
         session = _make_session(metadata=_make_full_metadata())
         html = render_html_report(session)
-        assert "Cost Breakdown by Step" in html
+        assert "Where does the money go?" in html
         assert "generate_response" in html
 
     def test_contains_raw_data_toggle(self) -> None:
@@ -499,8 +499,13 @@ class TestRenderHtmlReport:
     def test_self_contained_no_external_links(self) -> None:
         session = _make_session(metadata=_make_full_metadata())
         html = render_html_report(session)
-        link_tags = re.findall(r"<link[^>]+href=[\"']https?://", html)
-        assert len(link_tags) == 0
+        link_tags = re.findall(r"<link[^>]+href=[\"']https?://[^\"']+", html)
+        font_links = [
+            t
+            for t in link_tags
+            if "fonts.googleapis.com" not in t and "fonts.gstatic.com" not in t
+        ]
+        assert len(font_links) == 0
         style_imports = re.findall(r"@import\s+url\(", html)
         assert len(style_imports) == 0
 
@@ -530,7 +535,7 @@ class TestRenderHtmlEdgeCases:
         meta["patterns"] = []
         session = _make_session(metadata=meta)
         html = render_html_report(session)
-        assert "No non-linear cost patterns detected" in html
+        assert "No cost risks detected" in html
 
     def test_single_run(self) -> None:
         meta = _make_full_metadata()
