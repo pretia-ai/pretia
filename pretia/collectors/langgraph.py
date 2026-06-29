@@ -64,11 +64,38 @@ class PretiaCallbackHandler(BaseCallbackHandler):
         self.records: list[StepRecord] = []
         self._inflight: dict[UUID, dict[str, Any]] = {}
         self._step_iterations: dict[str, int] = {}
+        self._active_chains: dict[UUID, str] = {}
 
     def _next_iteration(self, step_name: str) -> int:
         count = self._step_iterations.get(step_name, 0) + 1
         self._step_iterations[step_name] = count
         return count
+
+    def on_chain_start(
+        self,
+        serialized: dict[str, Any],
+        inputs: dict[str, Any],
+        *,
+        run_id: UUID,
+        parent_run_id: UUID | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        name = serialized.get("name") or (
+            serialized.get("id", [""])[-1] if serialized.get("id") else None
+        )
+        if name:
+            self._active_chains[run_id] = name
+
+    def on_chain_end(
+        self,
+        outputs: dict[str, Any],
+        *,
+        run_id: UUID,
+        **kwargs: Any,
+    ) -> None:
+        self._active_chains.pop(run_id, None)
 
     def on_chat_model_start(
         self,
@@ -87,12 +114,15 @@ class PretiaCallbackHandler(BaseCallbackHandler):
                 or "unknown"
             )
 
-            step_name = (
+            llm_class_name = (
                 serialized.get("name")
                 or kwargs.get("name")
                 or (serialized.get("id", [""])[-1] if serialized.get("id") else None)
                 or "llm_call"
             )
+            step_name = (
+                self._active_chains.get(parent_run_id) if parent_run_id else None
+            ) or llm_class_name
 
             flat_messages = [m for batch in messages for m in batch]
 

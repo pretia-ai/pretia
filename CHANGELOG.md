@@ -3,7 +3,20 @@
 ## 1.0.5 (2026-06-29)
 
 - Fix: `pretia.inputs` subpackage was missing from the published wheel (v1.0.0-1.0.4 broken on PyPI)
+- Fix: LangGraph compiled graphs no longer wrapped in async shim, fixing auto-detection of `LangGraphCollector`
+- Fix: profiling now errors with a clear message when 0 steps are captured instead of reporting a perfect 100/100 score
+- Fix: `--auto-generate 0` now rejected by Click validation instead of hanging
+- Fix: `list_sessions()` excludes `baseline.json` so `pretia report latest` doesn't crash on baseline files
+- Fix: `--input` can now be passed multiple times for multiple runs
+- Fix: Langfuse no longer auto-selected when env vars happen to be set; requires explicit `--from-langfuse`
+- Fix: Langfuse profiles now include `pretia_version` and `framework` metadata
+- Fix: tool steps with empty model names no longer produce noisy "Unknown model" warnings
 - Fix: LICENSE references updated from "AgentCost" to "Pretia"
+- Fix: README corrected to say 50 default runs (was 20)
+- Add `pretia[langfuse]` optional dependency with friendly error when langfuse is missing
+- Add `pretia/__main__.py` for `python -m pretia` support
+- Add pricing staleness warning when model pricing data is >30 days old
+- Add `anthropic` and `openai` framework detection in `pretia estimate`
 - Exclude unimplemented stub modules from the wheel (`pretia/ui/`, graph stubs, `report/graph.py`)
 
 ## 1.0.4 (2026-06-29)

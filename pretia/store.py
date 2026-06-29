@@ -136,7 +136,7 @@ class ProfileStore:
         if not self.storage_dir.exists():
             return []
         if workflow_name is None:
-            files = list(self.storage_dir.glob("*.json"))
+            files = [f for f in self.storage_dir.glob("*.json") if f.name != "baseline.json"]
         else:
             files = list(self.storage_dir.glob(f"{self._safe_name(workflow_name)}_*.json"))
         files.sort(key=lambda p: p.stat().st_mtime, reverse=True)

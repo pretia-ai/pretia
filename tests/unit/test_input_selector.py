@@ -96,10 +96,16 @@ class TestAutoGenerate:
 
 
 class TestAutoDetect:
-    def test_langfuse_credentials(self, monkeypatch):
+    def test_langfuse_credentials_no_auto_detect(self, monkeypatch):
         monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-test")
         monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-test")
         sel = select_input_mode()
+        assert sel.mode != "langfuse"
+
+    def test_langfuse_explicit_flag(self, monkeypatch):
+        monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-test")
+        monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-test")
+        sel = select_input_mode(from_langfuse=True)
         assert sel.mode == "langfuse"
 
     def test_api_key_with_prompt(self, monkeypatch):

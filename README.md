@@ -26,7 +26,7 @@ pretia estimate my_agent.py
 pretia profile run my_agent.py
 ```
 
-No config files, no JSONL datasets, no setup. Pretia reads your workflow, generates diverse synthetic inputs, runs 20 profiling runs, detects patterns, and opens an HTML report with projections and recommendations.
+No config files, no JSONL datasets, no setup. Pretia reads your workflow, generates diverse synthetic inputs, runs 50 profiling runs, detects patterns, and opens an HTML report with projections and recommendations.
 
 <!-- Report screenshot: add after rendering -->
 
@@ -107,7 +107,7 @@ The PR comment shows the optimization score, projected monthly cost, cost delta 
 
 ```bash
 pretia estimate workflow.py             # Instant cost estimate (no execution)
-pretia profile run workflow.py          # Full profiling (default: --auto-generate 20)
+pretia profile run workflow.py          # Full profiling (default: --auto-generate 50)
 pretia report profile.json              # Generate HTML report from saved profile
 pretia recommend profile.json           # Generate optimization recommendations
 pretia analyze --from-langfuse          # Analyze Langfuse traces (no execution)

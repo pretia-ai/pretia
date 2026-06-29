@@ -46,6 +46,9 @@ openai = [
 qwen = [
     "qwen-agent>=0.0.30",
 ]
+langfuse = [
+    "langfuse>=2.0",
+]
 ui = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.34.0",

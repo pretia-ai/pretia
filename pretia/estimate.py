@@ -35,6 +35,8 @@ _FRAMEWORK_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"(?:from|import)\s+langgraph\b"), "langgraph"),
     (re.compile(r"(?:from|import)\s+(?:agents|openai\.agents)\b"), "openai-agents"),
     (re.compile(r"(?:from|import)\s+qwen_agent\b"), "qwen-agent"),
+    (re.compile(r"(?:from|import)\s+anthropic\b"), "anthropic"),
+    (re.compile(r"(?:from|import)\s+openai\b"), "openai"),
 ]
 
 

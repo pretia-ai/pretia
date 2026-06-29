@@ -42,7 +42,7 @@ def profile() -> None:
 )
 @click.option(
     "--auto-generate",
-    type=int,
+    type=click.IntRange(min=1),
     default=None,
     help="Generate N synthetic test inputs. Default if no other input mode: 50.",
 )
@@ -50,8 +50,8 @@ def profile() -> None:
     "--input",
     "single_input",
     type=str,
-    default=None,
-    help="Single test input string.",
+    multiple=True,
+    help="Test input string. Can be passed multiple times for multiple runs.",
 )
 @click.option(
     "--inputs",
@@ -128,7 +128,7 @@ def run(
     collector: str,
     entry_point: str | None,
     auto_generate: int | None,
-    single_input: str | None,
+    single_input: tuple[str, ...],
     inputs_file: str | None,
     from_langfuse: bool,
     langfuse_last_n: int,
@@ -144,6 +144,13 @@ def run(
     """Profile a workflow and generate a cost report."""
     log_level = logging.DEBUG if verbose else logging.WARNING
     logging.basicConfig(level=log_level, format="%(message)s")
+
+    from pretia.pricing.tables import check_pricing_staleness
+
+    staleness_warning = check_pricing_staleness()
+    if staleness_warning:
+        console.print(f"[yellow]Warning:[/yellow] {staleness_warning}")
+        console.print()
 
     if from_langfuse:
         if not os.environ.get("LANGFUSE_SECRET_KEY") or not os.environ.get("LANGFUSE_PUBLIC_KEY"):
@@ -218,12 +225,21 @@ def run(
                 pass
         progress.update(task_id, advance=1, cost=f"${accumulated_cost:.4f}")
 
+    resolved_single: str | None = None
+    explicit_inputs: list[str] | None = None
+    if single_input:
+        if len(single_input) == 1:
+            resolved_single = single_input[0]
+        else:
+            explicit_inputs = list(single_input)
+
     runner = ProfileRunner(
         workflow_path=workflow_path,
         collector=collector,
         auto_generate=auto_generate,
-        single_input=single_input,
+        single_input=resolved_single,
         inputs_file=inputs_file,
+        explicit_inputs=explicit_inputs,
         from_langfuse=from_langfuse,
         langfuse_last_n=langfuse_last_n,
         output_dir=output_dir,
@@ -453,6 +469,15 @@ def analyze_cmd(
         sys.exit(1)
 
     try:
+        import langfuse  # noqa: F401
+    except ImportError:
+        console.print(
+            "[red]Error:[/red] langfuse is not installed. "
+            "Install it with: pip install pretia[langfuse]",
+        )
+        sys.exit(1)
+
+    try:
         from pretia.ci.report import format_cli_report
         from pretia.inputs.importer import (
             create_langfuse_client,
@@ -492,6 +517,8 @@ def analyze_cmd(
         from datetime import UTC, datetime
 
         workflow_name = traces[0].name or "langfuse-import"
+        from pretia import __version__
+
         session = ProfilingSession(
             workflow_name=workflow_name,
             workflow_hash="langfuse",
@@ -507,6 +534,8 @@ def analyze_cmd(
                 "langfuse_trace_count": len(traces),
                 "langfuse_trace_ids": [t.trace_id for t in traces],
             },
+            framework="langfuse",
+            pretia_version=__version__,
         )
 
         store = ProfileStore(storage_dir=Path(output_dir))

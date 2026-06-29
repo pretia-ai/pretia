@@ -46,9 +46,7 @@ def read_inputs_file(path: str) -> list[str]:
             try:
                 parsed = json.loads(stripped)
             except json.JSONDecodeError as exc:
-                raise ValueError(
-                    f"Invalid JSON on line {line_num} of {path}: {exc.msg}"
-                ) from exc
+                raise ValueError(f"Invalid JSON on line {line_num} of {path}: {exc.msg}") from exc
             if isinstance(parsed, str):
                 inputs.append(parsed)
             else:
@@ -119,16 +117,6 @@ def select_input_mode(
 
 
 def _auto_detect(system_prompt: str | None) -> InputSelection:
-    has_langfuse = bool(
-        os.environ.get("LANGFUSE_PUBLIC_KEY") and os.environ.get("LANGFUSE_SECRET_KEY")
-    )
-    if has_langfuse:
-        return InputSelection(
-            mode="langfuse",
-            inputs=[],
-            message=("Langfuse credentials detected. Suggesting trace import for best accuracy."),
-        )
-
     has_api_key = bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("OPENAI_API_KEY"))
     if system_prompt or has_api_key:
         return InputSelection(

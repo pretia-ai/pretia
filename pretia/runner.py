@@ -172,14 +172,17 @@ def _build_cost_summary(
     for run in runs:
         run_cost = 0.0
         for rec in run:
-            try:
-                cost = calculate_cost(
-                    rec.model,
-                    rec.input_tokens,
-                    rec.output_tokens,
-                )
-            except ValueError:
+            if not rec.model or rec.step_type == "tool":
                 cost = 0.0
+            else:
+                try:
+                    cost = calculate_cost(
+                        rec.model,
+                        rec.input_tokens,
+                        rec.output_tokens,
+                    )
+                except ValueError:
+                    cost = 0.0
 
             entry = {
                 "cost": cost,
@@ -261,6 +264,7 @@ class ProfileRunner:
         auto_generate: int | None = None,
         single_input: str | None = None,
         inputs_file: str | None = None,
+        explicit_inputs: list[str] | None = None,
         from_langfuse: bool = False,
         langfuse_last_n: int = 10,
         output_dir: str = ".pretia",
@@ -275,6 +279,7 @@ class ProfileRunner:
         self.auto_generate = auto_generate
         self.single_input = single_input
         self.inputs_file = inputs_file
+        self.explicit_inputs = explicit_inputs
         self.from_langfuse = from_langfuse
         self.langfuse_last_n = langfuse_last_n
         self.output_dir = output_dir
@@ -296,15 +301,6 @@ class ProfileRunner:
                 f"Available candidates: {candidates}. "
                 f"Use --entry-point <name> to specify which object to profile."
             )
-        if callable(workflow) and not asyncio.iscoroutinefunction(workflow):
-            if not hasattr(workflow, "ainvoke"):
-                sync_fn = workflow
-
-                async def _async_wrapper(inp: str) -> Any:
-                    return sync_fn(inp)
-
-                workflow = _async_wrapper
-                logger.info("Wrapped sync callable in async shim for profiling.")
         system_prompt = _extract_system_prompt(module)
         return workflow, system_prompt
 
@@ -370,6 +366,7 @@ class ProfileRunner:
         system_prompt: str,
     ) -> tuple[InputSelection, list[str]]:
         selection = select_input_mode(
+            explicit_inputs=self.explicit_inputs,
             single_input=self.single_input,
             inputs_file=self.inputs_file,
             auto_generate=self.auto_generate,
@@ -428,16 +425,43 @@ class ProfileRunner:
             "Static estimation is not yet implemented. Provide an API key for input generation."
         )
 
+    @staticmethod
+    def _maybe_wrap_sync(workflow: Any, collector: BaseCollector) -> Any:
+        """Wrap sync callables in an async shim, but only for GenericCollector."""
+        if not isinstance(collector, GenericCollector):
+            return workflow
+        if callable(workflow) and not asyncio.iscoroutinefunction(workflow):
+            if not hasattr(workflow, "ainvoke"):
+                sync_fn = workflow
+
+                async def _async_wrapper(inp: str) -> Any:
+                    return sync_fn(inp)
+
+                logger.info("Wrapped sync callable in async shim for profiling.")
+                return _async_wrapper
+        return workflow
+
     async def run(self) -> ProfilingSession:
         """Execute the full profiling pipeline."""
         workflow, system_prompt = self._load_workflow()
         collector = self._select_collector(workflow)
+        workflow = self._maybe_wrap_sync(workflow, collector)
         selection, inputs = await self._resolve_inputs(system_prompt)
         runs = await collector.collect(
             workflow,
             inputs,
             on_run_complete=self.progress_callback,
         )
+
+        total_steps = sum(len(run) for run in runs)
+        if total_steps == 0:
+            raise ValueError(
+                "Profiling captured 0 steps across all runs. No LLM calls were recorded. "
+                "Common causes: workflow returned response.content instead of the raw "
+                "response object, API key is invalid, or the wrong collector was "
+                "auto-selected. Try: --collector langgraph (for LangGraph workflows), "
+                "or return the raw LLM response object from your function."
+            )
 
         cost_summary = _build_cost_summary(runs)
 
