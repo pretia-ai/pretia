@@ -446,6 +446,56 @@ class TestChainNodeNameResolution:
 
         assert handler.records[0].step_name == "extract"
 
+    def test_none_serialized_does_not_crash(self):
+        handler = PretiaCallbackHandler()
+        node_id = uuid4()
+        internal_id = uuid4()
+        llm_id = uuid4()
+
+        handler.on_chain_start(None, {}, run_id=internal_id)
+        handler.on_chain_start({"name": "classifier"}, {}, run_id=node_id)
+        handler.on_chat_model_start(
+            _serialized(name="ChatOpenAI"),
+            [_USER_MSG],
+            run_id=llm_id,
+            parent_run_id=node_id,
+        )
+        handler.on_llm_end(
+            _make_response(llm_output=_USAGE_10_5),
+            run_id=llm_id,
+        )
+
+        assert handler.records[0].step_name == "classifier"
+
+    def test_real_langgraph_kwargs_name(self):
+        """LangGraph passes serialized=None and node name via kwargs['name']."""
+        handler = PretiaCallbackHandler()
+        graph_id = uuid4()
+        node_id = uuid4()
+        llm_id = uuid4()
+
+        handler.on_chain_start(None, {}, run_id=graph_id, name="LangGraph")
+        handler.on_chain_start(
+            None,
+            {},
+            run_id=node_id,
+            parent_run_id=graph_id,
+            name="classifier",
+            metadata={"langgraph_node": "classifier"},
+        )
+        handler.on_chat_model_start(
+            _serialized(name="ChatOpenAI"),
+            [_USER_MSG],
+            run_id=llm_id,
+            parent_run_id=node_id,
+        )
+        handler.on_llm_end(
+            _make_response(llm_output=_USAGE_10_5),
+            run_id=llm_id,
+        )
+
+        assert handler.records[0].step_name == "classifier"
+
     def test_no_chain_falls_back_to_llm_class(self):
         handler = PretiaCallbackHandler()
         llm_id = uuid4()

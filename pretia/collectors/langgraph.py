@@ -111,8 +111,12 @@ class PretiaCallbackHandler(BaseCallbackHandler):
         **kwargs: Any,
     ) -> None:
         self._parent_chain[run_id] = parent_run_id
-        name = serialized.get("name") or (
-            serialized.get("id", [""])[-1] if serialized.get("id") else None
+        serialized = serialized or {}
+        name = (
+            kwargs.get("name")
+            or (metadata or {}).get("langgraph_node")
+            or serialized.get("name")
+            or (serialized.get("id", [""])[-1] if serialized.get("id") else None)
         )
         if name and name not in _WRAPPER_NAMES:
             self._active_chains[run_id] = name
