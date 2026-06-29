@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.6 (2026-06-29)
+
+- Fix: LangGraph steps now labeled by graph node name (e.g. "classifier") instead of LLM class name ("ChatOpenAI")
+- Fix: model swap recommendations now fire for LangGraph workflows with classification nodes
+
 ## 1.0.5 (2026-06-29)
 
 - Fix: `pretia.inputs` subpackage was missing from the published wheel (v1.0.0-1.0.4 broken on PyPI)
