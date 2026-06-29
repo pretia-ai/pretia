@@ -138,7 +138,12 @@ def create_langfuse_client() -> Any:
             "See https://langfuse.com/docs/sdk/python"
         )
 
-    from langfuse.api.client import LangfuseAPI
+    try:
+        from langfuse.api.client import LangfuseAPI
+    except ImportError:
+        raise ImportError(
+            "langfuse is not installed. Install it with: pip install pretia[langfuse]"
+        ) from None
 
     return LangfuseAPI(
         base_url=host,

@@ -371,6 +371,146 @@ class TestCollect:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# BUG-3: Chain hierarchy → node name resolution
+# ---------------------------------------------------------------------------
+
+
+class TestChainNodeNameResolution:
+    def test_direct_parent_resolves_node_name(self):
+        handler = PretiaCallbackHandler()
+        node_id = uuid4()
+        llm_id = uuid4()
+
+        handler.on_chain_start({"name": "classifier"}, {}, run_id=node_id)
+        handler.on_chat_model_start(
+            _serialized(name="ChatOpenAI"),
+            [_USER_MSG],
+            run_id=llm_id,
+            parent_run_id=node_id,
+        )
+        handler.on_llm_end(
+            _make_response(llm_output=_USAGE_10_5),
+            run_id=llm_id,
+        )
+
+        assert handler.records[0].step_name == "classifier"
+
+    def test_intermediate_wrapper_skipped(self):
+        handler = PretiaCallbackHandler()
+        node_id = uuid4()
+        seq_id = uuid4()
+        llm_id = uuid4()
+
+        handler.on_chain_start({"name": "responder"}, {}, run_id=node_id)
+        handler.on_chain_start(
+            {"name": "RunnableSequence"}, {}, run_id=seq_id, parent_run_id=node_id
+        )
+        handler.on_chat_model_start(
+            _serialized(name="ChatOpenAI"),
+            [_USER_MSG],
+            run_id=llm_id,
+            parent_run_id=seq_id,
+        )
+        handler.on_llm_end(
+            _make_response(llm_output=_USAGE_10_5),
+            run_id=llm_id,
+        )
+
+        assert handler.records[0].step_name == "responder"
+
+    def test_deeply_nested_wrappers(self):
+        handler = PretiaCallbackHandler()
+        node_id = uuid4()
+        seq_id = uuid4()
+        bind_id = uuid4()
+        llm_id = uuid4()
+
+        handler.on_chain_start({"name": "extract"}, {}, run_id=node_id)
+        handler.on_chain_start(
+            {"name": "RunnableSequence"}, {}, run_id=seq_id, parent_run_id=node_id
+        )
+        handler.on_chain_start(
+            {"name": "RunnableBinding"}, {}, run_id=bind_id, parent_run_id=seq_id
+        )
+        handler.on_chat_model_start(
+            _serialized(name="ChatOpenAI"),
+            [_USER_MSG],
+            run_id=llm_id,
+            parent_run_id=bind_id,
+        )
+        handler.on_llm_end(
+            _make_response(llm_output=_USAGE_10_5),
+            run_id=llm_id,
+        )
+
+        assert handler.records[0].step_name == "extract"
+
+    def test_no_chain_falls_back_to_llm_class(self):
+        handler = PretiaCallbackHandler()
+        llm_id = uuid4()
+
+        handler.on_chat_model_start(
+            _serialized(name="ChatOpenAI"),
+            [_USER_MSG],
+            run_id=llm_id,
+        )
+        handler.on_llm_end(
+            _make_response(llm_output=_USAGE_10_5),
+            run_id=llm_id,
+        )
+
+        assert handler.records[0].step_name == "ChatOpenAI"
+
+    def test_chain_end_cleans_up(self):
+        handler = PretiaCallbackHandler()
+        node_id = uuid4()
+
+        handler.on_chain_start({"name": "classifier"}, {}, run_id=node_id)
+        assert node_id in handler._active_chains
+        assert node_id in handler._parent_chain
+
+        handler.on_chain_end({}, run_id=node_id)
+        assert node_id not in handler._active_chains
+        assert node_id not in handler._parent_chain
+
+    def test_two_nodes_get_distinct_names(self):
+        handler = PretiaCallbackHandler()
+        resp = _make_response(llm_output=_USAGE_10_5)
+
+        node1_id = uuid4()
+        llm1_id = uuid4()
+        handler.on_chain_start({"name": "classifier"}, {}, run_id=node1_id)
+        handler.on_chat_model_start(
+            _serialized(name="ChatOpenAI"),
+            [_USER_MSG],
+            run_id=llm1_id,
+            parent_run_id=node1_id,
+        )
+        handler.on_llm_end(resp, run_id=llm1_id)
+        handler.on_chain_end({}, run_id=node1_id)
+
+        node2_id = uuid4()
+        llm2_id = uuid4()
+        handler.on_chain_start({"name": "responder"}, {}, run_id=node2_id)
+        handler.on_chat_model_start(
+            _serialized(name="ChatOpenAI"),
+            [_USER_MSG],
+            run_id=llm2_id,
+            parent_run_id=node2_id,
+        )
+        handler.on_llm_end(resp, run_id=llm2_id)
+        handler.on_chain_end({}, run_id=node2_id)
+
+        assert handler.records[0].step_name == "classifier"
+        assert handler.records[1].step_name == "responder"
+
+
+# ---------------------------------------------------------------------------
+# Import guard
+# ---------------------------------------------------------------------------
+
+
 class TestImportGuard:
     def test_lazy_import_without_langchain(self):
         saved = {}

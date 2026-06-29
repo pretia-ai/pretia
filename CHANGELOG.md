@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.7 (2026-06-29)
+
+- Fix: LangGraph auto-detect now picks compiled graph (`app`) over builder (`graph`) when both exist
+- Fix: LangGraph steps now labeled by graph node name through intermediate RunnableSequence layers
+- Fix: model swap recommendations now fire for LangGraph workflows with classification nodes
+- Fix: `create_langfuse_client()` shows friendly install message instead of raw `ModuleNotFoundError`
+- Fix: tool steps no longer produce noisy "Unknown model ''" warnings in stats/projection
+
 ## 1.0.6 (2026-06-29)
 
 - Fix: LangGraph steps now labeled by graph node name (e.g. "classifier") instead of LLM class name ("ChatOpenAI")

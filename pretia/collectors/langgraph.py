@@ -26,6 +26,22 @@ logger = logging.getLogger(__name__)
 
 _EMPTY_HASH = hashlib.sha256(b"").hexdigest()
 
+_WRAPPER_NAMES = frozenset(
+    {
+        "RunnableSequence",
+        "RunnableParallel",
+        "RunnableBranch",
+        "RunnableMap",
+        "RunnableLambda",
+        "RunnableBinding",
+        "RunnableWithFallbacks",
+        "RunnablePassthrough",
+        "RunnableAssign",
+        "ChannelWrite",
+        "ChannelRead",
+    }
+)
+
 
 def _estimate_tokens(text: str) -> int:
     return len(text) // 4
@@ -65,11 +81,23 @@ class PretiaCallbackHandler(BaseCallbackHandler):
         self._inflight: dict[UUID, dict[str, Any]] = {}
         self._step_iterations: dict[str, int] = {}
         self._active_chains: dict[UUID, str] = {}
+        self._parent_chain: dict[UUID, UUID | None] = {}
 
     def _next_iteration(self, step_name: str) -> int:
         count = self._step_iterations.get(step_name, 0) + 1
         self._step_iterations[step_name] = count
         return count
+
+    def _find_node_name(self, run_id: UUID | None) -> str | None:
+        """Walk up the parent chain to find the nearest graph node name."""
+        seen: set[UUID] = set()
+        current = run_id
+        while current and current not in seen:
+            seen.add(current)
+            if current in self._active_chains:
+                return self._active_chains[current]
+            current = self._parent_chain.get(current)
+        return None
 
     def on_chain_start(
         self,
@@ -82,10 +110,11 @@ class PretiaCallbackHandler(BaseCallbackHandler):
         metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
+        self._parent_chain[run_id] = parent_run_id
         name = serialized.get("name") or (
             serialized.get("id", [""])[-1] if serialized.get("id") else None
         )
-        if name:
+        if name and name not in _WRAPPER_NAMES:
             self._active_chains[run_id] = name
 
     def on_chain_end(
@@ -95,6 +124,7 @@ class PretiaCallbackHandler(BaseCallbackHandler):
         run_id: UUID,
         **kwargs: Any,
     ) -> None:
+        self._parent_chain.pop(run_id, None)
         self._active_chains.pop(run_id, None)
 
     def on_chat_model_start(
@@ -120,9 +150,7 @@ class PretiaCallbackHandler(BaseCallbackHandler):
                 or (serialized.get("id", [""])[-1] if serialized.get("id") else None)
                 or "llm_call"
             )
-            step_name = (
-                self._active_chains.get(parent_run_id) if parent_run_id else None
-            ) or llm_class_name
+            step_name = self._find_node_name(parent_run_id) or llm_class_name
 
             flat_messages = [m for batch in messages for m in batch]
 

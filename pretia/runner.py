@@ -55,7 +55,13 @@ def _find_workflow(module: Any, entry_point: str | None = None) -> Any | None:
             f"Available names: {_list_candidates(module)}"
         )
 
-    # 1. Check canonical names
+    # 1a. Prefer canonical names that have ainvoke/invoke (compiled graphs)
+    for name in _WORKFLOW_ATTR_NAMES:
+        obj = getattr(module, name, None)
+        if obj is not None and (hasattr(obj, "ainvoke") or hasattr(obj, "invoke")):
+            return obj
+
+    # 1b. Fall back to any non-None canonical name
     for name in _WORKFLOW_ATTR_NAMES:
         obj = getattr(module, name, None)
         if obj is not None:

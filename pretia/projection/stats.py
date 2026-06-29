@@ -200,6 +200,8 @@ def _safe_cost(
     input_tokens: int,
     output_tokens: int,
 ) -> float:
+    if not model:
+        return 0.0
     try:
         return cost_fn(model, input_tokens, output_tokens)
     except (ValueError, KeyError):
