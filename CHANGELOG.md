@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.8 (2026-06-29)
+
+- Fix: LangGraph node names now resolved from `kwargs`/`metadata` (LangGraph passes `serialized=None`)
+- Verified against real LangGraph workflow: steps show "classifier"/"responder" instead of "ChatOpenAI"
+
 ## 1.0.7 (2026-06-29)
 
 - Fix: LangGraph auto-detect now picks compiled graph (`app`) over builder (`graph`) when both exist
