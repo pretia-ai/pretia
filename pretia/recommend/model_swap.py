@@ -27,10 +27,36 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _CLASSIFICATION_KEYWORDS = frozenset(
-    {"classify", "categorize", "route", "label", "detect", "sort", "filter", "triage", "check"}
+    {
+        "classif",
+        "categoriz",
+        "route",
+        "router",
+        "routing",
+        "label",
+        "labeler",
+        "detect",
+        "detector",
+        "sort",
+        "sorter",
+        "filter",
+        "triage",
+        "check",
+        "checker",
+        "intent",
+        "sentiment",
+        "category",
+        "moderate",
+        "moderator",
+        "screen",
+        "gate",
+        "guard",
+        "validate",
+        "validator",
+    }
 )
 
-_MIN_MONTHLY_SAVINGS = 10.0
+_MIN_MONTHLY_SAVINGS = 1.0
 
 _PROVIDER_FAST: dict[str, str] = {
     "anthropic": "claude-haiku-4-5",

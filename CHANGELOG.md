@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.9 (2026-06-29)
+
+- Fix: model swap recommendations now fire for classification steps (expanded keyword stems, lowered threshold from $10 to $1)
+
 ## 1.0.8 (2026-06-29)
 
 - Fix: LangGraph node names now resolved from `kwargs`/`metadata` (LangGraph passes `serialized=None`)
