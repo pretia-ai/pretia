@@ -34,6 +34,13 @@ def profile() -> None:
     help="Collector to use. Default: auto-detect.",
 )
 @click.option(
+    "--entry-point",
+    type=str,
+    default=None,
+    help="Name of the workflow variable to profile (e.g. 'pipeline', 'bot'). "
+    "Default: auto-detect from graph/workflow/agent/app or async callables.",
+)
+@click.option(
     "--auto-generate",
     type=int,
     default=None,
@@ -119,6 +126,7 @@ def profile() -> None:
 def run(
     workflow_path: str,
     collector: str,
+    entry_point: str | None,
     auto_generate: int | None,
     single_input: str | None,
     inputs_file: str | None,
@@ -223,6 +231,7 @@ def run(
         progress_callback=_on_run_done,
         generator_model=generator_model or "deepseek-v4-flash",
         corpus_path=corpus,
+        entry_point=entry_point,
     )
 
     try:

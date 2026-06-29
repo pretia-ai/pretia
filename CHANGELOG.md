@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.4 (2026-06-29)
+
+- Smarter workflow discovery: finds `run`, `call`, `process`, `execute`, `handle`, `main`, or any solo async callable — no longer limited to `graph`/`workflow`/`agent`/`app`
+- New `--entry-point` flag to specify which variable to profile when a file has multiple candidates
+- Clear error messages listing available candidates when discovery fails or finds ambiguity
+- Sync workflows auto-wrapped for async profiling (no more `TypeError` on plain functions)
+- Graceful error recovery: workflow crashes during profiling log the error and continue instead of aborting
+- Better error messages for syntax errors in workflow files, corrupted profile JSON, malformed JSONL inputs, binary files passed to `estimate`
+- Guard against `None`/empty model names in pricing resolution
+- `StepRecord.cost()` now accounts for cache tokens (consistent with `calculate_cost()`)
+- Warn when conflicting input flags are provided or system prompt is truncated
+- `run_sync()` gives clear error when called from async context (e.g. Jupyter)
+
 ## 1.0.3 (2026-06-29)
 
 - Dark theme HTML report redesign (score ring glow, heat-map projection table, vivid cost breakdown bars)

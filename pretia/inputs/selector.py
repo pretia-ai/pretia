@@ -38,12 +38,17 @@ def read_inputs_file(path: str) -> list[str]:
     is_jsonl = p.suffix == ".jsonl"
     inputs: list[str] = []
 
-    for raw in lines:
+    for line_num, raw in enumerate(lines, 1):
         stripped = raw.strip()
         if not stripped:
             continue
         if is_jsonl:
-            parsed = json.loads(stripped)
+            try:
+                parsed = json.loads(stripped)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    f"Invalid JSON on line {line_num} of {path}: {exc.msg}"
+                ) from exc
             if isinstance(parsed, str):
                 inputs.append(parsed)
             else:
@@ -67,6 +72,8 @@ def select_input_mode(
     Priority: explicit > file > single > langfuse > auto-generate > estimate.
     """
     if explicit_inputs is not None:
+        if inputs_file or single_input or auto_generate or from_langfuse:
+            logger.warning("Multiple input flags provided; using --input (highest priority).")
         return InputSelection(
             mode="manual",
             inputs=list(explicit_inputs),
@@ -74,6 +81,8 @@ def select_input_mode(
         )
 
     if inputs_file is not None:
+        if single_input or auto_generate or from_langfuse:
+            logger.warning("Multiple input flags provided; using --inputs-file.")
         inputs = read_inputs_file(inputs_file)
         return InputSelection(
             mode="file",
@@ -82,6 +91,8 @@ def select_input_mode(
         )
 
     if single_input is not None:
+        if auto_generate or from_langfuse:
+            logger.warning("Multiple input flags provided; using --single-input.")
         return InputSelection(
             mode="single",
             inputs=[single_input],

@@ -79,7 +79,7 @@ class StepRecord:
             pricing: Maps model name to (input_price_per_token, output_price_per_token).
 
         Returns:
-            input_tokens * input_price + output_tokens * output_price.
+            Dollar cost accounting for cache tokens when available.
 
         Raises:
             ValueError: If this record's model has no entry in `pricing`.
@@ -89,6 +89,15 @@ class StepRecord:
                 f"No pricing for model {self.model!r}. Available models: {sorted(pricing)}"
             )
         input_price, output_price = pricing[self.model]
+        if self.cache_hit_tokens is not None and self.cache_miss_tokens is not None:
+            from pretia.pricing.tables import _PER_MILLION, MODEL_CACHE_HIT_PRICING
+
+            cache_hit_rate = MODEL_CACHE_HIT_PRICING.get(self.model)
+            if cache_hit_rate is not None:
+                input_cost = self.cache_miss_tokens * input_price + self.cache_hit_tokens * (
+                    cache_hit_rate / _PER_MILLION
+                )
+                return input_cost + self.output_tokens * output_price
         return self.input_tokens * input_price + self.output_tokens * output_price
 
     def to_dict(self) -> dict[str, Any]:

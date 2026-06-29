@@ -56,7 +56,7 @@ def _prepare_context(session: ProfilingSession) -> dict[str, Any]:
     patterns = meta.get("patterns", [])
     projection = meta.get("projection")
 
-    total_runs = stats["total_runs"] if stats else session.sample_size
+    total_runs = stats.get("total_runs", session.sample_size) if stats else session.sample_size
     total_steps = stats.get("total_steps", 0) if stats else 0
 
     score_ring_svg = ""

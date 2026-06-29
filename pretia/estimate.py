@@ -69,7 +69,12 @@ def estimate_workflow(workflow_path: str) -> WorkflowEstimate:
     if not path.exists():
         raise FileNotFoundError(f"Workflow file not found: {workflow_path}")
 
-    source = path.read_text(encoding="utf-8")
+    try:
+        source = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(
+            f"'{workflow_path}' is not a valid Python source file (binary or non-UTF-8 content)."
+        ) from exc
     framework = _detect_framework(source)
     parse_errors: list[str] = []
     raw_models = _extract_models(source, _parse_errors=parse_errors)

@@ -194,6 +194,10 @@ def resolve_model(model: str) -> str:
     Raises:
         UnrecognizedModelError: If the model is neither canonical nor a known alias.
     """
+    if not model or not isinstance(model, str):
+        raise UnrecognizedModelError(
+            f"Invalid model name: {model!r}. Expected a non-empty string."
+        )
     if model in MODEL_PRICING:
         return model
     if model in MODEL_ALIASES:

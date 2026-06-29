@@ -116,7 +116,20 @@ class ProfileStore:
 
     def load(self, path: Path) -> ProfilingSession:
         """Read a session from a JSON file written by `save()`."""
-        return ProfilingSession.from_dict(json.loads(path.read_text()))
+        try:
+            data = json.loads(path.read_text())
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"Corrupted profile file '{path}': {exc.msg} (line {exc.lineno})"
+            ) from exc
+        try:
+            return ProfilingSession.from_dict(data)
+        except KeyError as exc:
+            raise ValueError(
+                f"Invalid profile file '{path}': missing required field {exc}"
+            ) from exc
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid profile file '{path}': {exc}") from exc
 
     def list_sessions(self, workflow_name: str | None = None) -> list[Path]:
         """List saved session files, newest first; optionally filtered by workflow name."""

@@ -28,18 +28,40 @@ from pretia.store import ProfileStore, ProfilingSession
 logger = logging.getLogger(__name__)
 
 _WORKFLOW_ATTR_NAMES = ("graph", "workflow", "agent", "app")
+_CALLABLE_ATTR_NAMES = ("run", "call", "process", "execute", "handle", "main")
 _SYSTEM_PROMPT_RE = re.compile(
     r"(you are|your role|your task|system)",
     re.IGNORECASE,
 )
 
 
-def _find_workflow(module: Any) -> Any:
+def _is_workflow_candidate(obj: Any) -> bool:
+    if obj is None or isinstance(obj, (str, int, float, bool, list, dict, set, type)):
+        return False
+    if hasattr(obj, "ainvoke") or hasattr(obj, "invoke"):
+        return True
+    if asyncio.iscoroutinefunction(obj) or callable(obj):
+        return True
+    return False
+
+
+def _find_workflow(module: Any, entry_point: str | None = None) -> Any | None:
+    if entry_point is not None:
+        obj = getattr(module, entry_point, None)
+        if obj is not None:
+            return obj
+        raise click.UsageError(
+            f"--entry-point '{entry_point}' not found in module. "
+            f"Available names: {_list_candidates(module)}"
+        )
+
+    # 1. Check canonical names
     for name in _WORKFLOW_ATTR_NAMES:
         obj = getattr(module, name, None)
         if obj is not None:
             return obj
 
+    # 2. Check for ainvoke/invoke (framework compiled graphs)
     for name in dir(module):
         if name.startswith("_"):
             continue
@@ -47,7 +69,51 @@ def _find_workflow(module: Any) -> Any:
         if hasattr(obj, "ainvoke") or hasattr(obj, "invoke"):
             return obj
 
+    # 3. Check common callable names
+    for name in _CALLABLE_ATTR_NAMES:
+        obj = getattr(module, name, None)
+        if obj is not None and (asyncio.iscoroutinefunction(obj) or callable(obj)):
+            return obj
+
+    # 4. Find any async callable
+    candidates: list[tuple[str, Any]] = []
+    for name in dir(module):
+        if name.startswith("_"):
+            continue
+        obj = getattr(module, name, None)
+        if asyncio.iscoroutinefunction(obj):
+            candidates.append((name, obj))
+
+    if len(candidates) == 1:
+        return candidates[0][1]
+
+    if len(candidates) > 1:
+        names = ", ".join(f"'{n}'" for n, _ in candidates)
+        raise click.UsageError(
+            f"Found multiple async callables in module: {names}. "
+            f"Specify which one to profile with --entry-point <name>."
+        )
+
+    # 5. Find any sync callable as last resort
+    for name in dir(module):
+        if name.startswith("_"):
+            continue
+        obj = getattr(module, name, None)
+        if _is_workflow_candidate(obj) and callable(obj):
+            return obj
+
     return None
+
+
+def _list_candidates(module: Any) -> str:
+    names = [
+        n
+        for n in dir(module)
+        if not n.startswith("_") and _is_workflow_candidate(getattr(module, n, None))
+    ]
+    if not names:
+        return "(none found)"
+    return ", ".join(f"'{n}'" for n in names)
 
 
 def _extract_system_prompt(module: Any) -> str:
@@ -76,6 +142,12 @@ def _load_workflow_module(path: str) -> Any:
         raise ImportError(
             f"'{path}' requires '{pkg}' which is not installed. Install it with: pip install {pkg}"
         ) from exc
+    except SyntaxError as exc:
+        raise click.UsageError(
+            f"Syntax error in '{path}' on line {exc.lineno}: {exc.msg}"
+        ) from exc
+    except Exception as exc:
+        raise click.UsageError(f"Failed to load '{path}': {type(exc).__name__}: {exc}") from exc
     return module
 
 
@@ -196,6 +268,7 @@ class ProfileRunner:
         progress_callback: Any | None = None,
         generator_model: str = "deepseek-v4-flash",
         corpus_path: str | None = None,
+        entry_point: str | None = None,
     ) -> None:
         self.workflow_path = workflow_path
         self.collector_name = collector
@@ -209,17 +282,29 @@ class ProfileRunner:
         self.progress_callback = progress_callback
         self.generator_model = generator_model
         self.corpus_path = corpus_path
+        self.entry_point = entry_point
 
     def _load_workflow(self) -> tuple[Any, str]:
         module = _load_workflow_module(self.workflow_path)
-        workflow = _find_workflow(module)
+        workflow = _find_workflow(module, entry_point=self.entry_point)
         if workflow is None:
+            candidates = _list_candidates(module)
             raise click.UsageError(
                 f"Could not find a workflow in '{self.workflow_path}'. "
-                "Expected a module-level variable named `graph`, "
-                "`workflow`, `agent`, or `app`, or an object with "
-                "an `ainvoke`/`invoke` method."
+                f"No variable named graph/workflow/agent/app, no ainvoke/invoke object, "
+                f"and no async callable found. "
+                f"Available candidates: {candidates}. "
+                f"Use --entry-point <name> to specify which object to profile."
             )
+        if callable(workflow) and not asyncio.iscoroutinefunction(workflow):
+            if not hasattr(workflow, "ainvoke"):
+                sync_fn = workflow
+
+                async def _async_wrapper(inp: str) -> Any:
+                    return sync_fn(inp)
+
+                workflow = _async_wrapper
+                logger.info("Wrapped sync callable in async shim for profiling.")
         system_prompt = _extract_system_prompt(module)
         return workflow, system_prompt
 
@@ -386,7 +471,10 @@ class ProfileRunner:
 
         from pretia import __version__
 
-        workflow_src = Path(self.workflow_path).read_bytes()
+        try:
+            workflow_src = Path(self.workflow_path).read_bytes()
+        except OSError:
+            workflow_src = b""
         session = ProfilingSession(
             workflow_name=self.workflow_path,
             workflow_hash=hashlib.sha256(workflow_src).hexdigest()[:12],
@@ -433,7 +521,14 @@ class ProfileRunner:
 
     def run_sync(self) -> ProfilingSession:
         """Synchronous wrapper around `run()`."""
-        return asyncio.run(self.run())
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(self.run())
+        raise RuntimeError(
+            "run_sync() cannot be called from an async context. "
+            "Use 'await runner.run()' instead, or run from a synchronous entry point."
+        )
 
     def analyze_langfuse(self) -> ProfilingSession:
         """Analyze Langfuse traces without re-executing the workflow.

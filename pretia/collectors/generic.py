@@ -229,10 +229,21 @@ class GenericCollector(BaseCollector):
         total = len(inputs)
         for i, inp in enumerate(inputs):
             self.new_run()
-            async with self.step("llm_call") as tracker:
-                result = await workflow(inp)
-                if not self._current_run:
-                    _try_extract(tracker, result)
+            try:
+                async with self.step("llm_call") as tracker:
+                    result = await workflow(inp)
+                    if not self._current_run:
+                        _try_extract(tracker, result)
+            except Exception:
+                logger.error(
+                    "Run %d/%d failed on input %.80s",
+                    i + 1,
+                    total,
+                    inp,
+                    exc_info=True,
+                )
+                runs.append([])
+                continue
             run_records = list(self._current_run)
             if not run_records:
                 logger.warning(
@@ -242,7 +253,10 @@ class GenericCollector(BaseCollector):
                     i + 1,
                 )
             runs.append(run_records)
-            if on_run_complete is not None:
-                on_run_complete(i, total, run_records)
+            try:
+                if on_run_complete is not None:
+                    on_run_complete(i, total, run_records)
+            except Exception:
+                logger.debug("on_run_complete callback failed", exc_info=True)
         self._runs = runs
         return runs

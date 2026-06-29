@@ -275,8 +275,14 @@ async def generate_inputs(
     if additional_context:
         ctx_block = f"\nAdditional context about the input format:\n{additional_context}\n"
 
+    truncated_prompt = system_prompt[:2000]
+    if len(system_prompt) > 2000:
+        logger.warning(
+            "System prompt truncated from %d to 2000 chars for input generation.",
+            len(system_prompt),
+        )
     prompt = _GENERATION_PROMPT_TEMPLATE.format(
-        system_prompt=system_prompt[:2000],
+        system_prompt=truncated_prompt,
         n=n,
         additional_context=ctx_block,
     )

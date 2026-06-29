@@ -23,6 +23,8 @@ def needs_cache_busting(model: str) -> bool:
 
 def cache_bust_prompt(prompt: str, run_id: str | None = None) -> str:
     """Append a unique suffix to break server-side prompt caching."""
+    if not prompt:
+        return prompt or ""
     if run_id is None:
         run_id = uuid.uuid4().hex[:12]
     return prompt + f"\n<!-- profiling-run-{run_id} -->"
