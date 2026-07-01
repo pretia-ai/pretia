@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.2 (2026-07-01)
+
+- Fix: tiered output token utilization rates (10% for classification, 40% for short gen, 30% for medium, 20% for long) replace flat 60%
+
 ## 1.1.1 (2026-07-01)
 
 - Fix: static estimate no longer deduplicates model calls by name, preserving per-node `max_tokens` (0.9x accuracy for multi-node workflows, was 3.0x)

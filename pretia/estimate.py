@@ -31,10 +31,7 @@ _SYSTEM_PROMPT_KWARGS = frozenset(
 
 _DEFAULT_INPUT_TOKENS = 700
 _DEFAULT_OUTPUT_TOKENS = 500
-_CLASSIFICATION_OUTPUT_TOKENS = 30
-_MAX_TOKENS_UTILIZATION = 0.6
 _CLASSIFICATION_MAX_TOKENS_THRESHOLD = 100
-_CLASSIFICATION_PROMPT_WORDS = 30
 
 _FRAMEWORK_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"(?:from|import)\s+langgraph\b"), "langgraph"),
@@ -435,8 +432,12 @@ def _estimate_output_tokens(max_tokens: int | None) -> int:
     if max_tokens is None:
         return _DEFAULT_OUTPUT_TOKENS
     if max_tokens <= _CLASSIFICATION_MAX_TOKENS_THRESHOLD:
-        return max(int(max_tokens * 0.8), 5)
-    return int(max_tokens * _MAX_TOKENS_UTILIZATION)
+        return max(int(max_tokens * 0.1), 5)
+    if max_tokens <= 512:
+        return int(max_tokens * 0.4)
+    if max_tokens <= 1024:
+        return int(max_tokens * 0.3)
+    return int(max_tokens * 0.2)
 
 
 _DEFAULT_USER_INPUT_TOKENS = 150
