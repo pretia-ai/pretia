@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.0 (2026-07-01)
+
+- Graph-aware static estimate: parses LangGraph `add_node`/`add_edge`/`add_conditional_edges` from AST, weights conditional branches at 1/N
+- OpenAI Agents estimate: only prices entry agent unless `handoffs=` detected
+- `max_tokens` as output ceiling: `max_tokens=32` estimates 25 output tokens instead of 500
+- System prompt variable resolution: resolves module-level string constants (e.g. `system=SYSTEM_PROMPT`)
+- Added `"system"` to prompt extraction kwargs (Anthropic SDK compatibility)
+- Input token formula: `sp_tokens + 150` instead of `max(sp_tokens, 700)`
+- Warm projection: estimates cache-hit cost discount for Anthropic/DeepSeek models with stable system prompts
+- Step scaling: same model in multiple graph nodes now correctly multiplies cost
+
 ## 1.0.9 (2026-06-29)
 
 - Fix: model swap recommendations now fire for classification steps (expanded keyword stems, lowered threshold from $10 to $1)

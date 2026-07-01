@@ -256,7 +256,7 @@ class TestEstimateCost:
         cost_with_sp = _estimate_cost(models, system_prompt_tokens=2000)
         assert cost_with_sp > cost_default
 
-    def test_with_system_prompt_tokens_below_default(self) -> None:
+    def test_with_system_prompt_tokens_uses_sp_plus_user_input(self) -> None:
         models = [
             ModelEstimate(
                 model_name="gpt-4o",
@@ -269,7 +269,7 @@ class TestEstimateCost:
         ]
         cost_default = _estimate_cost(models)
         cost_with_sp = _estimate_cost(models, system_prompt_tokens=200)
-        assert cost_with_sp == cost_default
+        assert cost_with_sp < cost_default
 
 
 class TestEstimateWorkflow:

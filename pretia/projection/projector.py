@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from pretia.collectors.base import StepRecord
+from pretia.pricing.tables import MODEL_CACHE_HIT_PRICING, MODEL_PRICING, resolve_model
 from pretia.projection.montecarlo import (
     MonteCarloResult,
     PercentileProjection,
@@ -51,10 +52,11 @@ class ProjectionResult:
     warnings: list[str] = field(default_factory=list)
     patterns_detected: list[DetectedPattern] = field(default_factory=list)
     montecarlo_result: MonteCarloResult | None = None
+    warm_discount: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a JSON-compatible dict."""
-        return {
+        d: dict[str, Any] = {
             "method": self.method,
             "traffic_volumes": list(self.traffic_volumes),
             "projections": {k: v.to_dict() for k, v in self.projections.items()},
@@ -65,6 +67,9 @@ class ProjectionResult:
                 self.montecarlo_result.to_dict() if self.montecarlo_result else None
             ),
         }
+        if self.warm_discount is not None:
+            d["warm_discount"] = self.warm_discount
+        return d
 
 
 def _linear_project(
@@ -145,6 +150,67 @@ def _montecarlo_project(
     return projections, mc_results
 
 
+def _estimate_warm_discount(
+    runs: list[list[StepRecord]] | None,
+    stats: ProfilingStats,
+) -> float | None:
+    """Estimate the cost reduction from prompt caching in production.
+
+    Returns a multiplier (e.g. 0.65 means warm costs are 65% of cold) or None
+    if no cacheable models are used.
+    """
+    if not runs or not stats.step_stats:
+        return None
+
+    total_cold_cost = 0.0
+    total_warm_cost = 0.0
+
+    for _step_name, ss in stats.step_stats.items():
+        if ss.step_type != "llm" or not ss.model:
+            continue
+        try:
+            canonical = resolve_model(ss.model)
+        except (ValueError, KeyError):
+            continue
+
+        if canonical not in MODEL_PRICING:
+            continue
+
+        input_price_per_m, output_price_per_m = MODEL_PRICING[canonical]
+        cache_rate = MODEL_CACHE_HIT_PRICING.get(canonical)
+
+        avg_input = ss.input_tokens.mean
+        avg_output = ss.output_tokens.mean
+
+        cold_input_cost = avg_input * input_price_per_m / 1_000_000
+        cold_output_cost = avg_output * output_price_per_m / 1_000_000
+        cold_step_cost = cold_input_cost + cold_output_cost
+
+        if cache_rate is not None and avg_input > 0:
+            # Estimate system prompt as ~60% of input tokens (typical for agents)
+            cacheable_tokens = avg_input * 0.6
+            non_cacheable_tokens = avg_input * 0.4
+            warm_input_cost = (
+                non_cacheable_tokens * input_price_per_m / 1_000_000
+                + cacheable_tokens * cache_rate / 1_000_000
+            )
+            warm_step_cost = warm_input_cost + cold_output_cost
+        else:
+            warm_step_cost = cold_step_cost
+
+        call_count = ss.call_count or 1
+        total_cold_cost += cold_step_cost * call_count
+        total_warm_cost += warm_step_cost * call_count
+
+    if total_cold_cost <= 0:
+        return None
+
+    discount = total_warm_cost / total_cold_cost
+    if discount >= 0.99:
+        return None
+    return round(discount, 3)
+
+
 def project(
     stats: ProfilingStats,
     patterns: list[DetectedPattern],
@@ -202,6 +268,13 @@ def project(
         warnings.append("Linear projection used. No significant non-linear patterns detected.")
         projections = _linear_project(stats, traffic)
 
+    warm_discount = _estimate_warm_discount(runs, stats)
+    if warm_discount is not None:
+        warnings.append(
+            f"With prompt caching enabled, costs may be "
+            f"~{round((1 - warm_discount) * 100)}% lower."
+        )
+
     return ProjectionResult(
         method=method,
         traffic_volumes=traffic,
@@ -210,4 +283,5 @@ def project(
         warnings=warnings,
         patterns_detected=list(patterns),
         montecarlo_result=mc_result,
+        warm_discount=warm_discount,
     )
