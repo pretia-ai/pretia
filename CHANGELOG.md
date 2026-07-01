@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.2 (2026-07-01)
+## 1.1.3 (2026-07-01)
 
 - Fix: tiered output token utilization rates (10% for classification, 40% for short gen, 30% for medium, 20% for long) replace flat 60%
 - Fix: reduced default user input token estimate from 150 to 50 (matches actual 15-40 token averages)
