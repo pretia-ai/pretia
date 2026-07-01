@@ -1105,6 +1105,15 @@ def estimate_cmd(workflow_path: str, traffic: int | None, verbose: bool) -> None
                     f"Use register_model('{name}', input_price=X, output_price=Y) "
                     "to add pricing.",
                 )
+
+        missing_max = sum(1 for m in est.models if m.max_tokens is None)
+        if missing_max:
+            console.print(
+                f"[dim]Note: No max_tokens set on {missing_max} model"
+                f"{'s' if missing_max > 1 else ''}. "
+                "Using default 500 output tokens. "
+                "Set max_tokens on your LLM calls for a more accurate estimate.[/dim]",
+            )
         console.print()
 
         volumes = [traffic] if traffic else [100, 1_000, 10_000]
@@ -1117,8 +1126,9 @@ def estimate_cmd(workflow_path: str, traffic: int | None, verbose: bool) -> None
         proj_table.add_column("Monthly Estimate", justify="right")
 
         for v in volumes:
-            monthly = est.estimated_cost_per_run * v * 30
-            proj_table.add_row(f"{v:,}", format_cost(monthly))
+            high = est.estimated_cost_per_run * v * 30
+            low = high * 0.5
+            proj_table.add_row(f"{v:,}", f"{format_cost(low)} – {format_cost(high)}")
 
         console.print(proj_table)
     else:

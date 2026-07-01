@@ -52,6 +52,7 @@ class ModelEstimate:
     max_tokens: int | None
     input_price_per_m: float | None
     output_price_per_m: float | None
+    is_tool_call: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,6 +98,7 @@ def estimate_workflow(workflow_path: str) -> WorkflowEstimate:
                 max_tokens=rm.get("max_tokens"),
                 input_price_per_m=inp,
                 output_price_per_m=outp,
+                is_tool_call=rm.get("is_tool_call", False),
             )
         )
 
@@ -332,7 +334,19 @@ def _extract_models(
         if not isinstance(node, ast.Call):
             continue
 
-        for info in _extract_from_call(node):
+        # Detect .bind_tools() chains: the inner call has the model kwargs
+        is_tool_call = False
+        inner = node
+        if (
+            isinstance(node.func, ast.Attribute)
+            and node.func.attr == "bind_tools"
+            and isinstance(node.func.value, ast.Call)
+        ):
+            inner = node.func.value
+            is_tool_call = True
+
+        for info in _extract_from_call(inner):
+            info["is_tool_call"] = is_tool_call
             results.append(info)
 
     return results
@@ -427,8 +441,16 @@ def _resolve_pricing(
         return None, None, None
 
 
-def _estimate_output_tokens(max_tokens: int | None) -> int:
+_TOOL_CALL_OUTPUT_TOKENS = 30
+
+
+def _estimate_output_tokens(
+    max_tokens: int | None,
+    is_tool_call: bool = False,
+) -> int:
     """Estimate output tokens from max_tokens setting."""
+    if is_tool_call:
+        return _TOOL_CALL_OUTPUT_TOKENS
     if max_tokens is None:
         return _DEFAULT_OUTPUT_TOKENS
     if max_tokens <= _CLASSIFICATION_MAX_TOKENS_THRESHOLD:
@@ -440,7 +462,7 @@ def _estimate_output_tokens(max_tokens: int | None) -> int:
     return int(max_tokens * 0.2)
 
 
-_DEFAULT_USER_INPUT_TOKENS = 150
+_DEFAULT_USER_INPUT_TOKENS = 50
 
 
 def _estimate_cost(
@@ -457,7 +479,7 @@ def _estimate_cost(
             input_tokens = system_prompt_tokens + _DEFAULT_USER_INPUT_TOKENS
         else:
             input_tokens = _DEFAULT_INPUT_TOKENS
-        output_tokens = _estimate_output_tokens(m.max_tokens)
+        output_tokens = _estimate_output_tokens(m.max_tokens, is_tool_call=m.is_tool_call)
 
         input_cost = input_tokens * m.input_price_per_m / 1_000_000
         output_cost = output_tokens * m.output_price_per_m / 1_000_000
