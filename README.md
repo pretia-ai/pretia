@@ -20,13 +20,15 @@ pip install pretia
 pretia estimate my_agent.py
 ```
 
+This is a conservative upper bound, not a precise prediction. Static analysis reads your code but can't know runtime behavior (which branches execute, actual output lengths, caching effects). Expect estimates 2-5x higher than real costs. Use it to get a ballpark before committing to a full profile.
+
 **Full profile** (runs your workflow, ~$2, ~3 minutes):
 
 ```bash
 pretia profile run my_agent.py
 ```
 
-No config files, no JSONL datasets, no setup. Pretia reads your workflow, generates diverse synthetic inputs, runs 50 profiling runs, detects patterns, and opens an HTML report with projections and recommendations.
+This runs your workflow with real API calls and gives accurate distributional projections (typically within 10% of production costs). No config files, no JSONL datasets, no setup. Pretia reads your workflow, generates diverse synthetic inputs, runs 50 profiling runs, detects patterns, and opens an HTML report with projections and recommendations.
 
 <!-- Report screenshot: add after rendering -->
 

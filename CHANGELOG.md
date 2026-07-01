@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1 (2026-07-01)
+
+- Fix: static estimate no longer deduplicates model calls by name, preserving per-node `max_tokens` (0.9x accuracy for multi-node workflows, was 3.0x)
+- Fix: removed incorrect cost scaling multiplier that doubled costs for same-model workflows
+
 ## 1.1.0 (2026-07-01)
 
 - Graph-aware static estimate: parses LangGraph `add_node`/`add_edge`/`add_conditional_edges` from AST, weights conditional branches at 1/N

@@ -99,10 +99,10 @@ class TestExtractModels:
         src = "def broken(\n"
         assert _extract_models(src) == []
 
-    def test_deduplicates_models(self) -> None:
+    def test_keeps_duplicate_model_call_sites(self) -> None:
         src = 'step1(model="claude-haiku-4-5")\nstep2(model="claude-haiku-4-5")\n'
         models = _extract_models(src)
-        assert len(models) == 1
+        assert len(models) == 2
 
     def test_non_string_model_ignored(self) -> None:
         src = "run_step(model=some_variable)\n"

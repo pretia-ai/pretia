@@ -131,11 +131,7 @@ def estimate_workflow(workflow_path: str) -> WorkflowEstimate:
             if len(models) > estimated_steps:
                 active_models = models[:estimated_steps]
 
-    cost = _estimate_cost(
-        active_models,
-        system_prompt_tokens=sp_tokens or None,
-        expected_steps=estimated_steps,
-    )
+    cost = _estimate_cost(active_models, system_prompt_tokens=sp_tokens or None)
 
     return WorkflowEstimate(
         workflow_path=workflow_path,
@@ -334,16 +330,13 @@ def _extract_models(
         return []
 
     results: list[dict[str, Any]] = []
-    seen: set[str] = set()
 
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
 
         for info in _extract_from_call(node):
-            if info["model_name"] not in seen:
-                results.append(info)
-                seen.add(info["model_name"])
+            results.append(info)
 
     return results
 
@@ -452,7 +445,6 @@ _DEFAULT_USER_INPUT_TOKENS = 150
 def _estimate_cost(
     models: list[ModelEstimate],
     system_prompt_tokens: int | None = None,
-    expected_steps: int | None = None,
 ) -> float:
     """Estimate the cost of a single run from model pricing."""
     total = 0.0
@@ -469,10 +461,5 @@ def _estimate_cost(
         input_cost = input_tokens * m.input_price_per_m / 1_000_000
         output_cost = output_tokens * m.output_price_per_m / 1_000_000
         total += input_cost + output_cost
-
-    # Scale for graph-aware estimation: if expected_steps > len(models)
-    # (e.g. same model used in multiple nodes), scale proportionally
-    if expected_steps and len(models) > 0 and expected_steps > len(models):
-        total *= expected_steps / len(models)
 
     return round(total, 6)

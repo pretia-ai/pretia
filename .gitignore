@@ -78,3 +78,4 @@ tests/synthetic/swebench/data/*.json
 tests/synthetic/swebench/data/*.jsonl
 tests/manual/USE_CASE_PROMPT.md
 tests/manual/PRE_LAUNCH_SESSION_PROMPT.md
+test_agents/
