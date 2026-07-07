@@ -14,10 +14,34 @@ from rich.console import Console
 console = Console()
 
 
+_dotenv_loaded = False
+
+
+def _load_dotenv() -> None:
+    """Load .env file from the current directory if it exists. Runs once."""
+    global _dotenv_loaded  # noqa: PLW0603
+    if _dotenv_loaded:
+        return
+    _dotenv_loaded = True
+    env_path = Path(".env")
+    if not env_path.is_file():
+        return
+    for line in env_path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip("'\"")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
 @click.group()
 @click.version_option()
 def cli() -> None:
     """Pre-deployment cost intelligence for AI agent workflows."""
+    _load_dotenv()
 
 
 @cli.group()
@@ -29,7 +53,7 @@ def profile() -> None:
 @click.argument("workflow_path", type=click.Path(exists=True))
 @click.option(
     "--collector",
-    type=click.Choice(["auto", "langgraph", "openai", "generic"]),
+    type=click.Choice(["auto", "langgraph", "openai", "openai-sdk", "anthropic", "generic"]),
     default="auto",
     help="Collector to use. Default: auto-detect.",
 )
@@ -233,6 +257,16 @@ def run(
         else:
             explicit_inputs = list(single_input)
 
+    from pretia.inputs.generator import resolve_generator_model
+
+    resolved_gen_model = resolve_generator_model(generator_model)
+    if not generator_model and resolved_gen_model != "deepseek-v4-flash":
+        console.print(
+            f"[dim]Using {resolved_gen_model} for input generation "
+            f"(override with --generator-model)[/dim]",
+        )
+        console.print()
+
     runner = ProfileRunner(
         workflow_path=workflow_path,
         collector=collector,
@@ -245,7 +279,7 @@ def run(
         output_dir=output_dir,
         cache_mode="warm" if allow_cache else "cold",
         progress_callback=_on_run_done,
-        generator_model=generator_model or "deepseek-v4-flash",
+        generator_model=resolved_gen_model,
         corpus_path=corpus,
         entry_point=entry_point,
     )
@@ -819,14 +853,14 @@ def _detect_rag_imports(workflow_path: str) -> bool:
 def _infer_run_count(
     *,
     auto_generate: int | None,
-    single_input: str | None,
+    single_input: tuple[str, ...] | None,
     inputs_file: str | None,
     from_langfuse: bool,
     langfuse_last_n: int,
 ) -> int:
     """Infer the number of profiling runs from CLI arguments."""
-    if single_input is not None:
-        return 1
+    if single_input:
+        return len(single_input)
     if inputs_file is not None:
         try:
             return max(1, sum(1 for _ in open(inputs_file)))  # noqa: SIM115
@@ -1148,13 +1182,228 @@ def estimate_cmd(workflow_path: str, traffic: int | None, verbose: bool) -> None
 
 
 @cli.command("update-pricing")
-def update_pricing_cmd() -> None:
-    """Update model pricing data."""
-    console.print(
-        "Pricing update is not yet automated.\n"
-        "To update prices manually, edit pretia/pricing/tables.py.\n"
-        "See scripts/pricing_sources.md for current pricing page URLs."
+@click.option(
+    "--file",
+    "pricing_file",
+    type=click.Path(exists=True),
+    default=None,
+    help="Load pricing from a local JSON file.",
+)
+@click.option(
+    "--reset",
+    is_flag=True,
+    default=False,
+    help="Remove user overrides and revert to built-in pricing.",
+)
+def update_pricing_cmd(pricing_file: str | None, reset: bool) -> None:
+    """Update model pricing data from a file or remote source."""
+    import json
+
+    from pretia.pricing.tables import _VALID_TIERS, MODEL_PRICING, _get_user_pricing_path
+
+    user_path = _get_user_pricing_path()
+
+    if reset:
+        if user_path.is_file():
+            user_path.unlink()
+            console.print("User pricing overrides removed. Using built-in pricing.")
+        else:
+            console.print("No user overrides found. Already using built-in pricing.")
+        return
+
+    if pricing_file is None:
+        console.print(
+            "Usage:\n"
+            "  pretia update-pricing --file prices.json   Load from a local file\n"
+            "  pretia update-pricing --reset               Revert to built-in pricing\n\n"
+            "JSON format:\n"
+            '  {"models": {"model-name": {"input": 1.0, "output": 5.0, "tier": "mid"}}}\n\n'
+            "Prices are per million tokens in USD.\n"
+            "See scripts/pricing_sources.md for vendor pricing page URLs.",
+        )
+        return
+
+    try:
+        data = json.loads(Path(pricing_file).read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        console.print(f"[red]Error:[/red] Invalid JSON: {exc}")
+        sys.exit(1)
+
+    models = data.get("models", {})
+    if not models:
+        console.print("[red]Error:[/red] No 'models' key found in JSON file.")
+        sys.exit(1)
+
+    added = 0
+    updated = 0
+    for name, info in models.items():
+        if "input" not in info or "output" not in info:
+            console.print(f"[yellow]Skipping '{name}':[/yellow] missing input/output prices.")
+            continue
+        existing = MODEL_PRICING.get(name)
+        new_price = (info["input"], info["output"])
+        if existing is None:
+            added += 1
+        elif existing != new_price:
+            updated += 1
+        tier = info.get("tier", "mid")
+        if tier not in _VALID_TIERS:
+            console.print(
+                f"[yellow]Warning:[/yellow] invalid tier '{tier}' for '{name}', using 'mid'.",
+            )
+            tier = "mid"
+
+    user_path.parent.mkdir(parents=True, exist_ok=True)
+
+    from datetime import date
+
+    data.setdefault("updated", date.today().isoformat())
+    user_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    console.print(f"Pricing updated: {added} models added, {updated} models changed.")
+    console.print(f"Saved to [bold]{user_path}[/bold]")
+    console.print("[dim]Run 'pretia update-pricing --reset' to revert to built-in pricing.[/dim]")
+
+
+@cli.command("doctor")
+@click.argument("workflow_path", type=click.Path(), required=False, default=None)
+def doctor_cmd(workflow_path: str | None) -> None:
+    """Diagnose common issues with Pretia setup and workflow files."""
+    import platform
+
+    from rich.table import Table
+
+    table = Table(title="Pretia Doctor", show_lines=True, pad_edge=True)
+    table.add_column("Check", style="bold", min_width=30)
+    table.add_column("Status")
+    table.add_column("Details", style="dim")
+
+    py_version = platform.python_version()
+    py_ok = tuple(int(x) for x in py_version.split(".")[:2]) >= (3, 11)
+    table.add_row(
+        "Python version",
+        "[green]OK[/green]" if py_ok else "[red]FAIL[/red]",
+        f"{py_version} {'(>= 3.11)' if py_ok else '(need >= 3.11)'}",
     )
+
+    env_path = Path(".env")
+    table.add_row(
+        ".env file",
+        "[green]found[/green]" if env_path.is_file() else "[dim]not found[/dim]",
+        str(env_path.resolve()) if env_path.is_file() else "Keys must be in environment",
+    )
+
+    key_names = [
+        ("ANTHROPIC_API_KEY", "Anthropic"),
+        ("OPENAI_API_KEY", "OpenAI"),
+        ("DEEPSEEK_API_KEY", "DeepSeek"),
+        ("DASHSCOPE_API_KEY", "DashScope/Qwen"),
+    ]
+    for key, label in key_names:
+        found = bool(os.environ.get(key))
+        table.add_row(
+            f"API key: {label}",
+            "[green]set[/green]" if found else "[yellow]not set[/yellow]",
+            f"{key}={'sk-...' + os.environ[key][-4:] if found else 'missing'}",
+        )
+
+    sdk_packages = [
+        ("anthropic", "anthropic"),
+        ("openai", "openai"),
+        ("langgraph", "langgraph"),
+        ("qwen_agent", "qwen-agent"),
+        ("langfuse", "langfuse"),
+    ]
+    for import_name, display_name in sdk_packages:
+        try:
+            mod = __import__(import_name)
+            version = getattr(mod, "__version__", "installed")
+            table.add_row(
+                f"SDK: {display_name}",
+                "[green]installed[/green]",
+                f"v{version}",
+            )
+        except ImportError:
+            table.add_row(
+                f"SDK: {display_name}",
+                "[dim]not installed[/dim]",
+                f"pip install pretia[{display_name}]",
+            )
+
+    from pretia.pricing.tables import check_pricing_staleness
+
+    staleness = check_pricing_staleness()
+    table.add_row(
+        "Pricing data",
+        "[yellow]stale[/yellow]" if staleness else "[green]current[/green]",
+        staleness or "Up to date",
+    )
+
+    if workflow_path:
+        p = Path(workflow_path)
+        if not p.exists():
+            table.add_row(
+                "Workflow file",
+                "[red]not found[/red]",
+                str(p),
+            )
+        else:
+            table.add_row(
+                "Workflow file",
+                "[green]found[/green]",
+                str(p),
+            )
+
+            try:
+                from pretia.runner import ProfileRunner
+
+                runner = ProfileRunner(workflow_path=workflow_path)
+                workflow, _prompt, module = runner._load_workflow()
+                table.add_row(
+                    "Workflow import",
+                    "[green]OK[/green]",
+                    f"Found: {type(workflow).__name__}",
+                )
+
+                collector = runner._select_collector(workflow, module=module)
+                table.add_row(
+                    "Collector",
+                    "[green]auto-detected[/green]",
+                    type(collector).__name__,
+                )
+            except ImportError as exc:
+                table.add_row(
+                    "Workflow import",
+                    "[red]FAIL[/red]",
+                    f"Missing dependency: {exc}",
+                )
+            except Exception as exc:
+                table.add_row(
+                    "Workflow import",
+                    "[red]FAIL[/red]",
+                    str(exc)[:80],
+                )
+
+            try:
+                from pretia.estimate import estimate_workflow
+
+                est = estimate_workflow(workflow_path)
+                table.add_row(
+                    "Static estimate",
+                    "[green]OK[/green]",
+                    f"Framework: {est.framework}, Models: {len(est.models)}, "
+                    f"Steps: {est.estimated_steps}",
+                )
+            except Exception as exc:
+                table.add_row(
+                    "Static estimate",
+                    "[yellow]WARN[/yellow]",
+                    str(exc)[:80],
+                )
+
+    console.print()
+    console.print(table)
+    console.print()
 
 
 if __name__ == "__main__":

@@ -84,7 +84,7 @@ class TestWorkflowLoading:
             workflow_path=str(f),
             single_input="test",
         )
-        workflow, _ = runner._load_workflow()
+        workflow, _, _mod = runner._load_workflow()
         assert workflow == "fake_workflow"
 
     def test_found_by_workflow_attr(self, tmp_path):
@@ -94,7 +94,7 @@ class TestWorkflowLoading:
             workflow_path=str(f),
             single_input="test",
         )
-        workflow, _ = runner._load_workflow()
+        workflow, _, _mod = runner._load_workflow()
         assert workflow == "my_wf"
 
     def test_not_found_raises(self, tmp_path):

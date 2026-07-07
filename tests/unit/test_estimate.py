@@ -440,12 +440,40 @@ class TestInferRunCount:
         assert (
             _infer_run_count(
                 auto_generate=None,
-                single_input="hello",
+                single_input=("hello",),
                 inputs_file=None,
                 from_langfuse=False,
                 langfuse_last_n=10,
             )
             == 1
+        )
+
+    def test_multiple_inputs(self) -> None:
+        from pretia.cli import _infer_run_count
+
+        assert (
+            _infer_run_count(
+                auto_generate=None,
+                single_input=("hello", "world", "test"),
+                inputs_file=None,
+                from_langfuse=False,
+                langfuse_last_n=10,
+            )
+            == 3
+        )
+
+    def test_empty_tuple_falls_through(self) -> None:
+        from pretia.cli import _infer_run_count
+
+        assert (
+            _infer_run_count(
+                auto_generate=None,
+                single_input=(),
+                inputs_file=None,
+                from_langfuse=False,
+                langfuse_last_n=10,
+            )
+            == 50
         )
 
     def test_auto_generate_explicit(self) -> None:
@@ -454,7 +482,7 @@ class TestInferRunCount:
         assert (
             _infer_run_count(
                 auto_generate=50,
-                single_input=None,
+                single_input=(),
                 inputs_file=None,
                 from_langfuse=False,
                 langfuse_last_n=10,
@@ -468,7 +496,7 @@ class TestInferRunCount:
         assert (
             _infer_run_count(
                 auto_generate=None,
-                single_input=None,
+                single_input=(),
                 inputs_file=None,
                 from_langfuse=False,
                 langfuse_last_n=10,
@@ -482,7 +510,7 @@ class TestInferRunCount:
         assert (
             _infer_run_count(
                 auto_generate=None,
-                single_input=None,
+                single_input=(),
                 inputs_file=None,
                 from_langfuse=True,
                 langfuse_last_n=25,
@@ -498,7 +526,7 @@ class TestInferRunCount:
         assert (
             _infer_run_count(
                 auto_generate=None,
-                single_input=None,
+                single_input=(),
                 inputs_file=str(f),
                 from_langfuse=False,
                 langfuse_last_n=10,

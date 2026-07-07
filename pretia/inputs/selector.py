@@ -117,7 +117,12 @@ def select_input_mode(
 
 
 def _auto_detect(system_prompt: str | None) -> InputSelection:
-    has_api_key = bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("OPENAI_API_KEY"))
+    has_api_key = bool(
+        os.environ.get("ANTHROPIC_API_KEY")
+        or os.environ.get("OPENAI_API_KEY")
+        or os.environ.get("DEEPSEEK_API_KEY")
+        or os.environ.get("DASHSCOPE_API_KEY")
+    )
     if system_prompt or has_api_key:
         return InputSelection(
             mode="auto-generate",

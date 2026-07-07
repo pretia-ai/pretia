@@ -93,6 +93,35 @@ def _parse_response(text: str, n: int) -> list[str]:
 _DASHSCOPE_DEFAULT_BASE_URL = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
 _DEEPSEEK_DEFAULT_BASE_URL = "https://api.deepseek.com"
 
+_CHEAPEST_MODEL_FOR_PROVIDER: dict[str, str] = {
+    "deepseek": "deepseek-v4-flash",
+    "dashscope": "qwen-turbo",
+    "openai": "gpt-4o-mini",
+    "anthropic": "claude-haiku-4-5",
+}
+
+
+def resolve_generator_model(explicit_model: str | None = None) -> str:
+    """Pick the cheapest available model for input generation.
+
+    If the user passed --generator-model, use that. Otherwise detect which
+    API key is available and pick the cheapest model for that provider.
+    Returns the model name (may differ from the default deepseek-v4-flash).
+    """
+    if explicit_model:
+        return explicit_model
+
+    if os.environ.get("DEEPSEEK_API_KEY") and _try_import("openai"):
+        return "deepseek-v4-flash"
+    if os.environ.get("OPENAI_API_KEY") and _try_import("openai"):
+        return "gpt-4o-mini"
+    if os.environ.get("ANTHROPIC_API_KEY") and _try_import("anthropic"):
+        return "claude-haiku-4-5"
+    if os.environ.get("DASHSCOPE_API_KEY") and _try_import("openai"):
+        return "qwen-turbo"
+
+    return "deepseek-v4-flash"
+
 
 def _resolve_provider(
     model: str,
@@ -156,7 +185,7 @@ def _resolve_provider(
             "Install it with: pip install anthropic"
         )
 
-    # No specific provider requested — pick the best available
+    # No specific provider requested. Pick the best available.
     if not want_openai and not want_anthropic and not want_qwen and not want_deepseek:
         if anthropic_mod and anthropic_key:
             return "anthropic", anthropic_key, anthropic_mod

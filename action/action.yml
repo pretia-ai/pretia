@@ -21,7 +21,7 @@ inputs:
     required: false
     default: "diff"
   framework:
-    description: "Framework override: auto, langgraph, openai, qwen, generic."
+    description: "Framework override: auto, langgraph, openai, openai-sdk, anthropic, qwen, generic."
     required: false
     default: "auto"
   daily_volume:

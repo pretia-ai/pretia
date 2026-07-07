@@ -6,6 +6,7 @@ import json
 
 import pytest
 
+from pretia.inputs.generator import resolve_generator_model
 from pretia.inputs.selector import read_inputs_file, select_input_mode
 
 # ---------------------------------------------------------------------------
@@ -123,10 +124,57 @@ class TestAutoDetect:
             "LANGFUSE_SECRET_KEY",
             "ANTHROPIC_API_KEY",
             "OPENAI_API_KEY",
+            "DEEPSEEK_API_KEY",
+            "DASHSCOPE_API_KEY",
         ):
             monkeypatch.delenv(var, raising=False)
         sel = select_input_mode()
         assert sel.mode == "estimate"
+
+    def test_deepseek_key_triggers_auto_generate(self, monkeypatch):
+        for var in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "DASHSCOPE_API_KEY"):
+            monkeypatch.delenv(var, raising=False)
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test")
+        sel = select_input_mode()
+        assert sel.mode == "auto-generate"
+
+
+# ---------------------------------------------------------------------------
+# resolve_generator_model
+# ---------------------------------------------------------------------------
+
+
+class TestResolveGeneratorModel:
+    def test_explicit_model_returned(self):
+        assert resolve_generator_model("gpt-4o") == "gpt-4o"
+
+    def test_deepseek_default(self, monkeypatch):
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test")
+        assert resolve_generator_model(None) == "deepseek-v4-flash"
+
+    def test_falls_back_to_openai(self, monkeypatch):
+        for var in ("DEEPSEEK_API_KEY", "DASHSCOPE_API_KEY"):
+            monkeypatch.delenv(var, raising=False)
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+        result = resolve_generator_model(None)
+        assert result == "gpt-4o-mini"
+
+    def test_falls_back_to_anthropic(self, monkeypatch):
+        for var in ("DEEPSEEK_API_KEY", "OPENAI_API_KEY", "DASHSCOPE_API_KEY"):
+            monkeypatch.delenv(var, raising=False)
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+        result = resolve_generator_model(None)
+        assert result == "claude-haiku-4-5"
+
+    def test_no_keys_returns_default(self, monkeypatch):
+        for var in (
+            "DEEPSEEK_API_KEY",
+            "OPENAI_API_KEY",
+            "ANTHROPIC_API_KEY",
+            "DASHSCOPE_API_KEY",
+        ):
+            monkeypatch.delenv(var, raising=False)
+        assert resolve_generator_model(None) == "deepseek-v4-flash"
 
 
 # ---------------------------------------------------------------------------

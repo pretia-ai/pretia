@@ -53,11 +53,11 @@ class TestLoadCorpusDirectory:
         assert result == ""
 
     def test_word_limit_truncation(self, tmp_path: Path) -> None:
-        long_text = " ".join(["word"] * 500)
+        long_text = " ".join(["word"] * 2000)
         (tmp_path / "long.txt").write_text(long_text)
         result = load_corpus_context(str(tmp_path))
         words_in_result = result.split()
-        assert len(words_in_result) < 250
+        assert len(words_in_result) < 1050
         assert "..." in result
 
     def test_subdirectory_files(self, tmp_path: Path) -> None:

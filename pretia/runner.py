@@ -132,6 +132,51 @@ def _extract_system_prompt(module: Any) -> str:
     return ""
 
 
+def _detect_graph_input_key(graph: Any) -> str:
+    """Detect the first string-typed field from a LangGraph state schema."""
+    import typing
+
+    schema = None
+    builder = getattr(graph, "builder", None)
+    if builder is not None:
+        schema = getattr(builder, "schema", None)
+
+    if schema is None:
+        channels = getattr(graph, "channels", None)
+        if channels and isinstance(channels, dict):
+            for key in channels:
+                if isinstance(key, str):
+                    return key
+
+    if schema is not None:
+        annotations = getattr(schema, "__annotations__", {})
+        for key, type_hint in annotations.items():
+            origin = getattr(type_hint, "__origin__", None)
+            if type_hint is str or (origin is None and type_hint is str):
+                return key
+            try:
+                if typing.get_origin(type_hint) is None and issubclass(type_hint, str):
+                    return key
+            except TypeError:
+                continue
+
+    return "input"
+
+
+def _module_uses_sdk(module: Any, sdk_name: str) -> bool:
+    """Check if a loaded module has imported a given SDK package."""
+    import sys
+
+    for attr_name in dir(module):
+        obj = getattr(module, attr_name, None)
+        obj_module = getattr(obj, "__module__", None) or ""
+        if obj_module.startswith(sdk_name):
+            return True
+    return f"{sdk_name}" in {
+        m.split(".")[0] for m in sys.modules if m in getattr(module, "__dict__", {})
+    }
+
+
 def _load_workflow_module(path: str) -> Any:
     p = Path(path).resolve()
     if not p.exists():
@@ -295,7 +340,7 @@ class ProfileRunner:
         self.corpus_path = corpus_path
         self.entry_point = entry_point
 
-    def _load_workflow(self) -> tuple[Any, str]:
+    def _load_workflow(self) -> tuple[Any, str, Any]:
         module = _load_workflow_module(self.workflow_path)
         workflow = _find_workflow(module, entry_point=self.entry_point)
         if workflow is None:
@@ -308,9 +353,9 @@ class ProfileRunner:
                 f"Use --entry-point <name> to specify which object to profile."
             )
         system_prompt = _extract_system_prompt(module)
-        return workflow, system_prompt
+        return workflow, system_prompt, module
 
-    def _select_collector(self, workflow: Any) -> BaseCollector:
+    def _select_collector(self, workflow: Any, module: Any = None) -> BaseCollector:
         if self.collector_name == "langgraph":
             from pretia.collectors.langgraph import LangGraphCollector
 
@@ -329,12 +374,27 @@ class ProfileRunner:
 
             return QwenAgentCollector()
 
+        if self.collector_name == "anthropic":
+            from pretia.collectors.anthropic_sdk import AnthropicCollector
+
+            return AnthropicCollector()
+
+        if self.collector_name == "openai-sdk":
+            from pretia.collectors.openai_sdk import OpenAISDKCollector
+
+            return OpenAISDKCollector()
+
+        uses_openai_raw = module is not None and _module_uses_sdk(module, "openai")
+        uses_langchain_openai = module is not None and _module_uses_sdk(module, "langchain_openai")
+        uses_anthropic_raw = module is not None and _module_uses_sdk(module, "anthropic")
+
         has_ainvoke = hasattr(workflow, "ainvoke")
         has_nodes = hasattr(workflow, "nodes")
         if has_ainvoke and has_nodes:
-            from pretia.collectors.langgraph import LangGraphCollector
+            if uses_langchain_openai or not (uses_openai_raw or uses_anthropic_raw):
+                from pretia.collectors.langgraph import LangGraphCollector
 
-            return LangGraphCollector()
+                return LangGraphCollector()
 
         if hasattr(workflow, "name") and hasattr(workflow, "instructions"):
             from pretia.collectors.openai_agents import OpenAIAgentsCollector
@@ -350,6 +410,21 @@ class ProfileRunner:
 
             return QwenAgentCollector()
 
+        if uses_anthropic_raw and uses_openai_raw:
+            from pretia.collectors.multi_sdk import MultiSDKCollector
+
+            return MultiSDKCollector()
+
+        if uses_anthropic_raw:
+            from pretia.collectors.anthropic_sdk import AnthropicCollector
+
+            return AnthropicCollector()
+
+        if uses_openai_raw:
+            from pretia.collectors.openai_sdk import OpenAISDKCollector
+
+            return OpenAISDKCollector()
+
         logger.info(
             "Using GenericCollector. Instrument your code with "
             "@collector.step() for per-step data."
@@ -362,6 +437,8 @@ class ProfileRunner:
         mapping = {
             "LangGraphCollector": "langgraph",
             "OpenAIAgentsCollector": "openai-agents",
+            "OpenAISDKCollector": "openai",
+            "AnthropicCollector": "anthropic",
             "QwenAgentCollector": "qwen-agent",
             "GenericCollector": "generic",
         }
@@ -433,24 +510,42 @@ class ProfileRunner:
 
     @staticmethod
     def _maybe_wrap_sync(workflow: Any, collector: BaseCollector) -> Any:
-        """Wrap sync callables in an async shim, but only for GenericCollector."""
-        if not isinstance(collector, GenericCollector):
+        """Wrap workflows so all collectors can call them as async callables."""
+        from pretia.collectors.anthropic_sdk import AnthropicCollector
+        from pretia.collectors.multi_sdk import MultiSDKCollector
+        from pretia.collectors.openai_sdk import OpenAISDKCollector
+
+        needs_callable = isinstance(
+            collector,
+            (GenericCollector, AnthropicCollector, OpenAISDKCollector, MultiSDKCollector),
+        )
+        if not needs_callable:
             return workflow
+
+        if hasattr(workflow, "ainvoke"):
+            graph = workflow
+            input_key = _detect_graph_input_key(graph)
+
+            async def _ainvoke_wrapper(inp: str) -> Any:
+                payload: Any = inp if isinstance(inp, dict) else {input_key: inp}
+                return await graph.ainvoke(payload)
+
+            return _ainvoke_wrapper
+
         if callable(workflow) and not asyncio.iscoroutinefunction(workflow):
-            if not hasattr(workflow, "ainvoke"):
-                sync_fn = workflow
+            sync_fn = workflow
 
-                async def _async_wrapper(inp: str) -> Any:
-                    return sync_fn(inp)
+            async def _async_wrapper(inp: str) -> Any:
+                return sync_fn(inp)
 
-                logger.info("Wrapped sync callable in async shim for profiling.")
-                return _async_wrapper
+            logger.info("Wrapped sync callable in async shim for profiling.")
+            return _async_wrapper
         return workflow
 
     async def run(self) -> ProfilingSession:
         """Execute the full profiling pipeline."""
-        workflow, system_prompt = self._load_workflow()
-        collector = self._select_collector(workflow)
+        workflow, system_prompt, module = self._load_workflow()
+        collector = self._select_collector(workflow, module=module)
         workflow = self._maybe_wrap_sync(workflow, collector)
         selection, inputs = await self._resolve_inputs(system_prompt)
         runs = await collector.collect(

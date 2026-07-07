@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import pathlib
 import re
 
-_DATE_SUFFIX_RE = re.compile(r"-(\d{8})$")
+_DATE_SUFFIX_RE = re.compile(r"-(\d{8}|\d{4}-\d{2}-\d{2})$")
 
 # Per-million-token pricing in USD: (input_price_per_M, output_price_per_M).
 # Updated manually when vendors change rates. Numbers reflect publicly
@@ -151,6 +152,41 @@ MODEL_CACHE_HIT_PRICING: dict[str, float] = {
 
 _PER_MILLION = 1_000_000
 _VALID_TIERS = frozenset({"frontier", "mid", "fast"})
+
+_USER_PRICING_PATH: pathlib.Path | None = None
+
+
+def _get_user_pricing_path() -> pathlib.Path:
+    global _USER_PRICING_PATH  # noqa: PLW0603
+    if _USER_PRICING_PATH is None:
+        _USER_PRICING_PATH = pathlib.Path.home() / ".pretia" / "pricing.json"
+    return _USER_PRICING_PATH
+
+
+def _load_user_overrides() -> None:
+    """Load user pricing overrides from ~/.pretia/pricing.json if it exists."""
+    import json  # noqa: I001
+
+    path = _get_user_pricing_path()
+    if not path.is_file():
+        return
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        models = data.get("models", {})
+        for name, info in models.items():
+            if "input" in info and "output" in info:
+                MODEL_PRICING[name] = (info["input"], info["output"])
+            tier = info.get("tier")
+            if tier in _VALID_TIERS:
+                MODEL_TIERS[name] = tier
+        global PRICING_LAST_UPDATED  # noqa: PLW0603
+        if "updated" in data:
+            PRICING_LAST_UPDATED = data["updated"]
+    except (json.JSONDecodeError, OSError, KeyError):
+        pass
+
+
+_load_user_overrides()
 
 
 class UnrecognizedModelError(ValueError):
