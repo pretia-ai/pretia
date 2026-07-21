@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import random
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -20,6 +21,26 @@ from pretia.validation.confidence import ConfidenceResult, compute_confidence
 logger = logging.getLogger(__name__)
 
 _DEFAULT_TRAFFIC = [100, 1000, 10000]
+
+
+def _bootstrap_daily(
+    run_costs: list[float],
+    daily_volume: int,
+    n_sims: int = 5000,
+    seed: int = 42,
+) -> dict[str, float]:
+    """Project daily cost distribution by resampling observed per-run costs."""
+    rng = random.Random(seed)  # noqa: S311
+    daily_totals = sorted(sum(rng.choices(run_costs, k=daily_volume)) for _ in range(n_sims))
+    n = len(daily_totals)
+    return {
+        "p50": daily_totals[n // 2],
+        "p75": daily_totals[int(n * 0.75)],
+        "p90": daily_totals[int(n * 0.90)],
+        "p95": daily_totals[int(n * 0.95)],
+        "p99": daily_totals[int(n * 0.99)],
+        "mean": sum(daily_totals) / n,
+    }
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,11 +72,12 @@ class ProjectionResult:
     confidence: ConfidenceResult
     warnings: list[str] = field(default_factory=list)
     patterns_detected: list[DetectedPattern] = field(default_factory=list)
-    montecarlo_result: MonteCarloResult | None = None
+    montecarlo_results: dict[int, MonteCarloResult] = field(default_factory=dict)
     warm_discount: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a JSON-compatible dict."""
+        first_mc = next(iter(self.montecarlo_results.values()), None)
         d: dict[str, Any] = {
             "method": self.method,
             "traffic_volumes": list(self.traffic_volumes),
@@ -63,9 +85,8 @@ class ProjectionResult:
             "confidence": self.confidence.to_dict(),
             "warnings": list(self.warnings),
             "patterns_detected": [p.to_dict() for p in self.patterns_detected],
-            "montecarlo_result": (
-                self.montecarlo_result.to_dict() if self.montecarlo_result else None
-            ),
+            "montecarlo_result": first_mc.to_dict() if first_mc else None,
+            "montecarlo_results": {k: v.to_dict() for k, v in self.montecarlo_results.items()},
         }
         if self.warm_discount is not None:
             d["warm_discount"] = self.warm_discount
@@ -76,10 +97,10 @@ def _linear_project(
     stats: ProfilingStats,
     traffic: list[int],
 ) -> dict[int, TrafficProjection]:
-    """Scale observed percentiles linearly to each traffic volume."""
+    """Project cost distribution via empirical bootstrap resampling."""
     cpr = stats.cost_per_run
+    zero = PercentileProjection(p50=0, p75=0, p90=0, p95=0, p99=0, mean=0)
     if cpr is None:
-        zero = PercentileProjection(p50=0, p75=0, p90=0, p95=0, p99=0, mean=0)
         return {
             v: TrafficProjection(
                 daily_volume=v,
@@ -99,23 +120,36 @@ def _linear_project(
         mean=cpr.mean,
     )
 
+    run_costs = [rs.total_cost for rs in stats.run_stats]
+    if not run_costs or all(c == 0 for c in run_costs):
+        return {
+            v: TrafficProjection(
+                daily_volume=v,
+                monthly_cost=zero,
+                daily_cost=zero,
+                cost_per_run=per_run,
+            )
+            for v in traffic
+        }
+
     projections: dict[int, TrafficProjection] = {}
     for v in traffic:
+        bs = _bootstrap_daily(run_costs, v)
         daily = PercentileProjection(
-            p50=cpr.p50 * v,
-            p75=cpr.p75 * v,
-            p90=cpr.p90 * v,
-            p95=cpr.p95 * v,
-            p99=cpr.p99 * v,
-            mean=cpr.mean * v,
+            p50=bs["p50"],
+            p75=bs["p75"],
+            p90=bs["p90"],
+            p95=bs["p95"],
+            p99=bs["p99"],
+            mean=bs["mean"],
         )
         monthly = PercentileProjection(
-            p50=cpr.p50 * v * 30,
-            p75=cpr.p75 * v * 30,
-            p90=cpr.p90 * v * 30,
-            p95=cpr.p95 * v * 30,
-            p99=cpr.p99 * v * 30,
-            mean=cpr.mean * v * 30,
+            p50=bs["p50"] * 30,
+            p75=bs["p75"] * 30,
+            p90=bs["p90"] * 30,
+            p95=bs["p95"] * 30,
+            p99=bs["p99"] * 30,
+            mean=bs["mean"] * 30,
         )
         projections[v] = TrafficProjection(
             daily_volume=v,
@@ -235,7 +269,7 @@ def project(
 
     use_montecarlo = len(patterns) > 0
     warnings: list[str] = []
-    mc_result: MonteCarloResult | None = None
+    all_mc_results: dict[int, MonteCarloResult] = {}
 
     if use_montecarlo:
         if runs is None:
@@ -250,16 +284,15 @@ def project(
             for p in patterns:
                 if p.severity == "danger":
                     warnings.append(f"Monte Carlo triggered by: {p.description}")
-            projections, mc_results = _montecarlo_project(
+            projections, all_mc_results = _montecarlo_project(
                 stats,
                 patterns,
                 traffic,
                 runs,
             )
             first_volume = traffic[0] if traffic else None
-            if first_volume is not None and first_volume in mc_results:
-                mc_result = mc_results[first_volume]
-                if not mc_result.convergence_check:
+            if first_volume is not None and first_volume in all_mc_results:
+                if not all_mc_results[first_volume].convergence_check:
                     warnings.append(
                         "Monte Carlo may not have converged. Consider increasing sample count."
                     )
@@ -282,6 +315,6 @@ def project(
         confidence=confidence,
         warnings=warnings,
         patterns_detected=list(patterns),
-        montecarlo_result=mc_result,
+        montecarlo_results=all_mc_results,
         warm_discount=warm_discount,
     )

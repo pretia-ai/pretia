@@ -22,7 +22,7 @@ from pretia.inputs.selector import InputSelection, select_input_mode
 from pretia.pricing.tables import calculate_cost, model_tier
 from pretia.projection.patterns import detect_patterns
 from pretia.projection.projector import project
-from pretia.projection.stats import compute_stats
+from pretia.projection.stats import compute_stats, percentile
 from pretia.store import ProfileStore, ProfilingSession
 
 logger = logging.getLogger(__name__)
@@ -202,18 +202,6 @@ def _load_workflow_module(path: str) -> Any:
     return module
 
 
-def _percentile(values: list[float], pct: int) -> float:
-    if not values:
-        return 0.0
-    s = sorted(values)
-    k = (len(s) - 1) * pct / 100
-    f = int(k)
-    c = f + 1
-    if c >= len(s):
-        return s[f]
-    return s[f] + (k - f) * (s[c] - s[f])
-
-
 def _build_cost_summary(
     runs: list[list[StepRecord]],
 ) -> dict[str, Any]:
@@ -253,14 +241,15 @@ def _build_cost_summary(
         out_toks = [e["output_tokens"] for e in entries]
         durations = [e["duration_ms"] for e in entries]
         iterations = [e["iteration"] for e in entries]
+        sorted_costs = sorted(costs)
 
         per_step[step_name] = {
             "count": len(entries),
             "cost_mean": statistics.mean(costs),
             "cost_min": min(costs),
             "cost_max": max(costs),
-            "cost_p50": _percentile(costs, 50),
-            "cost_p95": _percentile(costs, 95),
+            "cost_p50": percentile(sorted_costs, 50),
+            "cost_p95": percentile(sorted_costs, 95),
             "input_tokens_mean": statistics.mean(in_toks),
             "output_tokens_mean": statistics.mean(out_toks),
             "duration_ms_mean": statistics.mean(durations),
@@ -275,11 +264,11 @@ def _build_cost_summary(
         "mean_cost_per_run": mean_run_cost,
         "min_cost_per_run": min(run_totals) if run_totals else 0.0,
         "max_cost_per_run": max(run_totals) if run_totals else 0.0,
-        "p95_cost_per_run": _percentile(run_totals, 95),
+        "p95_cost_per_run": percentile(sorted(run_totals), 95),
         "total_session_cost": sum(run_totals),
-        "projection_100_day": mean_run_cost * 100 * 30,
-        "projection_1000_day": mean_run_cost * 1000 * 30,
-        "projection_10000_day": mean_run_cost * 10000 * 30,
+        "projection_100_monthly": mean_run_cost * 100 * 30,
+        "projection_1000_monthly": mean_run_cost * 1000 * 30,
+        "projection_10000_monthly": mean_run_cost * 10000 * 30,
     }
 
 
@@ -362,6 +351,10 @@ class ProfileRunner:
             return LangGraphCollector()
 
         if self.collector_name == "generic":
+            if module is not None:
+                instances = [v for v in vars(module).values() if isinstance(v, GenericCollector)]
+                if instances:
+                    return instances[0]
             return GenericCollector()
 
         if self.collector_name == "openai":
@@ -536,34 +529,28 @@ class ProfileRunner:
             sync_fn = workflow
 
             async def _async_wrapper(inp: str) -> Any:
-                return sync_fn(inp)
+                return await asyncio.to_thread(sync_fn, inp)
 
             logger.info("Wrapped sync callable in async shim for profiling.")
             return _async_wrapper
         return workflow
 
-    async def run(self) -> ProfilingSession:
-        """Execute the full profiling pipeline."""
-        workflow, system_prompt, module = self._load_workflow()
-        collector = self._select_collector(workflow, module=module)
-        workflow = self._maybe_wrap_sync(workflow, collector)
-        selection, inputs = await self._resolve_inputs(system_prompt)
-        runs = await collector.collect(
-            workflow,
-            inputs,
-            on_run_complete=self.progress_callback,
-        )
-
-        total_steps = sum(len(run) for run in runs)
-        if total_steps == 0:
-            raise ValueError(
-                "Profiling captured 0 steps across all runs. No LLM calls were recorded. "
-                "Common causes: workflow returned response.content instead of the raw "
-                "response object, API key is invalid, or the wrong collector was "
-                "auto-selected. Try: --collector langgraph (for LangGraph workflows), "
-                "or return the raw LLM response object from your function."
-            )
-
+    def _post_collect(
+        self,
+        runs: list[list[StepRecord]],
+        *,
+        workflow_name: str,
+        workflow_hash: str,
+        sample_size: int,
+        input_mode: str,
+        input_source: str,
+        workflow_id: str,
+        graph_steps: list[str] | None = None,
+        framework: str | None = None,
+        profiling_cost: float | None = None,
+        extra_metadata: dict[str, Any] | None = None,
+    ) -> ProfilingSession:
+        """Shared post-collection pipeline: stats, patterns, projection, save."""
         cost_summary = _build_cost_summary(runs)
 
         for step_name in cost_summary["per_step"]:
@@ -579,51 +566,113 @@ class ProfileRunner:
             else:
                 cost_summary["per_step"][step_name]["tier"] = "tool"
 
-        from pretia.validation.data_checks import validate_profiling_data
-
-        data_warnings = validate_profiling_data(runs)
-        for w in data_warnings:
-            logger.warning(w)
-
         profiling_stats = compute_stats(runs)
-        patterns = detect_patterns(runs, profiling_stats)
+        patterns = detect_patterns(runs, profiling_stats, graph_steps=graph_steps)
         projection = project(
             profiling_stats,
             patterns,
             runs=runs,
-            input_source=selection.mode,
+            input_source=input_source,
         )
 
         from pretia import __version__
 
-        try:
-            workflow_src = Path(self.workflow_path).read_bytes()
-        except OSError:
-            workflow_src = b""
+        metadata: dict[str, Any] = {
+            "cost_summary": cost_summary,
+            "stats": profiling_stats.to_dict(),
+            "patterns": [p.to_dict() for p in patterns],
+            "projection": projection.to_dict(),
+            "confidence": projection.confidence.to_dict(),
+        }
+        if extra_metadata:
+            metadata.update(extra_metadata)
+
         session = ProfilingSession(
-            workflow_name=self.workflow_path,
-            workflow_hash=hashlib.sha256(workflow_src).hexdigest()[:12],
+            workflow_name=workflow_name,
+            workflow_hash=workflow_hash,
             profiled_at=datetime.now(UTC),
-            sample_size=len(inputs),
-            input_mode=selection.mode,
+            sample_size=sample_size,
+            input_mode=input_mode,
             runs=runs,
-            metadata={
-                "cost_summary": cost_summary,
-                "stats": profiling_stats.to_dict(),
-                "patterns": [p.to_dict() for p in patterns],
-                "projection": projection.to_dict(),
-                "confidence": projection.confidence.to_dict(),
-            },
-            workflow_id=Path(self.workflow_path).stem,
+            metadata=metadata,
+            workflow_id=workflow_id,
             run_id=str(uuid.uuid4()),
-            framework=self._detect_framework(collector),
+            framework=framework,
             pretia_version=__version__,
-            profiling_cost=cost_summary["total_session_cost"],
+            profiling_cost=(
+                profiling_cost
+                if profiling_cost is not None
+                else cost_summary["total_session_cost"]
+            ),
         )
 
         store = ProfileStore(storage_dir=Path(self.output_dir))
         saved_path = store.save(session)
         session.metadata["saved_path"] = str(saved_path)
+
+        return session
+
+    async def run(self) -> ProfilingSession:
+        """Execute the full profiling pipeline."""
+        workflow, system_prompt, module = self._load_workflow()
+        collector = self._select_collector(workflow, module=module)
+        workflow = self._maybe_wrap_sync(workflow, collector)
+        selection, inputs = await self._resolve_inputs(system_prompt)
+        runs = await collector.collect(
+            workflow,
+            inputs,
+            on_run_complete=self.progress_callback,
+        )
+
+        valid_runs = [r for r in runs if r]
+        failed_count = len(runs) - len(valid_runs)
+        if failed_count:
+            logger.warning(
+                "%d/%d runs failed and were excluded from statistics.",
+                failed_count,
+                len(runs),
+            )
+
+        total_steps = sum(len(run) for run in valid_runs)
+        if total_steps == 0:
+            raise ValueError(
+                "Profiling captured 0 steps across all runs. No LLM calls were recorded. "
+                "Common causes: workflow returned response.content instead of the raw "
+                "response object, API key is invalid, or the wrong collector was "
+                "auto-selected. Try: --collector langgraph (for LangGraph workflows), "
+                "or return the raw LLM response object from your function."
+            )
+
+        from pretia.validation.data_checks import validate_profiling_data
+
+        data_warnings = validate_profiling_data(valid_runs)
+        for w in data_warnings:
+            logger.warning(w)
+
+        from pretia.graph.extractor import extract_step_names
+
+        graph_steps = extract_step_names(workflow)
+
+        try:
+            workflow_src = Path(self.workflow_path).read_bytes()
+        except OSError:
+            workflow_src = b""
+
+        session = self._post_collect(
+            valid_runs,
+            workflow_name=self.workflow_path,
+            workflow_hash=hashlib.sha256(workflow_src).hexdigest()[:12],
+            sample_size=len(inputs),
+            input_mode=selection.mode,
+            input_source=selection.mode,
+            workflow_id=Path(self.workflow_path).stem,
+            graph_steps=graph_steps,
+            framework=self._detect_framework(collector),
+            extra_metadata={
+                "graph_steps": graph_steps,
+                "failed_runs": failed_count,
+            },
+        )
 
         self._auto_diff_baseline(session)
 
@@ -656,10 +705,7 @@ class ProfileRunner:
         )
 
     def analyze_langfuse(self) -> ProfilingSession:
-        """Analyze Langfuse traces without re-executing the workflow.
-
-        Used by 'pretia analyze --from-langfuse' (CLI command added in prompt 15).
-        """
+        """Analyze Langfuse traces without re-executing the workflow."""
         from pretia.inputs.importer import (
             create_langfuse_client,
             fetch_traces,
@@ -670,56 +716,14 @@ class ProfileRunner:
         traces = fetch_traces(client, last_n=self.langfuse_last_n)
         runs = traces_to_step_records(traces)
 
-        cost_summary = _build_cost_summary(runs)
-
-        for step_name in cost_summary["per_step"]:
-            model = _get_step_model(runs, step_name)
-            step_type = _get_step_type(runs, step_name)
-            cost_summary["per_step"][step_name]["model"] = model
-            cost_summary["per_step"][step_name]["step_type"] = step_type
-            if model:
-                try:
-                    cost_summary["per_step"][step_name]["tier"] = model_tier(model)
-                except (ValueError, KeyError):
-                    cost_summary["per_step"][step_name]["tier"] = "unknown"
-            else:
-                cost_summary["per_step"][step_name]["tier"] = "tool"
-
-        profiling_stats = compute_stats(runs)
-        patterns = detect_patterns(runs, profiling_stats)
-        projection = project(
-            profiling_stats,
-            patterns,
-            runs=runs,
-            input_source="langfuse",
-        )
-
-        from pretia import __version__
-
-        session = ProfilingSession(
+        return self._post_collect(
+            runs,
             workflow_name=f"langfuse-import ({len(traces)} traces)",
             workflow_hash="langfuse",
-            profiled_at=datetime.now(UTC),
             sample_size=len(traces),
             input_mode="langfuse-analyze",
-            runs=runs,
-            metadata={
-                "cost_summary": cost_summary,
-                "stats": profiling_stats.to_dict(),
-                "patterns": [p.to_dict() for p in patterns],
-                "langfuse_trace_count": len(traces),
-                "projection": projection.to_dict(),
-                "confidence": projection.confidence.to_dict(),
-            },
+            input_source="langfuse",
             workflow_id="langfuse-import",
-            run_id=str(uuid.uuid4()),
-            framework=None,
-            pretia_version=__version__,
             profiling_cost=0.0,
+            extra_metadata={"langfuse_trace_count": len(traces)},
         )
-
-        store = ProfileStore(storage_dir=Path(self.output_dir))
-        saved_path = store.save(session)
-        session.metadata["saved_path"] = str(saved_path)
-
-        return session

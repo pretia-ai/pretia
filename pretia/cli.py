@@ -141,6 +141,18 @@ def profile() -> None:
     help="Don't auto-open the HTML report in a browser.",
 )
 @click.option(
+    "--unit",
+    type=str,
+    default=None,
+    help='Label for a single run (e.g., "claim", "ticket"). Default: "run".',
+)
+@click.option(
+    "--current-cost",
+    type=float,
+    default=None,
+    help="Current monthly cost ($) to show ROI comparison in the report.",
+)
+@click.option(
     "--yes",
     "-y",
     is_flag=True,
@@ -163,6 +175,8 @@ def run(
     corpus: str | None,
     no_html: bool,
     no_open: bool,
+    unit: str | None,
+    current_cost: float | None,
     yes: bool,
 ) -> None:
     """Profile a workflow and generate a cost report."""
@@ -234,8 +248,13 @@ def run(
         console=console,
     )
 
+    actual_total_set = False
+
     def _on_run_done(run_idx: int, total: int, records: list) -> None:
-        nonlocal accumulated_cost
+        nonlocal accumulated_cost, actual_total_set
+        if not actual_total_set:
+            progress.update(task_id, total=total)
+            actual_total_set = True
         for r in records:
             try:
                 from pretia.pricing.tables import calculate_cost
@@ -291,6 +310,10 @@ def run(
         )
         console.print()
 
+        needs_generation = not single_input and not inputs_file and not from_langfuse
+        if needs_generation:
+            console.print("[dim]Generating synthetic inputs...[/dim]")
+
         t0 = _time.monotonic()
         with progress:
             task_id = progress.add_task("Profiling", total=num_runs, cost="$0.0000")
@@ -298,6 +321,11 @@ def run(
         elapsed = _time.monotonic() - t0
 
         _enrich_with_recommendations(session)
+
+        if unit:
+            session.metadata["unit_label"] = unit
+        if current_cost is not None:
+            session.metadata["current_cost"] = current_cost
 
         _show_profiling_summary(session, elapsed)
 
@@ -368,11 +396,25 @@ def run(
     default=False,
     help="Don't auto-open the HTML report in a browser.",
 )
+@click.option(
+    "--unit",
+    type=str,
+    default=None,
+    help='Label for a single run (e.g., "claim", "ticket"). Default: "run".',
+)
+@click.option(
+    "--current-cost",
+    type=float,
+    default=None,
+    help="Current monthly cost ($) to show ROI comparison in the report.",
+)
 def report_cmd(
     profile_path: str,
     traffic: int | None,
     no_html: bool,
     no_open: bool,
+    unit: str | None,
+    current_cost: float | None,
 ) -> None:
     """Generate a detailed report from a saved profile JSON."""
     from pretia.ci.report import format_cli_report
@@ -407,22 +449,59 @@ def report_cmd(
 
     if "stats" not in session.metadata and session.runs:
         profiling_stats = compute_stats(session.runs)
-        patterns = detect_patterns(session.runs, profiling_stats)
+        graph_steps = session.metadata.get("graph_steps")
+        patterns = detect_patterns(session.runs, profiling_stats, graph_steps=graph_steps)
         session.metadata["stats"] = profiling_stats.to_dict()
         session.metadata["patterns"] = [p.to_dict() for p in patterns]
 
     if "recommendations" not in session.metadata:
         _enrich_with_recommendations(session)
 
+    if unit:
+        session.metadata["unit_label"] = unit
+    if current_cost is not None:
+        session.metadata["current_cost"] = current_cost
+
     for renderable in format_cli_report(session, traffic=traffic):
         console.print(renderable)
         console.print()
+
+    if current_cost is not None and traffic is not None:
+        from pretia.ci.report import format_cost
+
+        meta = session.metadata or {}
+        proj = meta.get("projection", {})
+        projs = proj.get("projections", {})
+        vol_data = projs.get(str(traffic), projs.get(traffic, {}))
+        monthly_p50 = 0.0
+        if vol_data:
+            monthly_p50 = vol_data.get("monthly_cost", {}).get("p50", 0)
+        if not monthly_p50 and meta.get("cost_summary"):
+            monthly_p50 = meta["cost_summary"].get("mean_cost_per_run", 0) * traffic * 30
+        if monthly_p50 > 0:
+            savings = current_cost - monthly_p50
+            pct = savings / current_cost * 100
+            if savings > 0:
+                console.print(
+                    f"[bold green]Saves {format_cost(savings)}/month vs current "
+                    f"process ({pct:.0f}% reduction)[/bold green]"
+                )
+            else:
+                console.print(
+                    f"[bold red]Costs {format_cost(-savings)}/month more than current "
+                    f"process ({-pct:.0f}% increase)[/bold red]"
+                )
+            console.print()
 
     if not no_html:
         try:
             from pretia.report import render_and_save
 
-            html_path = render_and_save(session, open_browser=not no_open)
+            html_path = render_and_save(
+                session,
+                open_browser=not no_open,
+                traffic=traffic,
+            )
             console.print(f"HTML report: [bold]{html_path}[/bold]")
             console.print()
         except Exception as html_exc:
@@ -532,6 +611,16 @@ def analyze_cmd(
                 "Check your LANGFUSE_HOST and trace name filter.",
             )
             sys.exit(1)
+
+        if all(t.total_input_tokens == 0 for t in traces):
+            console.print(
+                "[yellow]Warning:[/yellow] All Langfuse traces have 0 tokens. "
+                "Your Langfuse instrumentation may not be logging usage data.\n"
+                "For LLM calls, use [bold]langfuse.generation()[/bold] instead "
+                "of [bold]start_as_current_observation()[/bold].\n"
+                "Spans don't capture model or token data in the Langfuse API.",
+            )
+            console.print()
 
         console.print(f"Converting {len(traces)} traces to profiling data...")
         runs = traces_to_step_records(traces)
@@ -732,7 +821,8 @@ def diff_cmd(
 
     if "stats" not in session.metadata and session.runs:
         profiling_stats = compute_stats(session.runs)
-        patterns = detect_patterns(session.runs, profiling_stats)
+        graph_steps = session.metadata.get("graph_steps")
+        patterns = detect_patterns(session.runs, profiling_stats, graph_steps=graph_steps)
         session.metadata["stats"] = profiling_stats.to_dict()
         session.metadata["patterns"] = [p.to_dict() for p in patterns]
 
@@ -1028,7 +1118,8 @@ def recommend_cmd(profile_path: str) -> None:
 
     if "stats" not in session.metadata and session.runs:
         profiling_stats = compute_stats(session.runs)
-        patterns = detect_patterns(session.runs, profiling_stats)
+        graph_steps = session.metadata.get("graph_steps")
+        patterns = detect_patterns(session.runs, profiling_stats, graph_steps=graph_steps)
         session.metadata["stats"] = profiling_stats.to_dict()
         session.metadata["patterns"] = [p.to_dict() for p in patterns]
 
@@ -1216,8 +1307,9 @@ def update_pricing_cmd(pricing_file: str | None, reset: bool) -> None:
             "Usage:\n"
             "  pretia update-pricing --file prices.json   Load from a local file\n"
             "  pretia update-pricing --reset               Revert to built-in pricing\n\n"
-            "JSON format:\n"
-            '  {"models": {"model-name": {"input": 1.0, "output": 5.0, "tier": "mid"}}}\n\n'
+            "JSON format (both key styles accepted):\n"
+            '  {"models": {"model-name": {"input": 1.0, "output": 5.0, "tier": "mid"}}}\n'
+            '  {"models": {"model-name": {"input_price": 1.0, "output_price": 5.0}}}\n\n'
             "Prices are per million tokens in USD.\n"
             "See scripts/pricing_sources.md for vendor pricing page URLs.",
         )
@@ -1237,11 +1329,13 @@ def update_pricing_cmd(pricing_file: str | None, reset: bool) -> None:
     added = 0
     updated = 0
     for name, info in models.items():
-        if "input" not in info or "output" not in info:
+        inp = info.get("input") if "input" in info else info.get("input_price")
+        out = info.get("output") if "output" in info else info.get("output_price")
+        if inp is None or out is None:
             console.print(f"[yellow]Skipping '{name}':[/yellow] missing input/output prices.")
             continue
         existing = MODEL_PRICING.get(name)
-        new_price = (info["input"], info["output"])
+        new_price = (inp, out)
         if existing is None:
             added += 1
         elif existing != new_price:

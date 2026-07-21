@@ -199,3 +199,139 @@ class TestOpenAIRecord:
             _record_from_chunk(chunk, 0, captured, "test")
         assert len(captured) == 0
         assert "without usage data" in caplog.text
+
+    def test_record_from_chunk_preserves_iteration(self):
+        from pretia.collectors.openai_sdk import _record_from_chunk
+
+        chunk = MagicMock()
+        chunk.model = "gpt-4o"
+        chunk.usage.prompt_tokens = 100
+        chunk.usage.completion_tokens = 50
+
+        captured = []
+        _record_from_chunk(chunk, 0, captured, "review", iteration=3)
+        assert len(captured) == 1
+        assert captured[0].iteration == 3
+
+    def test_async_stream_capture_preserves_iteration(self):
+        import asyncio
+
+        from pretia.collectors.openai_sdk import _AsyncStreamCapture
+
+        chunk = MagicMock()
+        chunk.model = "gpt-4o"
+        chunk.usage.prompt_tokens = 200
+        chunk.usage.completion_tokens = 80
+
+        async def _drain():
+            captured = []
+            mock_stream = MagicMock()
+            mock_stream.__aiter__ = MagicMock(return_value=iter([chunk]))
+
+            async def async_iter():
+                yield chunk
+
+            mock_stream.__aiter__ = lambda self: async_iter()
+            wrapper = _AsyncStreamCapture(mock_stream, 0, captured, "gen", iteration=5)
+            async for _ in wrapper:
+                pass
+            return captured
+
+        captured = asyncio.run(_drain())
+        assert len(captured) == 1
+        assert captured[0].iteration == 5
+
+    def test_sync_stream_capture_preserves_iteration(self):
+        from pretia.collectors.openai_sdk import _SyncStreamCapture
+
+        chunk = MagicMock()
+        chunk.model = "gpt-4o"
+        chunk.usage.prompt_tokens = 150
+        chunk.usage.completion_tokens = 60
+
+        captured = []
+        mock_stream = MagicMock()
+        mock_stream.__iter__ = MagicMock(return_value=iter([chunk]))
+        wrapper = _SyncStreamCapture(mock_stream, 0, captured, "classify", iteration=4)
+        for _ in wrapper:
+            pass
+        assert len(captured) == 1
+        assert captured[0].iteration == 4
+
+
+# ---------------------------------------------------------------------------
+# Concurrent capture with locks
+# ---------------------------------------------------------------------------
+
+
+class TestConcurrentCapture:
+    def test_anthropic_concurrent_unique_iterations(self):
+        import asyncio
+
+        from pretia.collectors.anthropic_sdk import (
+            _make_create_wrapper,
+        )
+        from pretia.collectors.base import StepRecord
+
+        captured: list[StepRecord] = []
+        lock = asyncio.Lock()
+
+        response = MagicMock()
+        response.model = "claude-haiku-4-5"
+        response.usage.input_tokens = 100
+        response.usage.output_tokens = 50
+        response.usage.cache_read_input_tokens = None
+        response.usage.cache_creation_input_tokens = None
+        response.content = []
+
+        async def fake_create(*args, **kwargs):
+            await asyncio.sleep(0.01)
+            return response
+
+        wrapper = _make_create_wrapper(fake_create, is_async=True, captured=captured, lock=lock)
+
+        async def run_three():
+            await asyncio.gather(
+                wrapper(model="claude-haiku-4-5"),
+                wrapper(model="claude-haiku-4-5"),
+                wrapper(model="claude-haiku-4-5"),
+            )
+
+        asyncio.run(run_three())
+        iterations = sorted(r.iteration for r in captured)
+        assert len(iterations) == 3
+        assert iterations == [1, 2, 3]
+
+    def test_openai_concurrent_unique_iterations(self):
+        import asyncio
+
+        from pretia.collectors.base import StepRecord
+        from pretia.collectors.openai_sdk import _make_create_wrapper
+
+        captured: list[StepRecord] = []
+        lock = asyncio.Lock()
+
+        response = MagicMock()
+        response.model = "gpt-4o-mini"
+        response.usage.prompt_tokens = 200
+        response.usage.completion_tokens = 30
+        response.usage.prompt_tokens_details = None
+        response.choices = []
+
+        async def fake_create(*args, **kwargs):
+            await asyncio.sleep(0.01)
+            return response
+
+        wrapper = _make_create_wrapper(fake_create, is_async=True, captured=captured, lock=lock)
+
+        async def run_three():
+            await asyncio.gather(
+                wrapper(model="gpt-4o-mini"),
+                wrapper(model="gpt-4o-mini"),
+                wrapper(model="gpt-4o-mini"),
+            )
+
+        asyncio.run(run_three())
+        iterations = sorted(r.iteration for r in captured)
+        assert len(iterations) == 3
+        assert iterations == [1, 2, 3]

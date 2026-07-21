@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import math
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -15,9 +15,11 @@ from pretia.pricing.tables import calculate_cost
 logger = logging.getLogger(__name__)
 
 
-def _percentile(sorted_data: list[float], p: float) -> float:
-    """Compute the p-th percentile (0-100) of sorted data using linear interpolation."""
+def percentile(sorted_data: Sequence[float], p: float) -> float:
+    """Compute the p-th percentile (0-100) of pre-sorted data using linear interpolation."""
     n = len(sorted_data)
+    if n == 0:
+        return 0.0
     if n == 1:
         return sorted_data[0]
     k = (n - 1) * p / 100.0
@@ -32,7 +34,8 @@ def robust_cv(values: list[float]) -> float:
     """Compute MAD-based coefficient of variation. Resistant to outliers.
 
     The constant 1.4826 makes MAD consistent with standard deviation
-    for normal distributions.
+    for normal distributions. Falls back to IQR-based dispersion when
+    MAD is zero but a substantial minority (>=20%) differs from the median.
     """
     n = len(values)
     if n < 2:
@@ -40,10 +43,29 @@ def robust_cv(values: list[float]) -> float:
     s = sorted(values)
     median = s[n // 2]
     if median == 0:
+        if s[-1] > 0:
+            mean = sum(values) / n
+            if mean > 0:
+                std = (sum((v - mean) ** 2 for v in values) / n) ** 0.5
+                return std / mean
         return 0.0
     deviations = sorted(abs(v - median) for v in values)
     mad = deviations[n // 2]
-    return 1.4826 * mad / median
+    if mad > 0:
+        return 1.4826 * mad / median
+    if s[-1] != s[0]:
+        differ_count = sum(1 for v in values if v != median)
+        if differ_count >= n * 0.2:
+            q1 = s[n // 4]
+            q3 = s[3 * n // 4]
+            iqr = q3 - q1
+            if iqr > 0:
+                return iqr / median
+            mean = sum(values) / n
+            if mean > 0:
+                std = (sum((v - mean) ** 2 for v in values) / n) ** 0.5
+                return std / mean
+    return 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,11 +123,11 @@ def compute_percentile_stats(values: list[float]) -> PercentileStats:
         max=s[-1],
         mean=mean,
         std=std,
-        p50=_percentile(s, 50),
-        p75=_percentile(s, 75),
-        p90=_percentile(s, 90),
-        p95=_percentile(s, 95),
-        p99=_percentile(s, 99),
+        p50=percentile(s, 50),
+        p75=percentile(s, 75),
+        p90=percentile(s, 90),
+        p95=percentile(s, 95),
+        p99=percentile(s, 99),
     )
 
 

@@ -305,9 +305,24 @@ class PretiaCallbackHandler(BaseCallbackHandler):
         input_tokens = 0
         output_tokens = 0
 
-        # Location 1: response.llm_output["token_usage"]
+        # Location 0: message.usage_metadata (cross-provider standard in LangChain)
+        try:
+            generations = getattr(response, "generations", [])
+            if generations and generations[0]:
+                msg = getattr(generations[0][0], "message", None)
+                if msg:
+                    usage_meta = getattr(msg, "usage_metadata", None)
+                    if usage_meta:
+                        inp = getattr(usage_meta, "input_tokens", 0) or 0
+                        out = getattr(usage_meta, "output_tokens", 0) or 0
+                        if inp or out:
+                            return int(inp), int(out)
+        except (IndexError, AttributeError, TypeError):
+            pass
+
+        # Location 1: response.llm_output["token_usage"] (OpenAI) or ["usage"] (Anthropic)
         llm_output = getattr(response, "llm_output", None) or {}
-        token_usage = llm_output.get("token_usage", {})
+        token_usage = llm_output.get("token_usage") or llm_output.get("usage") or {}
         if token_usage:
             input_tokens = token_usage.get("prompt_tokens", 0) or token_usage.get(
                 "input_tokens", 0
@@ -368,14 +383,23 @@ class LangGraphCollector(BaseCollector):
             config: dict[str, Any] = {"callbacks": [handler]}
             payload: Any = inp if isinstance(inp, dict) else {"input": inp}
 
-            if hasattr(workflow, "ainvoke"):
-                await workflow.ainvoke(payload, config=config)
-            elif hasattr(workflow, "invoke"):
-                await asyncio.to_thread(workflow.invoke, payload, config=config)
-            else:
-                logger.warning("Workflow has neither ainvoke nor invoke — skipping input")
-                runs.append([])
-                continue
+            try:
+                if hasattr(workflow, "ainvoke"):
+                    await workflow.ainvoke(payload, config=config)
+                elif hasattr(workflow, "invoke"):
+                    await asyncio.to_thread(workflow.invoke, payload, config=config)
+                else:
+                    logger.warning("Workflow has neither ainvoke nor invoke — skipping input")
+                    runs.append([])
+                    continue
+            except Exception:
+                logger.error(
+                    "Run %d/%d failed on input %.80s",
+                    i + 1,
+                    total,
+                    str(inp)[:80],
+                    exc_info=True,
+                )
 
             run_records = list(handler.records)
             runs.append(run_records)

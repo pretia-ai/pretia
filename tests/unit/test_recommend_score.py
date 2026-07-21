@@ -73,18 +73,18 @@ class TestComputeScore:
         assert result.total_savings == 0.0
         assert result.recommendation_count == 0
 
-    def test_savings_equal_cost_score_0(self) -> None:
+    def test_savings_equal_cost_capped(self) -> None:
         recs = [_make_rec(1000.0)]
         result = compute_score(recs, 1000.0)
-        assert result.score == 0
+        assert result.score == 20
         assert result.zone == "red"
-        assert result.waste_pct == 1.0
+        assert result.waste_pct == 0.8
 
     def test_savings_exceed_cost_waste_capped(self) -> None:
         recs = [_make_rec(5000.0)]
         result = compute_score(recs, 1000.0)
-        assert result.score == 0
-        assert result.waste_pct == 1.0
+        assert result.score == 20
+        assert result.waste_pct == 0.8
 
     def test_zero_projected_cost_score_100(self) -> None:
         recs = [_make_rec(500.0)]

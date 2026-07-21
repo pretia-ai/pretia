@@ -12,24 +12,9 @@ from typing import Any
 from pretia.collectors.base import StepRecord
 from pretia.pricing.tables import calculate_cost
 from pretia.projection.patterns import DetectedPattern
-from pretia.projection.stats import ProfilingStats
+from pretia.projection.stats import ProfilingStats, percentile
 
 logger = logging.getLogger(__name__)
-
-
-def _percentile(sorted_data: list[float], p: float) -> float:
-    """Compute the p-th percentile (0-100) via linear interpolation."""
-    n = len(sorted_data)
-    if n == 0:
-        return 0.0
-    if n == 1:
-        return sorted_data[0]
-    k = (n - 1) * p / 100.0
-    f = int(k)
-    c = f + 1
-    if c >= n:
-        return sorted_data[f]
-    return sorted_data[f] + (k - f) * (sorted_data[c] - sorted_data[f])
 
 
 def _safe_cost(model: str, input_tokens: int, output_tokens: int) -> float:
@@ -67,11 +52,11 @@ def _build_percentile_projection(values: list[float]) -> PercentileProjection:
         return PercentileProjection(p50=0, p75=0, p90=0, p95=0, p99=0, mean=0)
     s = sorted(values)
     return PercentileProjection(
-        p50=_percentile(s, 50),
-        p75=_percentile(s, 75),
-        p90=_percentile(s, 90),
-        p95=_percentile(s, 95),
-        p99=_percentile(s, 99),
+        p50=percentile(s, 50),
+        p75=percentile(s, 75),
+        p90=percentile(s, 90),
+        p95=percentile(s, 95),
+        p99=percentile(s, 99),
         mean=sum(s) / len(s),
     )
 
@@ -487,8 +472,8 @@ def simulate(
     if n_simulations >= 10000:
         sorted_partial = sorted(sim_monthly_costs[:9000])
         sorted_full = sorted(sim_monthly_costs)
-        p95_partial = _percentile(sorted_partial, 95)
-        p95_full = _percentile(sorted_full, 95)
+        p95_partial = percentile(sorted_partial, 95)
+        p95_full = percentile(sorted_full, 95)
         if p95_full > 0:
             converged = abs(p95_partial - p95_full) / p95_full < 0.01
         else:

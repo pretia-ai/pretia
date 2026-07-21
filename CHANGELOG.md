@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.2.1 (2026-07-21)
+
+### Critical fixes
+
+- Fix: P95 projections now use empirical bootstrap resampling instead of linear scaling
+- Fix: `float("inf")` in pattern detection no longer crashes JSON serialization (capped to `1e10`)
+- Fix: failed runs are filtered from statistics instead of corrupting aggregates
+- Fix: `_maybe_wrap_sync` uses `asyncio.to_thread` instead of blocking the event loop
+- Fix: LangGraph collector now catches per-run errors instead of aborting the batch
+- Fix: `robust_cv` falls back to mean-based CV when median is zero
+- Fix: ChatAnthropic token extraction uses `usage_metadata` as primary source
+- Fix: input generator retries with exponential backoff on transient API errors
+
+### Medium fixes
+
+- Fix: `asyncio.gather` race condition in SDK collectors — stream wrappers now acquire the same lock used by create wrappers
+- Fix: OpenAI streaming responses no longer default to `iteration=1` — iteration value passed through stream capture wrappers
+- Fix: deduplicated post-collection pipeline — `run()` and `analyze_langfuse()` share `_post_collect()`
+- Fix: all Monte Carlo results stored in `ProjectionResult` (previously only first traffic volume kept)
+- Fix: consolidated four `_percentile` implementations into single canonical `percentile()` in `pretia.projection.stats`
+- Removed unused `StepRecord.cost()` method (use `calculate_cost()` instead)
+
+### CI/CD
+
+- Added pyright type checking to CI pipeline
+- Removed stale exit-code-5 tolerance from pytest step
+- Added trusted OIDC publish workflow for PyPI releases
+
 ## 1.1.3 (2026-07-01)
 
 - Fix: tiered output token utilization rates (10% for classification, 40% for short gen, 30% for medium, 20% for long) replace flat 60%

@@ -463,7 +463,7 @@ class TestRenderHtmlReport:
         session = _make_session(metadata=_make_full_metadata())
         html = render_html_report(session)
         assert "Monthly Cost Projection" in html
-        assert "10,000/day" in html
+        assert "10,000 runs/day" in html
 
     def test_contains_recommendation_cards(self) -> None:
         session = _make_session(metadata=_make_full_metadata())

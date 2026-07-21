@@ -11,6 +11,7 @@ from pretia.collectors.base import StepRecord
 from pretia.projection.stats import (
     compute_percentile_stats,
     compute_stats,
+    percentile,
 )
 
 
@@ -236,3 +237,34 @@ class TestSerialization:
         d = stats.to_dict()
         json.dumps(d)
         assert d["total_runs"] == 0
+
+
+# ---------------------------------------------------------------------------
+# percentile() function
+# ---------------------------------------------------------------------------
+
+
+class TestPercentileFunction:
+    def test_empty_list_returns_zero(self):
+        assert percentile([], 50) == 0.0
+
+    def test_single_element(self):
+        assert percentile([7.0], 95) == 7.0
+
+    def test_two_elements_interpolation(self):
+        result = percentile([1.0, 3.0], 50)
+        assert result == pytest.approx(2.0)
+
+    def test_p50_matches_median_odd_length(self):
+        assert percentile([1.0, 2.0, 3.0, 4.0, 5.0], 50) == 3.0
+
+    def test_p0_returns_min(self):
+        assert percentile([10.0, 20.0, 30.0], 0) == 10.0
+
+    def test_p100_returns_max(self):
+        assert percentile([10.0, 20.0, 30.0], 100) == 30.0
+
+    def test_p95_on_small_list(self):
+        data = sorted([1.0, 2.0, 3.0, 4.0, 5.0])
+        result = percentile(data, 95)
+        assert 4.5 <= result <= 5.0

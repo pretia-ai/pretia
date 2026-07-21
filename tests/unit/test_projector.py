@@ -13,6 +13,7 @@ from pretia.projection.projector import project
 from pretia.projection.stats import (
     PercentileStats,
     ProfilingStats,
+    RunStats,
     StepStats,
     compute_stats,
 )
@@ -95,9 +96,23 @@ def _make_stats(mean_cost: float = 0.03, p95_cost: float = 0.05) -> ProfilingSta
         iterations_per_run=iter_ps,
         mean_iterations=1.0,
     )
+    rng = __import__("random").Random(42)
+    run_cost_samples = [max(0.001, rng.gauss(mean_cost, mean_cost * 0.3)) for _ in range(20)]
+    run_stats_list = [
+        RunStats(
+            run_index=i,
+            total_cost=c,
+            total_tokens=300,
+            total_input_tokens=200,
+            total_output_tokens=100,
+            step_count=1,
+            duration_ms=500,
+        )
+        for i, c in enumerate(run_cost_samples)
+    ]
     return ProfilingStats(
         step_stats={"classify": step},
-        run_stats=[],
+        run_stats=run_stats_list,
         cost_per_run=ps,
         tokens_per_run=tok_ps,
         total_runs=20,
@@ -238,3 +253,85 @@ class TestStepCountTriggersMonteCarloMode:
 
         result = project(stats, patterns, traffic=[10], runs=runs)
         assert result.method == "montecarlo"
+
+
+# ---------------------------------------------------------------------------
+# Monte Carlo result storage
+# ---------------------------------------------------------------------------
+
+
+class TestMonteCarloResultStorage:
+    def test_montecarlo_stores_all_results(self):
+        runs = [
+            [
+                _make_record(
+                    "review",
+                    "gpt-4o",
+                    1000 + i * 800,
+                    200,
+                    iteration=i + 1,
+                    context_size=1000 + i * 800,
+                )
+                for i in range(5)
+            ]
+            for _ in range(20)
+        ]
+        stats = compute_stats(runs)
+        patterns = [_make_danger_pattern("review")]
+        result = project(stats, patterns, traffic=[100, 1000, 10000], runs=runs)
+        assert result.method == "montecarlo"
+        assert 100 in result.montecarlo_results
+        assert 1000 in result.montecarlo_results
+        assert 10000 in result.montecarlo_results
+
+    def test_montecarlo_to_dict_backward_compat(self):
+        runs = [
+            [
+                _make_record(
+                    "review",
+                    "gpt-4o",
+                    1000 + i * 800,
+                    200,
+                    iteration=i + 1,
+                    context_size=1000 + i * 800,
+                )
+                for i in range(5)
+            ]
+            for _ in range(20)
+        ]
+        stats = compute_stats(runs)
+        patterns = [_make_danger_pattern("review")]
+        result = project(stats, patterns, traffic=[100, 1000], runs=runs)
+        d = result.to_dict()
+        assert "montecarlo_result" in d
+        assert "montecarlo_results" in d
+        assert d["montecarlo_result"] is not None
+        assert isinstance(d["montecarlo_results"], dict)
+
+    def test_montecarlo_result_serializes_to_json(self):
+        runs = [
+            [
+                _make_record(
+                    "review",
+                    "gpt-4o",
+                    1000 + i * 800,
+                    200,
+                    iteration=i + 1,
+                    context_size=1000 + i * 800,
+                )
+                for i in range(5)
+            ]
+            for _ in range(20)
+        ]
+        stats = compute_stats(runs)
+        patterns = [_make_danger_pattern("review")]
+        result = project(stats, patterns, traffic=[100], runs=runs)
+        serialized = json.dumps(result.to_dict())
+        assert len(serialized) > 0
+
+    def test_linear_has_empty_montecarlo_results(self):
+        stats = _make_stats()
+        result = project(stats, [], traffic=[100])
+        assert result.montecarlo_results == {}
+        d = result.to_dict()
+        assert d["montecarlo_result"] is None

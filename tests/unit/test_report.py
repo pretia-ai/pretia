@@ -80,9 +80,9 @@ def _make_cost_summary() -> dict:
         "max_cost_per_run": 0.07,
         "p95_cost_per_run": 0.065,
         "total_session_cost": 0.55,
-        "projection_100_day": 150.0,
-        "projection_1000_day": 1500.0,
-        "projection_10000_day": 15000.0,
+        "projection_100_monthly": 150.0,
+        "projection_1000_monthly": 1500.0,
+        "projection_10000_monthly": 15000.0,
     }
 
 

@@ -61,7 +61,7 @@ class TestBuildCostSummary:
         runs = [[_make_record("s", "gpt-4o-mini", 1000, 500)]]
         summary = _build_cost_summary(runs)
         mean = summary["mean_cost_per_run"]
-        assert summary["projection_1000_day"] == pytest.approx(
+        assert summary["projection_1000_monthly"] == pytest.approx(
             mean * 1000 * 30,
         )
 
@@ -69,6 +69,14 @@ class TestBuildCostSummary:
         runs = [[_make_record("s", "totally-fake-model", 100, 50)]]
         summary = _build_cost_summary(runs)
         assert summary["mean_cost_per_run"] == 0.0
+
+    def test_uses_monthly_projection_keys(self):
+        runs = [[_make_record("s", "gpt-4o-mini", 100, 50)]]
+        summary = _build_cost_summary(runs)
+        assert "projection_100_monthly" in summary
+        assert "projection_1000_monthly" in summary
+        assert "projection_10000_monthly" in summary
+        assert "projection_100_day" not in summary
 
 
 # ---------------------------------------------------------------------------
@@ -269,3 +277,93 @@ class TestFullPipeline:
         store = ProfileStore(storage_dir=out_dir)
         loaded = store.load(Path(saved))
         assert loaded.workflow_name == str(wf)
+
+
+# ---------------------------------------------------------------------------
+# _post_collect shared pipeline
+# ---------------------------------------------------------------------------
+
+
+class TestPostCollect:
+    def test_builds_cost_summary(self, tmp_path):
+        runs = [
+            [_make_record("classify", "gpt-4o-mini", 100, 50)],
+            [_make_record("classify", "gpt-4o-mini", 200, 80)],
+        ]
+        runner = ProfileRunner(
+            workflow_path="dummy.py",
+            single_input="test",
+            output_dir=str(tmp_path),
+        )
+        session = runner._post_collect(
+            runs,
+            workflow_name="test-wf",
+            workflow_hash="abc123",
+            sample_size=2,
+            input_mode="single",
+            input_source="single",
+            workflow_id="test-wf",
+        )
+        assert "cost_summary" in session.metadata
+        assert session.metadata["cost_summary"]["mean_cost_per_run"] > 0
+
+    def test_detects_patterns(self, tmp_path):
+        runs = [
+            [_make_record("classify", "gpt-4o-mini", 100, 50)],
+            [_make_record("classify", "gpt-4o-mini", 200, 80)],
+        ]
+        runner = ProfileRunner(
+            workflow_path="dummy.py",
+            single_input="test",
+            output_dir=str(tmp_path),
+        )
+        session = runner._post_collect(
+            runs,
+            workflow_name="test-wf",
+            workflow_hash="abc123",
+            sample_size=2,
+            input_mode="single",
+            input_source="single",
+            workflow_id="test-wf",
+        )
+        assert "patterns" in session.metadata
+        assert isinstance(session.metadata["patterns"], list)
+
+    def test_includes_extra_metadata(self, tmp_path):
+        runs = [[_make_record("classify", "gpt-4o-mini", 100, 50)]]
+        runner = ProfileRunner(
+            workflow_path="dummy.py",
+            single_input="test",
+            output_dir=str(tmp_path),
+        )
+        session = runner._post_collect(
+            runs,
+            workflow_name="test-wf",
+            workflow_hash="abc123",
+            sample_size=1,
+            input_mode="langfuse-analyze",
+            input_source="langfuse",
+            workflow_id="langfuse-import",
+            extra_metadata={"langfuse_trace_count": 5},
+        )
+        assert session.metadata["langfuse_trace_count"] == 5
+
+    def test_saves_to_store(self, tmp_path):
+        runs = [[_make_record("classify", "gpt-4o-mini", 100, 50)]]
+        runner = ProfileRunner(
+            workflow_path="dummy.py",
+            single_input="test",
+            output_dir=str(tmp_path),
+        )
+        session = runner._post_collect(
+            runs,
+            workflow_name="test-wf",
+            workflow_hash="abc123",
+            sample_size=1,
+            input_mode="single",
+            input_source="single",
+            workflow_id="test-wf",
+        )
+        assert "saved_path" in session.metadata
+        saved = Path(session.metadata["saved_path"])
+        assert saved.exists()

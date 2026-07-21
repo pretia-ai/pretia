@@ -47,7 +47,10 @@ def _load_template() -> jinja2.Template:
     return env.from_string(text)
 
 
-def _prepare_context(session: ProfilingSession) -> dict[str, Any]:
+def _prepare_context(
+    session: ProfilingSession,
+    traffic: int | None = None,
+) -> dict[str, Any]:
     """Extract all template variables from a profiling session."""
     meta = session.metadata or {}
     stats = meta.get("stats")
@@ -76,10 +79,29 @@ def _prepare_context(session: ProfilingSession) -> dict[str, Any]:
         _extract_projection(projection, cost_per_run)
     )
 
-    # Hero projected cost — pick the middle traffic volume (prefer 1K)
+    unit_label = meta.get("unit_label", "run")
+    current_cost = meta.get("current_cost")
+
+    if traffic is not None:
+        if traffic not in projection_rows:
+            cpr_data = _extract_cost_per_run(stats, meta.get("cost_summary", {}))
+            mean_cpr = cpr_data.get("mean", 0)
+            for pct in ("p50", "p75", "p90", "p95", "p99"):
+                projection_rows.setdefault(traffic, {})[pct] = mean_cpr * traffic * 30
+        if has_cvar and traffic not in cvar_values:
+            base_cvar = next(iter(cvar_values.values()), 0) if cvar_values else 0
+            ref_vol = next(iter(cvar_values), 100) if cvar_values else 100
+            cvar_values[traffic] = base_cvar / ref_vol * traffic if ref_vol > 0 else 0
+        traffic_volumes = [traffic]
+
     hero_projected_cost = ""
+    hero_p50 = 0.0
     if traffic_volumes:
-        hero_vol = 1_000 if 1_000 in traffic_volumes else traffic_volumes[0]
+        hero_vol = (
+            traffic
+            if traffic is not None
+            else (1_000 if 1_000 in traffic_volumes else traffic_volumes[0])
+        )
         hero_p50 = projection_rows.get(hero_vol, {}).get("p50", 0)
         if hero_vol >= 1_000_000:
             vol_label = f"{hero_vol // 1_000_000}M"
@@ -87,7 +109,22 @@ def _prepare_context(session: ProfilingSession) -> dict[str, Any]:
             vol_label = f"{hero_vol // 1_000}K"
         else:
             vol_label = str(hero_vol)
-        hero_projected_cost = f"{format_cost(hero_p50)}/mo at {vol_label} daily runs"
+        unit_plural = f"{unit_label}s" if unit_label != "run" else "runs"
+        hero_projected_cost = f"{format_cost(hero_p50)}/mo at {vol_label} daily {unit_plural}"
+
+    roi_banner = ""
+    if current_cost is not None and current_cost > 0 and hero_p50 > 0:
+        savings = current_cost - hero_p50
+        pct = savings / current_cost * 100
+        if savings > 0:
+            roi_banner = (
+                f"Saves {format_cost(savings)}/month vs current process ({pct:.0f}% reduction)"
+            )
+        else:
+            roi_banner = (
+                f"Costs {format_cost(-savings)}/month more than current process "
+                f"({-pct:.0f}% increase)"
+            )
 
     projection_labels = {
         "p50": "Expected",
@@ -135,6 +172,8 @@ def _prepare_context(session: ProfilingSession) -> dict[str, Any]:
         "has_patterns": bool(patterns),
         "recommendations": recommendations,
         "has_recommendations": bool(recommendations),
+        "unit_label": unit_label,
+        "roi_banner": roi_banner,
         "raw_json": raw_json,
     }
 
@@ -288,10 +327,13 @@ def _truncated_session_dict(session: ProfilingSession) -> dict[str, Any]:
     return d
 
 
-def render_html_report(session: ProfilingSession) -> str:
+def render_html_report(
+    session: ProfilingSession,
+    traffic: int | None = None,
+) -> str:
     """Render a ProfilingSession to a self-contained HTML string."""
     template = _load_template()
-    context = _prepare_context(session)
+    context = _prepare_context(session, traffic=traffic)
     return template.render(**context)
 
 
@@ -299,12 +341,13 @@ def render_and_save(
     session: ProfilingSession,
     output_path: Path | None = None,
     open_browser: bool = True,
+    traffic: int | None = None,
 ) -> Path:
     """Render to HTML, write to disk, and optionally open in the browser.
 
     Returns the path of the written HTML file.
     """
-    html = render_html_report(session)
+    html = render_html_report(session, traffic=traffic)
 
     if output_path is None:
         stamp = session.profiled_at.strftime("%Y%m%d_%H%M%S")

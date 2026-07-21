@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, Any
 
+from pretia.projection.stats import percentile
 from pretia.recommend.base import (
     _DEFAULT_DAILY_VOLUME,
     Recommendation,
@@ -18,20 +19,6 @@ from pretia.recommend.registry import register
 if TYPE_CHECKING:
     from pretia.collectors.base import StepRecord
     from pretia.store import ProfilingSession
-
-
-def _percentile(sorted_values: list[float], pct: int) -> float:
-    """Compute the *pct*-th percentile from a sorted list (linear interpolation)."""
-    n = len(sorted_values)
-    if n == 0:
-        return 0.0
-    if n == 1:
-        return sorted_values[0]
-    k = (pct / 100) * (n - 1)
-    lo = int(k)
-    hi = min(lo + 1, n - 1)
-    frac = k - lo
-    return sorted_values[lo] + frac * (sorted_values[hi] - sorted_values[lo])
 
 
 def _iter_distribution(runs: list[list[StepRecord]], step_name: str) -> list[int]:
@@ -90,8 +77,8 @@ class LoopCapGenerator(RecommendationGenerator):
             return None
 
         max_iter = dist[-1]
-        p75 = int(math.ceil(_percentile(dist, 75)))
-        p90 = int(math.ceil(_percentile(dist, 90)))
+        p75 = int(math.ceil(percentile(dist, 75)))
+        p90 = int(math.ceil(percentile(dist, 90)))
 
         cap = p75 if p75 < max_iter else p90
         if cap >= max_iter:
@@ -111,7 +98,12 @@ class LoopCapGenerator(RecommendationGenerator):
         monthly_savings = round(avg_excess * _DEFAULT_DAILY_VOLUME * 30, 2)
 
         if monthly_savings < 1.0:
-            return None
+            if cv > 2.0:
+                confidence = "LOW"
+            else:
+                return None
+        else:
+            confidence = "MODERATE"
 
         mean_iters = evidence.get("mean_iterations", sum(dist) / len(dist))
 
@@ -127,7 +119,7 @@ class LoopCapGenerator(RecommendationGenerator):
                 f"Iterations beyond {cap} show diminishing returns."
             ),
             monthly_savings=monthly_savings,
-            confidence="MODERATE",
+            confidence=confidence,
             affected_steps=[step_name],
             evidence={
                 "cv": cv,
@@ -217,7 +209,12 @@ class CircuitBreakerGenerator(RecommendationGenerator):
         monthly_savings = round(avg_excess * _DEFAULT_DAILY_VOLUME * 30, 2)
 
         if monthly_savings < 1.0:
-            return None
+            if cost_share > 0.3:
+                confidence = "LOW"
+            else:
+                return None
+        else:
+            confidence = "HIGH"
 
         n_outliers = len(outlier_run_indices)
 
@@ -234,7 +231,7 @@ class CircuitBreakerGenerator(RecommendationGenerator):
                 f"at {_DEFAULT_DAILY_VOLUME:,} daily runs."
             ),
             monthly_savings=monthly_savings,
-            confidence="HIGH",
+            confidence=confidence,
             affected_steps=[step_name],
             evidence={
                 "mean_iterations": mean_iters,

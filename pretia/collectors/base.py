@@ -49,6 +49,7 @@ class StepRecord:
     output_truncated: bool | None = None
     output_tool_call_count: int | None = None
     step_output_format: str | None = None
+    system_prompt_snippet: str | None = None
 
     def __post_init__(self) -> None:
         if self.step_type not in _VALID_STEP_TYPES:
@@ -71,34 +72,6 @@ class StepRecord:
     def total_tokens(self) -> int:
         """Return input_tokens + output_tokens."""
         return self.input_tokens + self.output_tokens
-
-    def cost(self, pricing: dict[str, tuple[float, float]]) -> float:
-        """Compute dollar cost from per-token pricing.
-
-        Args:
-            pricing: Maps model name to (input_price_per_token, output_price_per_token).
-
-        Returns:
-            Dollar cost accounting for cache tokens when available.
-
-        Raises:
-            ValueError: If this record's model has no entry in `pricing`.
-        """
-        if self.model not in pricing:
-            raise ValueError(
-                f"No pricing for model {self.model!r}. Available models: {sorted(pricing)}"
-            )
-        input_price, output_price = pricing[self.model]
-        if self.cache_hit_tokens is not None and self.cache_miss_tokens is not None:
-            from pretia.pricing.tables import _PER_MILLION, MODEL_CACHE_HIT_PRICING
-
-            cache_hit_rate = MODEL_CACHE_HIT_PRICING.get(self.model)
-            if cache_hit_rate is not None:
-                input_cost = self.cache_miss_tokens * input_price + self.cache_hit_tokens * (
-                    cache_hit_rate / _PER_MILLION
-                )
-                return input_cost + self.output_tokens * output_price
-        return self.input_tokens * input_price + self.output_tokens * output_price
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a JSON-compatible dict (timestamp as ISO 8601 string)."""
@@ -131,41 +104,46 @@ class StepRecord:
             "output_truncated": self.output_truncated,
             "output_tool_call_count": self.output_tool_call_count,
             "step_output_format": self.step_output_format,
+            "system_prompt_snippet": self.system_prompt_snippet,
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> StepRecord:
         """Deserialize a StepRecord from a dict produced by `to_dict()`."""
-        return cls(
-            step_name=data["step_name"],
-            step_type=data["step_type"],
-            model=data["model"],
-            input_tokens=data["input_tokens"],
-            output_tokens=data["output_tokens"],
-            context_size=data["context_size"],
-            tool_definitions_tokens=data["tool_definitions_tokens"],
-            system_prompt_hash=data["system_prompt_hash"],
-            system_prompt_tokens=data["system_prompt_tokens"],
-            output_format=data["output_format"],
-            is_retry=data["is_retry"],
-            iteration=data["iteration"],
-            parent_step=data["parent_step"],
-            duration_ms=data["duration_ms"],
-            timestamp=datetime.fromisoformat(data["timestamp"]),
-            cache_hit_tokens=data.get("cache_hit_tokens"),
-            cache_miss_tokens=data.get("cache_miss_tokens"),
-            tool_name=data.get("tool_name"),
-            tool_input_tokens=data.get("tool_input_tokens"),
-            tool_output_tokens=data.get("tool_output_tokens"),
-            tool_success=data.get("tool_success"),
-            tool_retry_count=data.get("tool_retry_count"),
-            model_version=data.get("model_version"),
-            temperature=data.get("temperature"),
-            max_tokens_setting=data.get("max_tokens_setting"),
-            output_truncated=data.get("output_truncated"),
-            output_tool_call_count=data.get("output_tool_call_count"),
-            step_output_format=data.get("step_output_format"),
-        )
+        try:
+            return cls(
+                step_name=data["step_name"],
+                step_type=data["step_type"],
+                model=data["model"],
+                input_tokens=data["input_tokens"],
+                output_tokens=data["output_tokens"],
+                context_size=data["context_size"],
+                tool_definitions_tokens=data["tool_definitions_tokens"],
+                system_prompt_hash=data["system_prompt_hash"],
+                system_prompt_tokens=data["system_prompt_tokens"],
+                output_format=data["output_format"],
+                is_retry=data["is_retry"],
+                iteration=data["iteration"],
+                parent_step=data["parent_step"],
+                duration_ms=data["duration_ms"],
+                timestamp=datetime.fromisoformat(data["timestamp"]),
+                cache_hit_tokens=data.get("cache_hit_tokens"),
+                cache_miss_tokens=data.get("cache_miss_tokens"),
+                tool_name=data.get("tool_name"),
+                tool_input_tokens=data.get("tool_input_tokens"),
+                tool_output_tokens=data.get("tool_output_tokens"),
+                tool_success=data.get("tool_success"),
+                tool_retry_count=data.get("tool_retry_count"),
+                model_version=data.get("model_version"),
+                temperature=data.get("temperature"),
+                max_tokens_setting=data.get("max_tokens_setting"),
+                output_truncated=data.get("output_truncated"),
+                output_tool_call_count=data.get("output_tool_call_count"),
+                step_output_format=data.get("step_output_format"),
+                system_prompt_snippet=data.get("system_prompt_snippet"),
+            )
+        except KeyError as exc:
+            raise ValueError(f"Missing required field {exc} in StepRecord data") from exc
 
 
 class BaseCollector(ABC):

@@ -2,8 +2,6 @@
 
 **Know what your agent will cost before you deploy.**
 
-<!-- Terminal GIF: add after recording with VHS or asciinema -->
-
 Pre-deployment cost intelligence for AI agent workflows. Two commands, zero config, ~$2. Get distributional cost projections (p50-p99), detect cost risks, and see exactly where the money goes.
 
 ## Install
@@ -29,8 +27,6 @@ pretia profile run my_agent.py
 ```
 
 This runs your workflow with real API calls and gives accurate distributional projections (typically within 10% of production costs). No config files, no JSONL datasets, no setup. Pretia reads your workflow, generates diverse synthetic inputs, runs 50 profiling runs, detects patterns, and opens an HTML report with projections and recommendations.
-
-<!-- Report screenshot: add after rendering -->
 
 ## Features
 
@@ -115,6 +111,9 @@ pretia recommend profile.json           # Generate optimization recommendations
 pretia analyze --from-langfuse          # Analyze Langfuse traces (no execution)
 pretia baseline update profile.json     # Save baseline for CI diffing
 pretia diff baseline.json new.json      # Compare profiles, show per-step deltas
+pretia doctor                           # Environment & dependency health check
+pretia doctor workflow.py               # Also verify workflow loads correctly
+pretia update-pricing                   # Fetch latest model pricing from providers
 ```
 
 ## Supported Frameworks
@@ -123,6 +122,8 @@ pretia diff baseline.json new.json      # Compare profiles, show per-step deltas
 |-----------|------------------|---------|
 | **LangGraph** | Callback handler | `pip install pretia[langgraph]` |
 | **OpenAI Agents SDK** | RunHooks lifecycle | `pip install pretia[openai]` |
+| **Anthropic SDK** | Messages.create monkey-patch | `pip install pretia` + `anthropic` |
+| **OpenAI SDK** | Completions.create monkey-patch | `pip install pretia` + `openai` |
 | **Qwen-Agent** | LLM proxy | `pip install pretia[qwen]` |
 | **Generic** | `@collector.step()` decorator | `pip install pretia` |
 

@@ -228,6 +228,8 @@ async def _call_anthropic(
         max_tokens=2048,
         messages=[{"role": "user", "content": prompt}],
     )
+    if not response.content:
+        return ""
     return response.content[0].text
 
 
@@ -243,7 +245,7 @@ async def _call_openai(
         max_tokens=2048,
         messages=[{"role": "user", "content": prompt}],
     )
-    return response.choices[0].message.content
+    return response.choices[0].message.content or ""
 
 
 async def _call_dashscope(
@@ -278,6 +280,10 @@ async def _call_deepseek(
     return response.choices[0].message.content
 
 
+_BATCH_SIZE = 20
+_MAX_RETRIES = 5
+
+
 async def generate_inputs(
     system_prompt: str,
     n: int = 50,
@@ -285,14 +291,11 @@ async def generate_inputs(
     api_key: str | None = None,
     additional_context: str = "",
 ) -> list[str]:
-    """Generate N diverse synthetic test inputs for an agent workflow.
+    """Generate N diverse, unique synthetic test inputs for an agent workflow.
 
-    Args:
-        system_prompt: The agent's system prompt or description.
-        n: Number of inputs to generate.
-        model: LLM model to use for generation.
-        api_key: API key. Falls back to env vars if not provided.
-        additional_context: Extra context (type hints, signatures).
+    Generates in batches to guarantee the requested count. Each batch
+    after the first includes previously generated inputs so the LLM
+    avoids repeats.
 
     Raises:
         ImportError: If neither anthropic nor openai SDK is installed.
@@ -310,28 +313,88 @@ async def generate_inputs(
             "System prompt truncated from %d to 2000 chars for input generation.",
             len(system_prompt),
         )
-    prompt = _GENERATION_PROMPT_TEMPLATE.format(
-        system_prompt=truncated_prompt,
-        n=n,
-        additional_context=ctx_block,
-    )
 
+    all_inputs: list[str] = []
+    seen: set[str] = set()
+    retries = 0
+
+    while len(all_inputs) < n and retries < _MAX_RETRIES:
+        remaining = n - len(all_inputs)
+        batch_size = min(remaining + 5, _BATCH_SIZE + 5)
+
+        avoid_block = ""
+        if all_inputs:
+            sample = all_inputs[-10:]
+            avoid_block = (
+                "\n\nDo NOT repeat any of these previously generated inputs:\n"
+                + "\n".join(f"- {inp}" for inp in sample)
+                + "\n"
+            )
+
+        prompt = _GENERATION_PROMPT_TEMPLATE.format(
+            system_prompt=truncated_prompt,
+            n=batch_size,
+            additional_context=ctx_block + avoid_block,
+        )
+
+        text = ""
+        for attempt in range(3):
+            try:
+                text = await _call_llm(provider, sdk, resolved_key, model, prompt)
+                break
+            except Exception:
+                if attempt == 2:
+                    logger.warning("Input generation API call failed after 3 attempts.")
+                    break
+                await asyncio.sleep(2**attempt)
+        batch = _parse_response(text, batch_size)
+
+        added = 0
+        for inp in batch:
+            normalized = inp.strip().lower()
+            if normalized not in seen:
+                seen.add(normalized)
+                all_inputs.append(inp)
+                added += 1
+                if len(all_inputs) >= n:
+                    break
+
+        if added == 0:
+            retries += 1
+        else:
+            retries = 0
+
+    if len(all_inputs) < n:
+        logger.warning(
+            "Requested %d inputs but could only generate %d unique inputs after %d batches.",
+            n,
+            len(all_inputs),
+            _MAX_RETRIES,
+        )
+
+    return all_inputs[:n]
+
+
+async def _call_llm(
+    provider: str,
+    sdk: Any,
+    api_key: str,
+    model: str,
+    prompt: str,
+) -> str:
     if provider == "anthropic":
-        text = await _call_anthropic(sdk, resolved_key, model, prompt)
-    elif provider == "dashscope":
+        return await _call_anthropic(sdk, api_key, model, prompt)
+    if provider == "dashscope":
         if not model.startswith("qwen"):
             model = "qwen-turbo"
-        text = await _call_dashscope(sdk, resolved_key, model, prompt)
-    elif provider == "deepseek":
+        return await _call_dashscope(sdk, api_key, model, prompt)
+    if provider == "deepseek":
         if not model.startswith("deepseek"):
             model = "deepseek-v4-flash"
-        text = await _call_deepseek(sdk, resolved_key, model, prompt)
-    else:
-        if model.startswith("claude-"):
-            model = "gpt-4o-mini"
-        text = await _call_openai(sdk, resolved_key, model, prompt)
-
-    return _parse_response(text, n)
+        return await _call_deepseek(sdk, api_key, model, prompt)
+    if model.startswith("claude-"):
+        model = "gpt-4o-mini"
+    return await _call_openai(sdk, api_key, model, prompt)
 
 
 def generate_inputs_sync(

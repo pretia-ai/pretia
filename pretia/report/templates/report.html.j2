@@ -582,6 +582,11 @@ footer a:hover { color: var(--fg2); }
           Projected monthly cost <strong>{{ hero_projected_cost }}</strong>
         </div>
         {% endif %}
+        {% if roi_banner %}
+        <div style="margin-top:0.6rem;padding:0.5rem 1rem;border-radius:8px;background:var(--green-bg, #C6F6D5);color:var(--green-text, #22543D);font-weight:600;font-size:0.95rem">
+          {{ roi_banner }}
+        </div>
+        {% endif %}
       </div>
     </div>
     {% if score.score <= 70 and score.scope_note %}
@@ -610,7 +615,7 @@ footer a:hover { color: var(--fg2); }
       <tr>
         <th></th>
         {% for vol in traffic_volumes %}
-        <th>{{ "{:,}".format(vol) }}/day</th>
+        <th>{{ "{:,}".format(vol) }} {{ unit_label }}s/day</th>
         {% endfor %}
       </tr>
     </thead>

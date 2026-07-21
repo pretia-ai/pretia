@@ -176,21 +176,27 @@ class ToolFilterGenerator(RecommendationGenerator):
                     has_tool_data = True
 
         if not has_tool_data:
-            return None
-
-        n_used = len(used_tools)
-        if n_used == 0:
-            fraction_used = 0.0
-        else:
             if median_tool_def > 0:
-                total_estimated = max(n_used, int(median_tool_def / 200))
+                n_used = 0
+                fraction_used = 0.0
+                savings_tokens = median_tool_def
             else:
-                total_estimated = n_used
-            if total_estimated <= n_used:
                 return None
-            fraction_used = n_used / total_estimated
+        else:
+            n_used = len(used_tools)
+            if n_used == 0:
+                fraction_used = 0.0
+                savings_tokens = median_tool_def
+            else:
+                if median_tool_def > 0:
+                    total_estimated = max(n_used, int(median_tool_def / 200))
+                else:
+                    total_estimated = n_used
+                if total_estimated <= n_used:
+                    return None
+                fraction_used = n_used / total_estimated
+                savings_tokens = median_tool_def * (1 - fraction_used)
 
-        savings_tokens = median_tool_def * (1 - fraction_used)
         if savings_tokens <= 0:
             return None
 
@@ -210,10 +216,16 @@ class ToolFilterGenerator(RecommendationGenerator):
             title=f"Filter tool definitions for {step_name}",
             description=(
                 f"{step_name} passes {int(median_tool_def):,} tool definition tokens "
-                f"({tool_def_share:.0%} of input) but only uses "
-                f"{n_used} tool{'s' if n_used != 1 else ''} "
-                f"({', '.join(sorted(used_tools))}). "
-                f"Filtering unused tools saves ${monthly_savings:,.0f}/month "
+                f"({tool_def_share:.0%} of input) but "
+                + (
+                    "none are ever called. "
+                    if n_used == 0
+                    else (
+                        f"only uses {n_used} tool{'s' if n_used != 1 else ''} "
+                        f"({', '.join(sorted(used_tools))}). "
+                    )
+                )
+                + f"Filtering unused tools saves ${monthly_savings:,.0f}/month "
                 f"at {_DEFAULT_DAILY_VOLUME:,} daily runs. "
                 f"Review before applying — unused tools may be needed for rare inputs."
             ),
@@ -251,23 +263,32 @@ class CacheContextGenerator(RecommendationGenerator):
                 prev = sorted_steps[i - 1]
                 curr = sorted_steps[i]
 
-                if (
-                    prev.system_prompt_hash == curr.system_prompt_hash
-                    and prev.system_prompt_hash
-                    and prev.step_name != curr.step_name
+                if not (
+                    prev.system_prompt_hash == curr.system_prompt_hash and prev.system_prompt_hash
                 ):
-                    pair_key = (
-                        min(prev.step_name, curr.step_name),
-                        max(prev.step_name, curr.step_name),
-                    )
+                    continue
 
-                    try:
-                        input_price = get_model_pricing(curr.model)[0]
-                    except (ValueError, KeyError):
-                        continue
+                is_different_step = prev.step_name != curr.step_name
+                is_same_step_no_growth = (
+                    prev.step_name == curr.step_name
+                    and curr.iteration > prev.iteration
+                    and curr.input_tokens <= prev.input_tokens * 1.1
+                )
+                if not (is_different_step or is_same_step_no_growth):
+                    continue
 
-                    redundant_cost = curr.system_prompt_tokens * input_price
-                    pair_costs.setdefault(pair_key, []).append(redundant_cost)
+                pair_key = (
+                    min(prev.step_name, curr.step_name),
+                    max(prev.step_name, curr.step_name),
+                )
+
+                try:
+                    input_price = get_model_pricing(curr.model)[0]
+                except (ValueError, KeyError):
+                    continue
+
+                redundant_cost = curr.system_prompt_tokens * input_price
+                pair_costs.setdefault(pair_key, []).append(redundant_cost)
 
         recommendations: list[Recommendation] = []
         for (step_a, step_b), costs in pair_costs.items():
@@ -286,18 +307,31 @@ class CacheContextGenerator(RecommendationGenerator):
                 if avg_tokens > 0:
                     break
 
+            if step_a == step_b:
+                title = f"Eliminate redundant system prompt across consecutive calls in {step_a}"
+                desc = (
+                    f"{step_a} sends identical system prompts "
+                    f"({avg_tokens:,} tokens) on consecutive iterations. "
+                    f"Restructuring to share context or enabling prompt caching "
+                    f"saves ${monthly_savings:,.0f}/month "
+                    f"at {_DEFAULT_DAILY_VOLUME:,} daily runs."
+                )
+            else:
+                title = f"Eliminate redundant system prompt in {step_a} and {step_b}"
+                desc = (
+                    f"{step_a} and {step_b} send identical system prompts "
+                    f"({avg_tokens:,} tokens) in consecutive calls. "
+                    f"Restructuring to share context or enabling prompt caching "
+                    f"saves ${monthly_savings:,.0f}/month "
+                    f"at {_DEFAULT_DAILY_VOLUME:,} daily runs."
+                )
+
             recommendations.append(
                 Recommendation(
                     id=f"cache-context-{step_a}-{step_b}",
                     type="architecture",
-                    title=(f"Eliminate redundant system prompt in {step_a} and {step_b}"),
-                    description=(
-                        f"{step_a} and {step_b} send identical system prompts "
-                        f"({avg_tokens:,} tokens) in consecutive calls. "
-                        f"Restructuring to share context or enabling prompt caching "
-                        f"saves ${monthly_savings:,.0f}/month "
-                        f"at {_DEFAULT_DAILY_VOLUME:,} daily runs."
-                    ),
+                    title=title,
+                    description=desc,
                     monthly_savings=monthly_savings,
                     confidence="HIGH",
                     affected_steps=[step_a, step_b],

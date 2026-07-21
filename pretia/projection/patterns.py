@@ -10,7 +10,7 @@ from typing import Any
 
 from pretia.collectors.base import StepRecord
 from pretia.pricing.tables import MODEL_CACHE_HIT_PRICING, resolve_model
-from pretia.projection.stats import ProfilingStats, compute_stats, robust_cv
+from pretia.projection.stats import ProfilingStats, compute_stats, percentile, robust_cv
 
 logger = logging.getLogger(__name__)
 
@@ -517,7 +517,7 @@ def _detect_bimodality(
                     f"{len(positive_costs)} runs have positive cost "
                     f"(mean=${sum(positive_costs) / len(positive_costs):.4f}/run)."
                 ),
-                bimodal_bic_delta=float("inf"),
+                bimodal_bic_delta=1e10,
                 bimodal_modes=modes,
             )
         ]
@@ -660,6 +660,9 @@ def _detect_cache_utilization(
     return patterns
 
 
+_FRAMEWORK_INTERNAL_NODES = frozenset({"__start__", "__end__", "_route"})
+
+
 def _detect_zero_execution_steps(
     runs: list[list[StepRecord]],
     graph_steps: list[str] | None = None,
@@ -675,7 +678,7 @@ def _detect_zero_execution_steps(
 
     patterns: list[DetectedPattern] = []
     for step_name in graph_steps:
-        if step_name in observed_steps:
+        if step_name in observed_steps or step_name in _FRAMEWORK_INTERNAL_NODES:
             continue
         patterns.append(
             DetectedPattern(
@@ -718,10 +721,8 @@ def _detect_output_token_budget(
         output_vals = sorted(p[0] for p in pairs)
         max_tokens_setting = pairs[0][1]
 
-        n = len(output_vals)
-        median_output = output_vals[n // 2]
-        p95_idx = min(int(n * 0.95), n - 1)
-        p95_output = output_vals[p95_idx]
+        median_output = int(percentile(output_vals, 50))
+        p95_output = int(percentile(output_vals, 95))
 
         if max_tokens_setting > 4 * median_output and median_output > 0:
             suggested = int(round(1.5 * p95_output / 256)) * 256

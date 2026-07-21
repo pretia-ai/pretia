@@ -54,15 +54,32 @@ class OptimizationScore:
         }
 
 
+_MAX_ARCHITECTURE_WASTE = 0.20
+
+
 def compute_score(
     recommendations: list[Recommendation],
     projected_monthly_cost: float,
 ) -> OptimizationScore:
-    """Compute the optimization score from recommendations and projected cost."""
-    total_savings = sum(r.monthly_savings for r in recommendations)
+    """Compute the optimization score from recommendations and projected cost.
+
+    Architecture recommendations (caching, context dedup) are capped at 20%
+    waste contribution because they're infrastructure tweaks, not design flaws.
+    """
+    total_savings = 0.0
+    design_savings = 0.0
+    arch_savings = 0.0
+    for r in recommendations:
+        total_savings += r.monthly_savings
+        if r.type == "architecture":
+            arch_savings += r.monthly_savings
+        else:
+            design_savings += r.monthly_savings
 
     if projected_monthly_cost > 0:
-        waste_pct = min(total_savings / projected_monthly_cost, 1.0)
+        design_waste = min(design_savings / projected_monthly_cost, 0.8)
+        arch_waste = min(arch_savings / projected_monthly_cost, _MAX_ARCHITECTURE_WASTE)
+        waste_pct = min(design_waste + arch_waste, 1.0)
     else:
         waste_pct = 0.0
 

@@ -12,7 +12,7 @@ from pretia.recommend.workflow import (
     CircuitBreakerGenerator,
     LoopCapGenerator,
     _iter_distribution,
-    _percentile,
+    percentile,
 )
 from pretia.store import ProfilingSession
 
@@ -111,17 +111,17 @@ def _build_loop_runs(
 
 class TestPercentile:
     def test_median_odd(self) -> None:
-        assert _percentile([1.0, 2.0, 3.0], 50) == pytest.approx(2.0)
+        assert percentile([1.0, 2.0, 3.0], 50) == pytest.approx(2.0)
 
     def test_p75(self) -> None:
         vals = [1.0, 2.0, 3.0, 4.0, 5.0]
-        assert _percentile(vals, 75) == pytest.approx(4.0)
+        assert percentile(vals, 75) == pytest.approx(4.0)
 
     def test_single_value(self) -> None:
-        assert _percentile([42.0], 50) == pytest.approx(42.0)
+        assert percentile([42.0], 50) == pytest.approx(42.0)
 
     def test_empty(self) -> None:
-        assert _percentile([], 50) == 0.0
+        assert percentile([], 50) == 0.0
 
 
 class TestIterDistribution:
@@ -429,3 +429,52 @@ class TestBothGeneratorsTogether:
             assert loop_recs[0].confidence == "MODERATE"
         if cb_recs:
             assert cb_recs[0].confidence == "HIGH"
+
+
+class TestLowConfidenceFallback:
+    """When savings < $1/month but pattern is severe, emit with LOW confidence."""
+
+    def test_loop_cap_low_confidence_severe_cv(self) -> None:
+        iter_counts = [1, 1, 1, 1, 1, 1, 1, 1, 2, 5]
+        runs = _build_loop_runs(
+            iter_counts=iter_counts,
+            model="claude-haiku-4-5",
+            input_tokens=1,
+            output_tokens=1,
+        )
+        pattern = _loop_variance_pattern(
+            cv=3.0, mean_iterations=1.6, min_iterations=1, max_iterations=5
+        )
+        session = _make_session(runs, patterns=[pattern])
+        recs = LoopCapGenerator().generate(session)
+        assert len(recs) >= 1
+        assert recs[0].confidence == "LOW"
+
+    def test_loop_cap_no_rec_when_cv_low_and_savings_low(self) -> None:
+        iter_counts = [1, 1, 1, 1, 1, 1, 1, 1, 2, 5]
+        runs = _build_loop_runs(
+            iter_counts=iter_counts,
+            model="claude-haiku-4-5",
+            input_tokens=1,
+            output_tokens=1,
+        )
+        pattern = _loop_variance_pattern(cv=0.8, mean_iterations=1.6)
+        session = _make_session(runs, patterns=[pattern])
+        recs = LoopCapGenerator().generate(session)
+        assert recs == []
+
+    def test_circuit_breaker_low_confidence_high_cost_share(self) -> None:
+        iter_counts = [1, 1, 1, 1, 1, 1, 1, 1, 2, 5]
+        runs = _build_loop_runs(
+            iter_counts=iter_counts,
+            model="claude-haiku-4-5",
+            input_tokens=1,
+            output_tokens=1,
+        )
+        pattern = _loop_variance_pattern(
+            cv=3.0, mean_iterations=1.6, min_iterations=1, max_iterations=5
+        )
+        session = _make_session(runs, patterns=[pattern])
+        recs = CircuitBreakerGenerator().generate(session)
+        assert len(recs) >= 1
+        assert recs[0].confidence == "LOW"

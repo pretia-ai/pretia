@@ -221,7 +221,8 @@ class TestToolFilterGenerator:
         gen = ToolFilterGenerator()
         assert gen.generate(session) == []
 
-    def test_no_recommendation_without_tool_name_data(self) -> None:
+    def test_fires_when_no_tools_used(self) -> None:
+        """Tools defined but never called — maximum filtering opportunity."""
         runs = _tool_step_runs(
             input_tokens=3000,
             tool_definitions_tokens=2000,
@@ -229,7 +230,9 @@ class TestToolFilterGenerator:
         )
         session = _make_session(runs)
         gen = ToolFilterGenerator()
-        assert gen.generate(session) == []
+        recs = gen.generate(session)
+        assert len(recs) == 1
+        assert "none are ever called" in recs[0].description
 
     def test_identifies_used_tools(self) -> None:
         runs = _tool_step_runs(
@@ -358,18 +361,79 @@ class TestCacheContextGenerator:
         assert gen.generate(session) == []
 
     def test_no_recommendation_same_step_name(self) -> None:
-        """Same step repeating (loop) should not trigger this."""
+        """Same step repeating with growing context (loop) should not trigger this."""
         runs = [
             [
                 _make_record(
                     step_name="loop_step",
                     system_prompt_hash="same",
+                    input_tokens=1000,
                     iteration=1,
                     timestamp=datetime(2026, 5, 25, 12, 0, 0, tzinfo=UTC),
                 ),
                 _make_record(
                     step_name="loop_step",
                     system_prompt_hash="same",
+                    input_tokens=2000,
+                    iteration=2,
+                    timestamp=datetime(2026, 5, 25, 12, 0, 1, tzinfo=UTC),
+                ),
+            ]
+            for _ in range(5)
+        ]
+        session = _make_session(runs)
+        gen = CacheContextGenerator()
+        assert gen.generate(session) == []
+
+    def test_same_step_no_growth_fires(self) -> None:
+        """Same step name but flat context (independent sequential calls) should fire."""
+        runs = [
+            [
+                _make_record(
+                    step_name="run",
+                    model="gpt-4o",
+                    system_prompt_hash="shared_hash",
+                    system_prompt_tokens=500,
+                    input_tokens=1000,
+                    iteration=1,
+                    timestamp=datetime(2026, 5, 25, 12, 0, 0, tzinfo=UTC),
+                ),
+                _make_record(
+                    step_name="run",
+                    model="gpt-4o",
+                    system_prompt_hash="shared_hash",
+                    system_prompt_tokens=500,
+                    input_tokens=1000,
+                    iteration=2,
+                    timestamp=datetime(2026, 5, 25, 12, 0, 1, tzinfo=UTC),
+                ),
+            ]
+            for _ in range(5)
+        ]
+        session = _make_session(runs)
+        gen = CacheContextGenerator()
+        recs = gen.generate(session)
+        assert len(recs) >= 1
+
+    def test_same_step_growing_context_skipped(self) -> None:
+        """Same step with growing context (loop) should not fire."""
+        runs = [
+            [
+                _make_record(
+                    step_name="run",
+                    model="gpt-4o",
+                    system_prompt_hash="shared_hash",
+                    system_prompt_tokens=500,
+                    input_tokens=1000,
+                    iteration=1,
+                    timestamp=datetime(2026, 5, 25, 12, 0, 0, tzinfo=UTC),
+                ),
+                _make_record(
+                    step_name="run",
+                    model="gpt-4o",
+                    system_prompt_hash="shared_hash",
+                    system_prompt_tokens=500,
+                    input_tokens=3000,
                     iteration=2,
                     timestamp=datetime(2026, 5, 25, 12, 0, 1, tzinfo=UTC),
                 ),

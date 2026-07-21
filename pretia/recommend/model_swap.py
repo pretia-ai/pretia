@@ -100,10 +100,18 @@ def _detect_provider(model: str) -> str | None:
     return None
 
 
-def _has_classification_keywords(step_name: str) -> bool:
-    """Check if the step name contains classification-related keywords."""
+def _has_classification_keywords(
+    step_name: str,
+    system_prompt_snippet: str | None = None,
+) -> bool:
+    """Check if step name or system prompt contains classification-related keywords."""
     lower = step_name.lower()
-    return any(kw in lower for kw in _CLASSIFICATION_KEYWORDS)
+    if any(kw in lower for kw in _CLASSIFICATION_KEYWORDS):
+        return True
+    if system_prompt_snippet:
+        snippet_lower = system_prompt_snippet.lower()
+        return any(kw in snippet_lower for kw in _CLASSIFICATION_KEYWORDS)
+    return False
 
 
 def _dominant_output_format(records_for_step: list) -> str:
@@ -162,7 +170,7 @@ class ModelSwapGenerator(RecommendationGenerator):
 
         median_input = step_stats.input_tokens.p50
         median_output = step_stats.output_tokens.p50
-        if median_input <= 0:
+        if median_input <= 0 or median_output <= 0:
             return None
 
         ratio = median_output / median_input
@@ -175,7 +183,9 @@ class ModelSwapGenerator(RecommendationGenerator):
         if ratio >= 1.0:
             return None
 
-        has_keywords = _has_classification_keywords(step_name)
+        snippets = [r.system_prompt_snippet for r in step_records if r.system_prompt_snippet]
+        snippet = snippets[0] if snippets else None
+        has_keywords = _has_classification_keywords(step_name, system_prompt_snippet=snippet)
         is_classification = False
         is_extraction = False
 

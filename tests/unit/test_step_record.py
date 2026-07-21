@@ -102,18 +102,3 @@ class TestSerialization:
         record = dataclasses.replace(sample_record, parent_step="planner")
         restored = StepRecord.from_dict(record.to_dict())
         assert restored.parent_step == "planner"
-
-
-class TestCost:
-    def test_cost_calculation(self, sample_record):
-        pricing = {"claude-haiku-3": (1e-6, 5e-6)}
-        expected = 340 * 1e-6 + 45 * 5e-6
-        assert sample_record.cost(pricing) == pytest.approx(expected)
-
-    def test_cost_raises_for_unknown_model(self, sample_record):
-        with pytest.raises(ValueError, match="claude-haiku-3"):
-            sample_record.cost({"gpt-4o": (1e-6, 5e-6)})
-
-    def test_cost_error_lists_available_models(self, sample_record):
-        with pytest.raises(ValueError, match="gpt-4o"):
-            sample_record.cost({"gpt-4o": (1e-6, 5e-6)})

@@ -37,7 +37,7 @@ def _tier_style(tier: str) -> str:
     return "dim"
 
 
-def _truncate_model(model: str, max_len: int = 7) -> str:
+def _truncate_model(model: str, max_len: int = 20) -> str:
     if len(model) <= max_len:
         return model
     return model[: max_len - 1] + "…"
@@ -255,6 +255,18 @@ def _build_new_projection_panel(
         volumes = [traffic]
     else:
         volumes = projection.get("traffic_volumes", [100, 1000, 10000])
+
+    if traffic is not None and str(traffic) not in projs and traffic not in projs:
+        for _existing_v, existing_data in projs.items():
+            if isinstance(existing_data, dict) and "cost_per_run" in existing_data:
+                cpr = existing_data["cost_per_run"]
+                projs[str(traffic)] = {
+                    "daily_volume": traffic,
+                    "monthly_cost": {k: v * traffic * 30 for k, v in cpr.items()},
+                    "daily_cost": {k: v * traffic for k, v in cpr.items()},
+                    "cost_per_run": cpr,
+                }
+                break
 
     table = Table(show_lines=True, pad_edge=True)
     table.add_column("", style="bold")

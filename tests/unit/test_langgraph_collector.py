@@ -35,16 +35,29 @@ _USAGE_10_5 = {"token_usage": {"prompt_tokens": 10, "completion_tokens": 5}}
 # ---------------------------------------------------------------------------
 
 
+class _MockUsageMetadata:
+    def __init__(self, input_tokens=0, output_tokens=0):
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
+
+
+class _MockMessage:
+    def __init__(self, usage_metadata=None):
+        self.usage_metadata = usage_metadata
+
+
 class _MockGeneration:
-    def __init__(self, text="", generation_info=None):
+    def __init__(self, text="", generation_info=None, message=None):
         self.text = text
         self.generation_info = generation_info or {}
+        self.message = message
 
 
-def _make_response(*, text="Hello", llm_output=None, generation_info=None):
+def _make_response(*, text="Hello", llm_output=None, generation_info=None, message=None):
     resp = MagicMock()
     resp.llm_output = llm_output
-    resp.generations = [[_MockGeneration(text=text, generation_info=generation_info or {})]]
+    gen = _MockGeneration(text=text, generation_info=generation_info or {}, message=message)
+    resp.generations = [[gen]]
     return resp
 
 
@@ -149,6 +162,51 @@ class TestTokenExtraction:
         rec = handler.records[0]
         assert rec.input_tokens == 0
         assert rec.output_tokens == 0
+
+    def test_tokens_from_anthropic_llm_output(self):
+        handler = PretiaCallbackHandler()
+        rid = uuid4()
+
+        _start_llm(handler, run_id=rid)
+        resp = _make_response(
+            llm_output={
+                "usage": {
+                    "input_tokens": 150,
+                    "output_tokens": 60,
+                }
+            },
+        )
+        handler.on_llm_end(resp, run_id=rid)
+
+        assert handler.records[0].input_tokens == 150
+        assert handler.records[0].output_tokens == 60
+
+    def test_tokens_from_usage_metadata(self):
+        handler = PretiaCallbackHandler()
+        rid = uuid4()
+
+        _start_llm(handler, run_id=rid)
+        msg = _MockMessage(usage_metadata=_MockUsageMetadata(input_tokens=400, output_tokens=180))
+        resp = _make_response(llm_output={}, message=msg)
+        handler.on_llm_end(resp, run_id=rid)
+
+        assert handler.records[0].input_tokens == 400
+        assert handler.records[0].output_tokens == 180
+
+    def test_usage_metadata_takes_priority(self):
+        handler = PretiaCallbackHandler()
+        rid = uuid4()
+
+        _start_llm(handler, run_id=rid)
+        msg = _MockMessage(usage_metadata=_MockUsageMetadata(input_tokens=500, output_tokens=200))
+        resp = _make_response(
+            llm_output={"token_usage": {"prompt_tokens": 100, "completion_tokens": 50}},
+            message=msg,
+        )
+        handler.on_llm_end(resp, run_id=rid)
+
+        assert handler.records[0].input_tokens == 500
+        assert handler.records[0].output_tokens == 200
 
 
 # ---------------------------------------------------------------------------

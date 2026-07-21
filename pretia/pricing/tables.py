@@ -295,7 +295,14 @@ def list_models() -> list[str]:
 
 def model_tier(model: str) -> str:
     """Return the capability tier of the model: 'frontier', 'mid', or 'fast'."""
-    return MODEL_TIERS[resolve_model(model)]
+    canonical = resolve_model(model)
+    tier = MODEL_TIERS.get(canonical)
+    if tier is None:
+        raise ValueError(
+            f"No tier for model {model!r}. "
+            f"Use register_model({model!r}, input_price=X, output_price=Y, tier='mid')."
+        )
+    return tier
 
 
 def check_pricing_staleness() -> str | None:

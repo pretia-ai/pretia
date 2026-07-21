@@ -154,12 +154,25 @@ def create_langfuse_client() -> Any:
 
 def _parse_observation(obs: Any) -> LangfuseObservation:
     """Convert a Langfuse ObservationsView into a LangfuseObservation."""
-    usage = getattr(obs, "usage", None)
     input_tokens = 0
     output_tokens = 0
+
+    usage = getattr(obs, "usage", None)
     if usage is not None:
         input_tokens = getattr(usage, "input", 0) or 0
         output_tokens = getattr(usage, "output", 0) or 0
+
+    if input_tokens == 0 and output_tokens == 0:
+        usage_details = getattr(obs, "usage_details", None) or {}
+        if isinstance(usage_details, dict):
+            input_tokens = usage_details.get("input", 0) or 0
+            output_tokens = usage_details.get("output", 0) or 0
+
+    model = getattr(obs, "model", None)
+    if model is None:
+        model_details = getattr(obs, "model_parameters", None) or {}
+        if isinstance(model_details, dict):
+            model = model_details.get("model") or model_details.get("model_id")
 
     start_time = getattr(obs, "start_time", None)
     end_time = getattr(obs, "end_time", None)
@@ -168,7 +181,7 @@ def _parse_observation(obs: Any) -> LangfuseObservation:
         observation_id=getattr(obs, "id", ""),
         name=getattr(obs, "name", None) or "unknown",
         observation_type=getattr(obs, "type", "SPAN"),
-        model=getattr(obs, "model", None),
+        model=model,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         start_time=start_time,
@@ -236,6 +249,16 @@ def fetch_traces(
                 total_output_tokens=total_out,
                 total_cost=total_cost,
             )
+        )
+
+    if results and all(t.total_input_tokens == 0 for t in results):
+        logger.warning(
+            "All %d Langfuse traces have 0 input tokens. "
+            "This usually means the Langfuse instrumentation is not logging "
+            "usage data. For LLM calls, use langfuse.generation() instead of "
+            "langfuse.start_as_current_observation(). "
+            "See https://langfuse.com/docs/sdk/python/decorators",
+            len(results),
         )
 
     return results

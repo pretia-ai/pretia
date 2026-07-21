@@ -733,11 +733,16 @@ class TestRobustCvMatchesCvForNormal:
 
 
 class TestRobustCvZeroMedian:
-    def test_returns_zero(self):
+    def test_detects_variance_when_median_zero(self):
         from pretia.projection.stats import robust_cv
 
         values = [0.0, 0.0, 0.0, 1.0, 2.0]
-        assert robust_cv(values) == 0.0
+        assert robust_cv(values) > 0
+
+    def test_returns_zero_when_all_zero(self):
+        from pretia.projection.stats import robust_cv
+
+        assert robust_cv([0.0, 0.0, 0.0]) == 0.0
 
 
 class TestLoopVarianceUsesRobustCv:

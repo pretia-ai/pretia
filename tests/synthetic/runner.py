@@ -69,7 +69,7 @@ def run_one(
     result = project(stats, patterns, traffic=[daily_volume], runs=runs)
 
     proj = result.projections[daily_volume]
-    mc = result.montecarlo_result
+    mc = result.montecarlo_results.get(daily_volume)
 
     return SyntheticCalibrationResult(
         workflow=wf,
