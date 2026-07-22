@@ -153,6 +153,12 @@ def profile() -> None:
     help="Current monthly cost ($) to show ROI comparison in the report.",
 )
 @click.option(
+    "--traffic",
+    type=int,
+    default=None,
+    help="Runs per day for monthly projection. Default: show 100/1K/10K.",
+)
+@click.option(
     "--yes",
     "-y",
     is_flag=True,
@@ -177,6 +183,7 @@ def run(
     no_open: bool,
     unit: str | None,
     current_cost: float | None,
+    traffic: int | None,
     yes: bool,
 ) -> None:
     """Profile a workflow and generate a cost report."""
@@ -329,7 +336,7 @@ def run(
 
         _show_profiling_summary(session, elapsed)
 
-        for renderable in format_cli_report(session):
+        for renderable in format_cli_report(session, traffic=traffic):
             console.print(renderable)
             console.print()
 
@@ -346,6 +353,7 @@ def run(
                 html_path = render_and_save(
                     session,
                     open_browser=not no_open,
+                    traffic=traffic,
                 )
                 console.print(
                     f"HTML report: [bold]{html_path}[/bold]",
