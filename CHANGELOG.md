@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.2 (2026-07-22)
+
+- Add `--traffic` flag to `pretia profile run` for custom daily volume projections
+- Update tutorial to v1.2 (new SDK collectors, `pretia doctor`, `pretia update-pricing`, removed `StepRecord.cost()`)
+- Update README with new CLI commands and 6 framework adapters
+
 ## 1.2.1 (2026-07-21)
 
 ### Critical fixes
