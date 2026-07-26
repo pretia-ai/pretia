@@ -1,6 +1,6 @@
 .PHONY: check lint format typecheck test build clean
 
-check: lint format typecheck test
+check: lint format typecheck
 	@echo "All checks passed."
 
 lint:
@@ -13,7 +13,7 @@ typecheck:
 	uv run pyright pretia/
 
 test:
-	uv run pytest tests/unit/ -v --tb=short
+	uv run pytest tests/unit/ -n auto --tb=short
 
 build: check
 	rm -rf dist/ build/

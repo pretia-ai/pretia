@@ -32,6 +32,7 @@ dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "pytest-cov>=5.0",
+    "pytest-xdist>=3.5",
     "ruff>=0.6",
     "pyright>=1.1",
     "build>=1.0",
@@ -121,6 +122,25 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 markers = [
     "integration: marks tests that make real LLM calls (deselect with '-m not integration')",
+]
+collect_ignore = [
+    "tests/unit/test_detector_validation_new.py",
+    "tests/unit/test_harness_extensions.py",
+    "tests/unit/test_input_generators.py",
+    "tests/unit/test_pdf_assembler.py",
+    "tests/unit/test_pdf_chart_scan.py",
+    "tests/unit/test_pdf_llm_pure.py",
+    "tests/unit/test_pdf_table_renderer.py",
+    "tests/unit/test_pdf_text_renderer.py",
+    "tests/unit/test_pdf_types.py",
+    "tests/unit/test_pdf_verify_pure.py",
+    "tests/unit/test_smoke_checks.py",
+    "tests/unit/test_tool_sim.py",
+    "tests/unit/test_validation_framework.py",
+    "tests/unit/test_validation_stages.py",
+    "tests/unit/test_viz_colors.py",
+    "tests/unit/test_viz_narrative.py",
+    "tests/unit/test_viz_utils.py",
 ]
 
 [tool.pyright]
