@@ -166,9 +166,7 @@ def bootstrap_bca_ci(
         stat_fn = lambda c: _percentile(sorted(c), percentile)  # noqa: E731
 
     if stat_fn is None:
-
-        def stat_fn(c: list[float]) -> float:
-            return sum(c) / len(c) if c else 0.0
+        stat_fn = lambda c: sum(c) / len(c) if c else 0.0  # noqa: E731
 
     theta_hat = stat_fn(costs)
 

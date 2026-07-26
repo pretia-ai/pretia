@@ -1031,7 +1031,7 @@ def _show_confirmation(workflow_path: str, num_runs: int) -> None:
     console.print(Panel(text, expand=False))
 
 
-def _show_profiling_summary(session: object, elapsed: float) -> None:
+def _show_profiling_summary(session: ProfilingSession, elapsed: float) -> None:
     """Display a compact post-profiling summary."""
     from pretia.ci.report import format_cost
 
