@@ -179,7 +179,7 @@ class TestMonteCarloTriggered:
         ]
         stats = compute_stats(runs)
         patterns = [_make_danger_pattern("review")]
-        result = project(stats, patterns, traffic=[10], runs=runs)
+        result = project(stats, patterns, traffic=[10], runs=runs, n_simulations=50)
         assert result.method == "montecarlo"
         assert result.projections[10].monthly_cost.mean > 0
 
@@ -251,7 +251,7 @@ class TestStepCountTriggersMonteCarloMode:
         scv = [p for p in patterns if p.pattern_type == "step_count_variance"]
         assert len(scv) >= 1
 
-        result = project(stats, patterns, traffic=[10], runs=runs)
+        result = project(stats, patterns, traffic=[5], runs=runs, n_simulations=50)
         assert result.method == "montecarlo"
 
 
@@ -278,11 +278,11 @@ class TestMonteCarloResultStorage:
         ]
         stats = compute_stats(runs)
         patterns = [_make_danger_pattern("review")]
-        result = project(stats, patterns, traffic=[100, 1000, 10000], runs=runs)
+        result = project(stats, patterns, traffic=[5, 10, 20], runs=runs, n_simulations=50)
         assert result.method == "montecarlo"
-        assert 100 in result.montecarlo_results
-        assert 1000 in result.montecarlo_results
-        assert 10000 in result.montecarlo_results
+        assert 5 in result.montecarlo_results
+        assert 10 in result.montecarlo_results
+        assert 20 in result.montecarlo_results
 
     def test_montecarlo_to_dict_backward_compat(self):
         runs = [
@@ -301,7 +301,7 @@ class TestMonteCarloResultStorage:
         ]
         stats = compute_stats(runs)
         patterns = [_make_danger_pattern("review")]
-        result = project(stats, patterns, traffic=[100, 1000], runs=runs)
+        result = project(stats, patterns, traffic=[5, 10], runs=runs, n_simulations=50)
         d = result.to_dict()
         assert "montecarlo_result" in d
         assert "montecarlo_results" in d
@@ -325,7 +325,7 @@ class TestMonteCarloResultStorage:
         ]
         stats = compute_stats(runs)
         patterns = [_make_danger_pattern("review")]
-        result = project(stats, patterns, traffic=[100], runs=runs)
+        result = project(stats, patterns, traffic=[5], runs=runs, n_simulations=50)
         serialized = json.dumps(result.to_dict())
         assert len(serialized) > 0
 

@@ -159,7 +159,7 @@ class TestModelSwapClassification:
 
         current_cost = calculate_cost("claude-opus-4-7", 1000, 100)
         recommended_cost = calculate_cost("claude-haiku-4-5", 1000, 100)
-        expected_savings = (current_cost - recommended_cost) * _DEFAULT_DAILY_VOLUME * 30
+        expected_savings = (current_cost - recommended_cost) * 0.5 * _DEFAULT_DAILY_VOLUME * 30
 
         assert rec.monthly_savings == pytest.approx(expected_savings, rel=1e-6)
         assert rec.monthly_savings > 0

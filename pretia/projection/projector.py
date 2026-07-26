@@ -166,6 +166,7 @@ def _montecarlo_project(
     patterns: list[DetectedPattern],
     traffic: list[int],
     runs: list[list[StepRecord]],
+    n_simulations: int = 10000,
 ) -> tuple[dict[int, TrafficProjection], dict[int, MonteCarloResult]]:
     """Run MC simulation for per-run cost modeling, then apply scenario projections.
 
@@ -176,7 +177,7 @@ def _montecarlo_project(
     mc_results: dict[int, MonteCarloResult] = {}
 
     for v in traffic:
-        mc = simulate(stats, patterns, daily_volume=v, runs=runs)
+        mc = simulate(stats, patterns, daily_volume=v, runs=runs, n_simulations=n_simulations)
         mc_results[v] = mc
 
     first_mc = mc_results[traffic[0]] if traffic else None
@@ -287,6 +288,7 @@ def project(
     traffic: list[int] | None = None,
     runs: list[list[StepRecord]] | None = None,
     input_source: str = "auto-generate",
+    n_simulations: int = 10000,
 ) -> ProjectionResult:
     """Produce cost projections using the best available method."""
     if traffic is None:
@@ -325,6 +327,7 @@ def project(
                 patterns,
                 traffic,
                 runs,
+                n_simulations=n_simulations,
             )
             first_volume = traffic[0] if traffic else None
             if first_volume is not None and first_volume in all_mc_results:

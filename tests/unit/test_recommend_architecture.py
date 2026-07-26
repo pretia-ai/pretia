@@ -72,6 +72,10 @@ def _cache_pattern(
     model: str = "claude-sonnet-4-6",
     cache_hit_ratio: float = 0.02,
     total_cache_miss_tokens: int = 50_000,
+    mean_cache_miss_tokens_per_run: int | None = None,
+    mean_system_prompt_tokens: float = 200.0,
+    mean_tool_def_tokens: float = 0.0,
+    mean_input_tokens: float = 1000.0,
 ) -> dict:
     return {
         "pattern_type": "cache_utilization_opportunity",
@@ -81,6 +85,15 @@ def _cache_pattern(
         "evidence": {
             "cache_hit_ratio": cache_hit_ratio,
             "total_cache_miss_tokens": total_cache_miss_tokens,
+            "mean_cache_miss_tokens_per_run": (
+                mean_cache_miss_tokens_per_run
+                if mean_cache_miss_tokens_per_run is not None
+                else total_cache_miss_tokens
+            ),
+            "n_runs_with_cache": 1,
+            "mean_system_prompt_tokens": mean_system_prompt_tokens,
+            "mean_tool_def_tokens": mean_tool_def_tokens,
+            "mean_input_tokens": mean_input_tokens,
             "model": model,
         },
     }
@@ -114,8 +127,15 @@ class TestPromptCachingGenerator:
 
         standard_rate = get_model_pricing(model)[0]
         cache_rate = MODEL_CACHE_HIT_PRICING[model] / _PER_MILLION
+        cacheable_frac = 200.0 / 1000.0
         expected = round(
-            miss_tokens * (standard_rate - cache_rate) * _DEFAULT_DAILY_VOLUME * 30, 2
+            miss_tokens
+            * cacheable_frac
+            * (standard_rate - cache_rate)
+            * 0.5
+            * _DEFAULT_DAILY_VOLUME
+            * 30,
+            2,
         )
         assert recs[0].monthly_savings == pytest.approx(expected, rel=1e-4)
 
@@ -336,8 +356,9 @@ class TestCacheContextGenerator:
         assert len(recs) == 1
 
         input_price = get_model_pricing(model)[0]
-        redundant_cost = prompt_tokens * input_price
-        expected = round(redundant_cost * _DEFAULT_DAILY_VOLUME * 30, 2)
+        net_rate = input_price * 0.5
+        redundant_cost = prompt_tokens * net_rate
+        expected = round(redundant_cost * 0.5 * _DEFAULT_DAILY_VOLUME * 30, 2)
         assert recs[0].monthly_savings == pytest.approx(expected, rel=1e-4)
 
     def test_no_recommendation_different_hashes(self) -> None:

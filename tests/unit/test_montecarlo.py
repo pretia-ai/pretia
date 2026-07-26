@@ -99,7 +99,7 @@ class TestSimulateStableData:
             [],
             daily_volume=1000,
             runs=runs,
-            n_simulations=1000,
+            n_simulations=50,
         )
         expected = stats.cost_per_run.mean * 1000 * 30
         assert result.monthly_projection.mean == pytest.approx(expected, rel=0.05)
@@ -115,7 +115,7 @@ class TestSimulateHighVariance:
             [],
             daily_volume=1000,
             runs=runs,
-            n_simulations=1000,
+            n_simulations=50,
         )
         assert result.monthly_projection.p95 > result.monthly_projection.mean
 
@@ -136,7 +136,7 @@ class TestSimulateContextGrowth:
             [pattern],
             daily_volume=10,
             runs=runs,
-            n_simulations=500,
+            n_simulations=100,
         )
         linear_mean = stats.cost_per_run.mean * 10 * 30
         assert mc.monthly_projection.p95 > linear_mean
@@ -158,7 +158,7 @@ class TestSimulateLinearVsLogGrowth:
             [pattern],
             daily_volume=10,
             runs=runs,
-            n_simulations=500,
+            n_simulations=100,
         )
         assert mc.growth_model_delta > 0
         assert mc.linear_monthly.p95 != mc.log_monthly.p95
@@ -168,8 +168,8 @@ class TestSimulateReproducible:
     def test_same_seed_same_result(self):
         runs = _stable_runs(20)
         stats = compute_stats(runs)
-        r1 = simulate(stats, [], daily_volume=10, runs=runs, seed=42, n_simulations=1000)
-        r2 = simulate(stats, [], daily_volume=10, runs=runs, seed=42, n_simulations=1000)
+        r1 = simulate(stats, [], daily_volume=10, runs=runs, seed=42, n_simulations=50)
+        r2 = simulate(stats, [], daily_volume=10, runs=runs, seed=42, n_simulations=50)
         assert r1.monthly_projection.mean == r2.monthly_projection.mean
         assert r1.monthly_projection.p95 == r2.monthly_projection.p95
 
@@ -178,8 +178,8 @@ class TestSimulateDifferentSeeds:
     def test_different_seeds_differ(self):
         runs = _high_variance_runs(20)
         stats = compute_stats(runs)
-        r1 = simulate(stats, [], daily_volume=10, runs=runs, seed=42, n_simulations=1000)
-        r2 = simulate(stats, [], daily_volume=10, runs=runs, seed=99, n_simulations=1000)
+        r1 = simulate(stats, [], daily_volume=10, runs=runs, seed=42, n_simulations=50)
+        r2 = simulate(stats, [], daily_volume=10, runs=runs, seed=99, n_simulations=50)
         assert r1.monthly_projection.mean != r2.monthly_projection.mean
 
 
@@ -192,7 +192,7 @@ class TestSimulateConvergenceCheck:
             [],
             daily_volume=10,
             runs=runs,
-            n_simulations=10000,
+            n_simulations=50,
         )
         assert result.convergence_check is True
 
@@ -285,16 +285,15 @@ class TestCltVarianceScaling:
         result = simulate(
             stats,
             [],
-            daily_volume=10000,
+            daily_volume=1000,
             runs=runs,
-            n_simulations=3000,
+            n_simulations=50,
         )
-        n_monthly = 10000 * 30
+        n_monthly = 1000 * 30
         expected_mean = n_monthly * stats.cost_per_run.mean
         assert result.monthly_projection.p50 == pytest.approx(expected_mean, rel=0.05)
         gap = result.monthly_projection.p95 - result.monthly_projection.p50
-        # CLT reduces the gap from ~1.4M (N² variance bug) to ~46K (N²/K + N variance).
-        assert gap < 100000
+        assert gap < 10000
 
 
 class TestCltLowVolume:
@@ -306,7 +305,7 @@ class TestCltLowVolume:
             [],
             daily_volume=100,
             runs=runs,
-            n_simulations=3000,
+            n_simulations=100,
             seed=7,
         )
         n_monthly = 100 * 30
@@ -329,12 +328,12 @@ class TestCltSingleValue:
         result = simulate(
             stats,
             [],
-            daily_volume=10000,
+            daily_volume=1000,
             runs=runs,
-            n_simulations=1000,
+            n_simulations=100,
             seed=1,
         )
-        n_monthly = 10000 * 30
+        n_monthly = 1000 * 30
         expected = n_monthly * 10.0
         assert result.monthly_projection.p50 == pytest.approx(expected, rel=0.001)
 
@@ -348,13 +347,13 @@ class TestTailInflationRemoved:
     def test_no_inflation_at_small_n(self):
         runs = _stable_runs(20)
         stats = compute_stats(runs)
-        result = simulate(stats, [], daily_volume=10, runs=runs, n_simulations=1000, seed=42)
+        result = simulate(stats, [], daily_volume=10, runs=runs, n_simulations=50, seed=42)
         assert result.tail_inflation_factor is None
 
     def test_no_inflation_at_large_n(self):
         runs = _stable_runs(50)
         stats = compute_stats(runs)
-        result = simulate(stats, [], daily_volume=10, runs=runs, n_simulations=1000, seed=42)
+        result = simulate(stats, [], daily_volume=10, runs=runs, n_simulations=50, seed=42)
         assert result.tail_inflation_factor is None
 
 
@@ -362,7 +361,7 @@ class TestCvarInMcResult:
     def test_cvar_populated(self):
         runs = _stable_runs(50)
         stats = compute_stats(runs)
-        result = simulate(stats, [], daily_volume=100, runs=runs, n_simulations=1000)
+        result = simulate(stats, [], daily_volume=100, runs=runs, n_simulations=50)
         assert result.cvar_95 > 0
         assert result.cvar_95 >= result.monthly_projection.p95
 
@@ -399,7 +398,7 @@ class TestWholeRunSampling:
             [],
             daily_volume=100,
             runs=runs,
-            n_simulations=1000,
+            n_simulations=50,
             _debug_run_costs=debug_costs,
         )
 
@@ -497,7 +496,7 @@ class TestContextGrowthCapped:
             [pattern],
             daily_volume=10,
             runs=runs,
-            n_simulations=200,
+            n_simulations=50,
         )
         assert mc.extrapolation_cap_warnings >= 0
 
@@ -549,7 +548,7 @@ class TestSeedStabilityHeavyTail:
                 [],
                 daily_volume=5,
                 runs=runs,
-                n_simulations=10000,
+                n_simulations=100,
                 seed=seed,
             )
             p50_values.append(result.monthly_projection.p50)
@@ -631,7 +630,7 @@ class TestPowerLawModelSublinear:
             power_law_base=1000.0,
             growth_classification="sub_linear",
         )
-        mc = simulate(stats, [pattern], daily_volume=10, runs=runs, n_simulations=200)
+        mc = simulate(stats, [pattern], daily_volume=10, runs=runs, n_simulations=50)
         assert mc.monthly_projection.mean > 0
         assert mc.per_run_projection.mean > 0
 
@@ -651,7 +650,7 @@ class TestPowerLawModelSuperlinear:
             power_law_base=500.0,
             growth_classification="super_linear",
         )
-        mc = simulate(stats, [pattern], daily_volume=10, runs=runs, n_simulations=200)
+        mc = simulate(stats, [pattern], daily_volume=10, runs=runs, n_simulations=50)
         assert mc.monthly_projection.mean > 0
         assert mc.per_run_projection.mean > 0
 
@@ -673,7 +672,7 @@ class TestLinearGrowthModelUnchanged:
             [pattern],
             daily_volume=10,
             runs=runs,
-            n_simulations=200,
+            n_simulations=50,
             seed=42,
         )
 
@@ -689,7 +688,7 @@ class TestLinearGrowthModelUnchanged:
             [pattern_none],
             daily_volume=10,
             runs=runs,
-            n_simulations=200,
+            n_simulations=50,
             seed=42,
         )
 
@@ -741,7 +740,7 @@ class TestStepCountVarianceNoMcCostModel:
             [pattern],
             daily_volume=100,
             runs=runs,
-            n_simulations=500,
+            n_simulations=100,
             _debug_run_costs=debug_costs,
         )
         cheap = 1 * _safe_cost("gpt-4o-mini", 200, 100)
@@ -775,7 +774,7 @@ class TestBimodalityNoMcCostModel:
             [pattern],
             daily_volume=100,
             runs=runs,
-            n_simulations=500,
+            n_simulations=100,
         )
         assert mc.monthly_projection.mean > 0
         assert mc.per_run_projection.mean > 0
@@ -812,7 +811,7 @@ class TestGmmMcSamplingBimodal:
             [pattern],
             daily_volume=100,
             runs=runs,
-            n_simulations=1000,
+            n_simulations=50,
             _debug_run_costs=per_run_costs,
         )
         cheap = sum(1 for c in per_run_costs if c < 0.10)

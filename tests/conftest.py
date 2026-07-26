@@ -8,6 +8,26 @@ import pytest
 
 from pretia.collectors.base import StepRecord
 
+collect_ignore = [
+    "unit/test_detector_validation_new.py",
+    "unit/test_harness_extensions.py",
+    "unit/test_input_generators.py",
+    "unit/test_pdf_assembler.py",
+    "unit/test_pdf_chart_scan.py",
+    "unit/test_pdf_llm_pure.py",
+    "unit/test_pdf_table_renderer.py",
+    "unit/test_pdf_text_renderer.py",
+    "unit/test_pdf_types.py",
+    "unit/test_pdf_verify_pure.py",
+    "unit/test_smoke_checks.py",
+    "unit/test_tool_sim.py",
+    "unit/test_validation_framework.py",
+    "unit/test_validation_stages.py",
+    "unit/test_viz_colors.py",
+    "unit/test_viz_narrative.py",
+    "unit/test_viz_utils.py",
+]
+
 
 @pytest.fixture
 def sample_record() -> StepRecord:

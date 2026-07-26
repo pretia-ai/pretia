@@ -30,13 +30,13 @@ class TestClassifyZone:
         assert zone == "red"
         assert label == "needs optimization"
 
-    def test_score_40_is_red(self) -> None:
-        zone, label, _ = _classify_zone(40)
+    def test_score_30_is_red(self) -> None:
+        zone, label, _ = _classify_zone(30)
         assert zone == "red"
         assert label == "needs optimization"
 
-    def test_score_41_is_amber(self) -> None:
-        zone, label, _ = _classify_zone(41)
+    def test_score_31_is_amber(self) -> None:
+        zone, label, _ = _classify_zone(31)
         assert zone == "amber"
         assert label == "room to improve"
 
@@ -93,18 +93,18 @@ class TestComputeScore:
         assert result.zone == "green"
         assert result.waste_pct == 0.0
 
-    def test_boundary_40_red(self) -> None:
-        """60% waste → score 40 → red zone."""
-        recs = [_make_rec(600.0)]
+    def test_boundary_30_red(self) -> None:
+        """70% waste -> score 30 -> red zone."""
+        recs = [_make_rec(700.0)]
         result = compute_score(recs, 1000.0)
-        assert result.score == 40
+        assert result.score == 30
         assert result.zone == "red"
 
-    def test_boundary_41_amber(self) -> None:
-        """59% waste → score 41 → amber zone."""
-        recs = [_make_rec(590.0)]
+    def test_boundary_31_amber(self) -> None:
+        """69% waste -> score 31 -> amber zone."""
+        recs = [_make_rec(690.0)]
         result = compute_score(recs, 1000.0)
-        assert result.score == 41
+        assert result.score == 31
         assert result.zone == "amber"
 
     def test_boundary_70_amber(self) -> None:
@@ -131,7 +131,7 @@ class TestComputeScore:
 
     def test_scope_note_present(self) -> None:
         result = compute_score([], 1000.0)
-        assert "Architecture analysis" in result.scope_note
+        assert "detected patterns" in result.scope_note
 
     def test_negative_projected_cost_treated_as_zero(self) -> None:
         result = compute_score([_make_rec(100.0)], -500.0)
