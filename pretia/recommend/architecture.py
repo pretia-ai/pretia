@@ -83,14 +83,11 @@ class PromptCachingGenerator(RecommendationGenerator):
         mean_sys = evidence.get("mean_system_prompt_tokens", 0)
         mean_tool = evidence.get("mean_tool_def_tokens", 0)
         mean_inp = evidence.get("mean_input_tokens", 0)
-        cacheable_frac = (
-            min((mean_sys + mean_tool) / mean_inp, 1.0) if mean_inp > 0 else 0.5
-        )
+        cacheable_frac = min((mean_sys + mean_tool) / mean_inp, 1.0) if mean_inp > 0 else 0.5
         effective_miss = cache_miss_tokens * cacheable_frac
 
         monthly_savings = round(
-            effective_miss * savings_per_token * _CONSERVATIVE_FACTOR
-            * _DEFAULT_DAILY_VOLUME * 30,
+            effective_miss * savings_per_token * _CONSERVATIVE_FACTOR * _DEFAULT_DAILY_VOLUME * 30,
             2,
         )
 
@@ -161,9 +158,7 @@ class ToolFilterGenerator(RecommendationGenerator):
         median_tool_def = 0.0
         per_run_tool_def: list[int] = []
         for run in profile.runs:
-            run_total = sum(
-                r.tool_definitions_tokens for r in run if r.step_name == step_name
-            )
+            run_total = sum(r.tool_definitions_tokens for r in run if r.step_name == step_name)
             if any(r.step_name == step_name for r in run):
                 per_run_tool_def.append(run_total)
 
@@ -224,8 +219,7 @@ class ToolFilterGenerator(RecommendationGenerator):
             return None
 
         monthly_savings = round(
-            savings_tokens * input_price * _CONSERVATIVE_FACTOR
-            * _DEFAULT_DAILY_VOLUME * 30,
+            savings_tokens * input_price * _CONSERVATIVE_FACTOR * _DEFAULT_DAILY_VOLUME * 30,
             2,
         )
 
@@ -349,8 +343,7 @@ class CacheContextGenerator(RecommendationGenerator):
                     f"({avg_tokens:,} tokens) on consecutive iterations. "
                     f"Restructuring to share context or enabling prompt caching "
                     f"saves ${monthly_savings:,.0f}/month "
-                    f"at {_DEFAULT_DAILY_VOLUME:,} daily runs."
-                    + conservative_note
+                    f"at {_DEFAULT_DAILY_VOLUME:,} daily runs." + conservative_note
                 )
             else:
                 title = f"Eliminate redundant system prompt in {step_a} and {step_b}"
@@ -359,8 +352,7 @@ class CacheContextGenerator(RecommendationGenerator):
                     f"({avg_tokens:,} tokens) in consecutive calls. "
                     f"Restructuring to share context or enabling prompt caching "
                     f"saves ${monthly_savings:,.0f}/month "
-                    f"at {_DEFAULT_DAILY_VOLUME:,} daily runs."
-                    + conservative_note
+                    f"at {_DEFAULT_DAILY_VOLUME:,} daily runs." + conservative_note
                 )
 
             recommendations.append(

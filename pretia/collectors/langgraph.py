@@ -390,9 +390,7 @@ class LangGraphCollector(BaseCollector):
                     elif hasattr(workflow, "invoke"):
                         await asyncio.to_thread(workflow.invoke, payload, config=config)
                     else:
-                        logger.warning(
-                            "Workflow has neither ainvoke nor invoke — skipping input"
-                        )
+                        logger.warning("Workflow has neither ainvoke nor invoke — skipping input")
                         return
             except Exception:
                 logger.error(

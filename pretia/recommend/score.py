@@ -7,9 +7,7 @@ from typing import Any
 
 from pretia.recommend.base import Recommendation
 
-_SCOPE_NOTE = (
-    "Score based on detected patterns, model selection, and workflow optimization."
-)
+_SCOPE_NOTE = "Score based on detected patterns, model selection, and workflow optimization."
 
 _ZONE_CONFIG: list[tuple[int, str, str, str]] = [
     (30, "red", "needs optimization", "#E53E3E"),

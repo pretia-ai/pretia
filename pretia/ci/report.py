@@ -58,8 +58,8 @@ def format_cli_report(
     meta = session.metadata or {}
     stats = meta.get("stats")
     patterns = meta.get("patterns", [])
-    resolved_costs: dict[str, Any] = cost_summary if cost_summary is not None else (
-        meta.get("cost_summary") or {}
+    resolved_costs: dict[str, Any] = (
+        cost_summary if cost_summary is not None else (meta.get("cost_summary") or {})
     )
 
     renderables: list[Any] = []

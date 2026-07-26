@@ -598,8 +598,13 @@ def _detect_cache_utilization(
     """Detect steps where cache utilization is low despite model support."""
     step_cache: dict[str, dict[str, list]] = defaultdict(
         lambda: {
-            "hit": [], "miss": [], "models": [], "run_miss_totals": [],
-            "sys_prompt_tokens": [], "tool_def_tokens": [], "input_tokens": [],
+            "hit": [],
+            "miss": [],
+            "models": [],
+            "run_miss_totals": [],
+            "sys_prompt_tokens": [],
+            "tool_def_tokens": [],
+            "input_tokens": [],
         }
     )
 

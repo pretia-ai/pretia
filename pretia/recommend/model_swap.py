@@ -224,14 +224,15 @@ class ModelSwapGenerator(RecommendationGenerator):
             return None
 
         n_runs = len(profile.runs)
-        total_calls = sum(
-            1 for run in profile.runs for r in run if r.step_name == step_name
-        )
+        total_calls = sum(1 for run in profile.runs for r in run if r.step_name == step_name)
         mean_calls_per_run = total_calls / n_runs if n_runs > 0 else 1.0
 
         monthly_savings = (
-            savings_per_call * mean_calls_per_run * _CONSERVATIVE_FACTOR
-            * _DEFAULT_DAILY_VOLUME * 30
+            savings_per_call
+            * mean_calls_per_run
+            * _CONSERVATIVE_FACTOR
+            * _DEFAULT_DAILY_VOLUME
+            * 30
         )
 
         if monthly_savings < _MIN_MONTHLY_SAVINGS:

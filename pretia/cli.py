@@ -1115,9 +1115,7 @@ def _enrich_with_recommendations(
         projected_cost = p50_cost * hero_vol * 30
 
     detected_patterns = session.metadata.get("patterns", [])
-    score = compute_score(
-        recs, projected_cost, daily_volume=hero_vol, patterns=detected_patterns
-    )
+    score = compute_score(recs, projected_cost, daily_volume=hero_vol, patterns=detected_patterns)
     session.metadata["score"] = score.to_dict()
 
 

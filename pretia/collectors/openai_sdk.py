@@ -16,9 +16,9 @@ from pretia.collectors.base import _DEFAULT_CONCURRENCY, BaseCollector, StepReco
 
 logger = logging.getLogger(__name__)
 
-_run_ctx: contextvars.ContextVar[
-    tuple[list[StepRecord], asyncio.Lock, dict[str, int]]
-] = contextvars.ContextVar("_openai_run_ctx")
+_run_ctx: contextvars.ContextVar[tuple[list[StepRecord], asyncio.Lock, dict[str, int]]] = (
+    contextvars.ContextVar("_openai_run_ctx")
+)
 
 
 def _models_match(a: str, b: str) -> bool:
@@ -226,9 +226,7 @@ def _make_create_wrapper(
             kwargs["stream_options"]["include_usage"] = True
         response = original(*args, **kwargs)
         if stream:
-            return _SyncStreamCapture(
-                response, t0, captured, step_name, kwargs_meta, iteration
-            )
+            return _SyncStreamCapture(response, t0, captured, step_name, kwargs_meta, iteration)
         _record_from_response(
             response, t0, captured, step_name, iteration, kwargs_meta=kwargs_meta
         )
