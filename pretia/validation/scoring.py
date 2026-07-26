@@ -163,9 +163,7 @@ def bootstrap_bca_ci(
         return 0.0, 0.0, 0.0
 
     if stat_fn is None and percentile is not None:
-
-        def stat_fn(c: list[float]) -> float:
-            return _percentile(sorted(c), percentile)
+        stat_fn = lambda c: _percentile(sorted(c), percentile)  # noqa: E731
 
     if stat_fn is None:
 

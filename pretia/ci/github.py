@@ -310,10 +310,9 @@ def run_full_profile(
     from pretia.report.renderer import render_and_save
     from pretia.runner import ProfileRunner
 
-    collector = framework if framework != "auto" else None
     runner = ProfileRunner(
         workflow_path=workflow_path,
-        collector=collector,
+        collector=framework,
     )
     session = runner.run_sync()
 

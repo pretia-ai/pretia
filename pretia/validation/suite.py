@@ -418,6 +418,7 @@ def run_backtesting_suite(
         synth20_score: CalibrationScore | None = None
         synth100_score: CalibrationScore | None = None
         convergence: float | None = None
+        s20_stats = None
 
         if synth20_session is not None:
             s20_stats = _extract_stats(synth20_session)
@@ -485,14 +486,16 @@ def run_backtesting_suite(
     scored = [r for r in results if r.synth20_score is not None]
     n_scored = len(scored)
 
-    pass_count = sum(1 for r in scored if r.synth20_score.verdict == "PASS")
-    warn_count = sum(1 for r in scored if r.synth20_score.verdict == "WARN")
-    fail_count = sum(1 for r in scored if r.synth20_score.verdict == "FAIL")
+    pass_count = sum(1 for r in scored if r.synth20_score and r.synth20_score.verdict == "PASS")
+    warn_count = sum(1 for r in scored if r.synth20_score and r.synth20_score.verdict == "WARN")
+    fail_count = sum(1 for r in scored if r.synth20_score and r.synth20_score.verdict == "FAIL")
 
     # --- Hard gates: p50 ratio + top step must pass for every workflow ---
     hard_gate_passed = (
         all(
-            0.7 <= r.synth20_score.p50_ratio <= 2.0 and r.synth20_score.top_step_correct
+            r.synth20_score is not None
+            and 0.7 <= r.synth20_score.p50_ratio <= 2.0
+            and r.synth20_score.top_step_correct
             for r in scored
         )
         if scored
@@ -506,6 +509,8 @@ def run_backtesting_suite(
         range_pass = 0
         rank_pass = 0
         for r in scored:
+            if r.synth20_score is None:
+                continue
             th = _THRESHOLDS.get(r.config.complexity, _THRESHOLDS["simple"])
             if r.synth20_score.p95_coverage >= th["p95_coverage"]:
                 p95_pass += 1

@@ -127,3 +127,4 @@ markers = [
 include = ["pretia"]
 pythonVersion = "3.11"
 typeCheckingMode = "standard"
+reportMissingImports = false

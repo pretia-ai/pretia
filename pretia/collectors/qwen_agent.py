@@ -224,6 +224,7 @@ class QwenAgentCollector(BaseCollector):
         workflow: Any,
         inputs: list[str],
         on_run_complete: Callable[[int, int, list[StepRecord]], None] | None = None,
+        concurrency: int | None = None,
     ) -> list[list[StepRecord]]:
         """Run the workflow on each input with an instrumented LLM client.
 
