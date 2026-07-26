@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 
 import pytest
@@ -152,6 +153,10 @@ class TestResolveGeneratorModel:
         monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test")
         assert resolve_generator_model(None) == "deepseek-v4-flash"
 
+    @pytest.mark.skipif(
+        not importlib.util.find_spec("openai"),
+        reason="openai not installed",
+    )
     def test_falls_back_to_openai(self, monkeypatch):
         for var in ("DEEPSEEK_API_KEY", "DASHSCOPE_API_KEY"):
             monkeypatch.delenv(var, raising=False)
@@ -159,6 +164,10 @@ class TestResolveGeneratorModel:
         result = resolve_generator_model(None)
         assert result == "gpt-4o-mini"
 
+    @pytest.mark.skipif(
+        not importlib.util.find_spec("anthropic"),
+        reason="anthropic not installed",
+    )
     def test_falls_back_to_anthropic(self, monkeypatch):
         for var in ("DEEPSEEK_API_KEY", "OPENAI_API_KEY", "DASHSCOPE_API_KEY"):
             monkeypatch.delenv(var, raising=False)
