@@ -12,6 +12,7 @@ from pretia.pricing.tables import (
     resolve_model,
 )
 from pretia.recommend.base import (
+    _CONSERVATIVE_FACTOR,
     _DEFAULT_DAILY_VOLUME,
     Recommendation,
     RecommendationGenerator,
@@ -222,7 +223,16 @@ class ModelSwapGenerator(RecommendationGenerator):
         if savings_per_call <= 0:
             return None
 
-        monthly_savings = savings_per_call * _DEFAULT_DAILY_VOLUME * 30
+        n_runs = len(profile.runs)
+        total_calls = sum(
+            1 for run in profile.runs for r in run if r.step_name == step_name
+        )
+        mean_calls_per_run = total_calls / n_runs if n_runs > 0 else 1.0
+
+        monthly_savings = (
+            savings_per_call * mean_calls_per_run * _CONSERVATIVE_FACTOR
+            * _DEFAULT_DAILY_VOLUME * 30
+        )
 
         if monthly_savings < _MIN_MONTHLY_SAVINGS:
             return None
@@ -243,7 +253,8 @@ class ModelSwapGenerator(RecommendationGenerator):
                 f"(output/input ratio: {ratio:.2f}, format: {output_format}). "
                 f"Switching from {canonical} ({tier}) to {recommended_model} "
                 f"({recommended_tier}) saves ${monthly_savings:,.0f}/month "
-                f"at {_DEFAULT_DAILY_VOLUME:,} daily runs."
+                f"at {_DEFAULT_DAILY_VOLUME:,} daily runs. "
+                f"Estimate is conservative. Actual savings may be higher."
             ),
             monthly_savings=round(monthly_savings, 2),
             confidence=confidence,

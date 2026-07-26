@@ -76,11 +76,11 @@ class TestBootstrapProjection:
         )
 
     def test_p95_less_than_naive_at_high_volume(self):
-        from pretia.projection.projector import _linear_project
+        from pretia.projection.projector import _scenario_project
 
         run_costs = [0.005, 0.008, 0.01, 0.01, 0.012, 0.015, 0.02, 0.025, 0.03, 0.03]
         stats = self._make_stats(run_costs)
-        result = _linear_project(stats, [10000])
+        result = _scenario_project(stats, [10000])
         daily_p95 = result[10000].daily_cost.p95
         naive_p95 = max(run_costs) * 10000
         assert daily_p95 < naive_p95

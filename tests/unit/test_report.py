@@ -648,7 +648,7 @@ class TestFormatCost:
         assert format_cost(0.0034) == "$0.0034"
 
     def test_small_amount(self):
-        assert format_cost(0.34) == "$0.34"
+        assert format_cost(0.34) == "$0.340"
 
     def test_medium_amount(self):
         assert format_cost(34.2) == "$34.20"

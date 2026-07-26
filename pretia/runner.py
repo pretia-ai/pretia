@@ -313,6 +313,7 @@ class ProfileRunner:
         generator_model: str = "deepseek-v4-flash",
         corpus_path: str | None = None,
         entry_point: str | None = None,
+        concurrency: int | None = None,
     ) -> None:
         self.workflow_path = workflow_path
         self.collector_name = collector
@@ -328,6 +329,7 @@ class ProfileRunner:
         self.generator_model = generator_model
         self.corpus_path = corpus_path
         self.entry_point = entry_point
+        self.concurrency = concurrency
 
     def _load_workflow(self) -> tuple[Any, str, Any]:
         module = _load_workflow_module(self.workflow_path)
@@ -622,6 +624,7 @@ class ProfileRunner:
             workflow,
             inputs,
             on_run_complete=self.progress_callback,
+            concurrency=self.concurrency,
         )
 
         valid_runs = [r for r in runs if r]

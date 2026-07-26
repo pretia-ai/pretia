@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
 from pretia.pricing.tables import (
@@ -12,6 +13,7 @@ from pretia.pricing.tables import (
     resolve_model,
 )
 from pretia.recommend.base import (
+    _CONSERVATIVE_FACTOR,
     _DEFAULT_DAILY_VOLUME,
     Recommendation,
     RecommendationGenerator,
@@ -53,7 +55,10 @@ class PromptCachingGenerator(RecommendationGenerator):
         step_name = pattern.get("step_name", "")
         evidence = pattern.get("evidence", {})
         cache_hit_ratio = evidence.get("cache_hit_ratio", 0.0)
-        cache_miss_tokens = evidence.get("total_cache_miss_tokens", 0)
+        cache_miss_tokens = evidence.get(
+            "mean_cache_miss_tokens_per_run",
+            evidence.get("total_cache_miss_tokens", 0),
+        )
         model = evidence.get("model", "")
 
         if not model or cache_miss_tokens <= 0:
@@ -75,8 +80,18 @@ class PromptCachingGenerator(RecommendationGenerator):
         if savings_per_token <= 0:
             return None
 
+        mean_sys = evidence.get("mean_system_prompt_tokens", 0)
+        mean_tool = evidence.get("mean_tool_def_tokens", 0)
+        mean_inp = evidence.get("mean_input_tokens", 0)
+        cacheable_frac = (
+            min((mean_sys + mean_tool) / mean_inp, 1.0) if mean_inp > 0 else 0.5
+        )
+        effective_miss = cache_miss_tokens * cacheable_frac
+
         monthly_savings = round(
-            cache_miss_tokens * savings_per_token * _DEFAULT_DAILY_VOLUME * 30, 2
+            effective_miss * savings_per_token * _CONSERVATIVE_FACTOR
+            * _DEFAULT_DAILY_VOLUME * 30,
+            2,
         )
 
         if monthly_savings < _MIN_CACHING_SAVINGS:
@@ -92,11 +107,11 @@ class PromptCachingGenerator(RecommendationGenerator):
             type="architecture",
             title=f"Enable prompt caching for {step_name}",
             description=(
-                f"{step_name} sends {cache_miss_tokens:,} cache-miss tokens per run "
+                f"{step_name} sends {cache_miss_tokens:,.0f} cache-miss tokens per run "
                 f"on {canonical} (cache hit ratio: {cache_hit_ratio:.1%}). "
-                f"Enabling prompt caching reduces input cost by {pct_reduction:.0f}%, "
-                f"saving ${monthly_savings:,.0f}/month "
-                f"at {_DEFAULT_DAILY_VOLUME:,} daily runs."
+                f"Enabling prompt caching saves ${monthly_savings:,.0f}/month "
+                f"at {_DEFAULT_DAILY_VOLUME:,} daily runs. "
+                f"Estimate is conservative. Actual savings may be higher."
             ),
             monthly_savings=monthly_savings,
             confidence="HIGH",
@@ -105,6 +120,7 @@ class PromptCachingGenerator(RecommendationGenerator):
                 "model": canonical,
                 "cache_hit_ratio": cache_hit_ratio,
                 "cache_miss_tokens": cache_miss_tokens,
+                "cacheable_fraction": round(cacheable_frac, 4),
                 "standard_input_rate_per_token": standard_input_rate,
                 "cache_hit_rate_per_token": cache_hit_rate,
                 "pct_reduction": round(pct_reduction, 1),
@@ -143,21 +159,23 @@ class ToolFilterGenerator(RecommendationGenerator):
 
         median_input = step_stats.input_tokens.p50
         median_tool_def = 0.0
-        tool_def_values: list[int] = []
+        per_run_tool_def: list[int] = []
         for run in profile.runs:
-            for r in run:
-                if r.step_name == step_name:
-                    tool_def_values.append(r.tool_definitions_tokens)
+            run_total = sum(
+                r.tool_definitions_tokens for r in run if r.step_name == step_name
+            )
+            if any(r.step_name == step_name for r in run):
+                per_run_tool_def.append(run_total)
 
-        if not tool_def_values:
+        if not per_run_tool_def:
             return None
 
-        tool_def_values.sort()
-        n = len(tool_def_values)
+        per_run_tool_def.sort()
+        n = len(per_run_tool_def)
         median_tool_def = (
-            tool_def_values[n // 2]
+            per_run_tool_def[n // 2]
             if n % 2 == 1
-            else (tool_def_values[n // 2 - 1] + tool_def_values[n // 2]) / 2
+            else (per_run_tool_def[n // 2 - 1] + per_run_tool_def[n // 2]) / 2
         )
 
         if median_input <= 0 or median_tool_def <= 0:
@@ -205,7 +223,11 @@ class ToolFilterGenerator(RecommendationGenerator):
         except (ValueError, KeyError):
             return None
 
-        monthly_savings = round(savings_tokens * input_price * _DEFAULT_DAILY_VOLUME * 30, 2)
+        monthly_savings = round(
+            savings_tokens * input_price * _CONSERVATIVE_FACTOR
+            * _DEFAULT_DAILY_VOLUME * 30,
+            2,
+        )
 
         if monthly_savings < 10.0:
             return None
@@ -227,7 +249,7 @@ class ToolFilterGenerator(RecommendationGenerator):
                 )
                 + f"Filtering unused tools saves ${monthly_savings:,.0f}/month "
                 f"at {_DEFAULT_DAILY_VOLUME:,} daily runs. "
-                f"Review before applying — unused tools may be needed for rare inputs."
+                f"Estimate is conservative. Actual savings may be higher."
             ),
             monthly_savings=monthly_savings,
             confidence="MODERATE",
@@ -254,10 +276,11 @@ class CacheContextGenerator(RecommendationGenerator):
         if not profile.runs:
             return []
 
-        pair_costs: dict[tuple[str, str], list[float]] = {}
+        pair_run_costs: dict[tuple[str, str], list[float]] = {}
 
         for run in profile.runs:
             sorted_steps = sorted(run, key=lambda r: r.timestamp)
+            run_pair_totals: dict[tuple[str, str], float] = defaultdict(float)
 
             for i in range(1, len(sorted_steps)):
                 prev = sorted_steps[i - 1]
@@ -283,17 +306,28 @@ class CacheContextGenerator(RecommendationGenerator):
                 )
 
                 try:
-                    input_price = get_model_pricing(curr.model)[0]
-                except (ValueError, KeyError):
+                    canonical = resolve_model(curr.model)
+                    input_price = get_model_pricing(canonical)[0]
+                except (ValueError, KeyError, UnrecognizedModelError):
                     continue
 
-                redundant_cost = curr.system_prompt_tokens * input_price
-                pair_costs.setdefault(pair_key, []).append(redundant_cost)
+                cache_rate = MODEL_CACHE_HIT_PRICING.get(canonical)
+                if cache_rate is not None:
+                    net_rate = input_price - cache_rate / _PER_MILLION
+                else:
+                    net_rate = input_price * 0.5
+                redundant_cost = curr.system_prompt_tokens * net_rate
+                run_pair_totals[pair_key] += redundant_cost
+
+            for pair_key, total in run_pair_totals.items():
+                pair_run_costs.setdefault(pair_key, []).append(total)
 
         recommendations: list[Recommendation] = []
-        for (step_a, step_b), costs in pair_costs.items():
+        for (step_a, step_b), costs in pair_run_costs.items():
             avg_redundant = sum(costs) / len(costs) if costs else 0.0
-            monthly_savings = round(avg_redundant * _DEFAULT_DAILY_VOLUME * 30, 2)
+            monthly_savings = round(
+                avg_redundant * _CONSERVATIVE_FACTOR * _DEFAULT_DAILY_VOLUME * 30, 2
+            )
 
             if monthly_savings < 10.0:
                 continue
@@ -307,6 +341,7 @@ class CacheContextGenerator(RecommendationGenerator):
                 if avg_tokens > 0:
                     break
 
+            conservative_note = " Estimate is conservative. Actual savings may be higher."
             if step_a == step_b:
                 title = f"Eliminate redundant system prompt across consecutive calls in {step_a}"
                 desc = (
@@ -315,6 +350,7 @@ class CacheContextGenerator(RecommendationGenerator):
                     f"Restructuring to share context or enabling prompt caching "
                     f"saves ${monthly_savings:,.0f}/month "
                     f"at {_DEFAULT_DAILY_VOLUME:,} daily runs."
+                    + conservative_note
                 )
             else:
                 title = f"Eliminate redundant system prompt in {step_a} and {step_b}"
@@ -324,6 +360,7 @@ class CacheContextGenerator(RecommendationGenerator):
                     f"Restructuring to share context or enabling prompt caching "
                     f"saves ${monthly_savings:,.0f}/month "
                     f"at {_DEFAULT_DAILY_VOLUME:,} daily runs."
+                    + conservative_note
                 )
 
             recommendations.append(

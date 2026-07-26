@@ -318,18 +318,6 @@ def _sample_step_cost(
     return c, c, c, False
 
 
-def _inflate_p95(proj: PercentileProjection, factor: float) -> PercentileProjection:
-    """Return a new projection with p95 multiplied by the inflation factor."""
-    return PercentileProjection(
-        p50=proj.p50,
-        p75=proj.p75,
-        p90=proj.p90,
-        p95=proj.p95 * factor,
-        p99=proj.p99,
-        mean=proj.mean,
-    )
-
-
 def simulate(
     stats: ProfilingStats,
     patterns: list[DetectedPattern],

@@ -1,5 +1,40 @@
 # Changelog
 
+## 1.2.3 (2026-07-26)
+
+### Projection model
+
+- Replace CLT-based monthly percentiles with spread-adaptive interpolation model that preserves meaningful spread between p50 and p99
+- Projection labels now show "Median cost", "Prepare for (with p90)", "Protect against (with p95)", "Maximum exposure (with p99)"
+
+### Recommendations
+
+- Fix: prompt caching savings no longer inflated by N x number of profiling runs (was using total cache miss tokens instead of per-run mean)
+- Fix: all recommendation generators now compute per-run savings correctly (ToolFilter, CacheContext, ModelSwap)
+- Conservative savings: all architecture and model swap recommendations apply a 0.5x factor. Prompt caching additionally applies a cacheable fraction based on static prefix tokens
+- Recommendation descriptions now say "Estimate is conservative. Actual savings may be higher."
+
+### Scoring
+
+- Scoring system now factors in detected patterns (danger: -25 points, warning: -12 points) in addition to savings-based waste
+- Updated zone thresholds: 0-30 red, 31-70 amber, 71-100 green
+- Removed waste percentage from score display (HTML and CLI)
+
+### Performance
+
+- Profiling runs now execute in parallel via asyncio.gather with ContextVar-based per-run isolation
+- Default concurrency: 25 parallel runs. Configurable via `--concurrency` flag
+- All SDK collectors (Anthropic, OpenAI, MultiSDK, LangGraph) support parallel execution
+
+### Other
+
+- Add `--traffic` flag to `pretia profile run` for custom daily volume projections
+- Add `--concurrency` flag to `pretia profile run`
+- Score denominator changed from mean to p50 (matches displayed "Median cost")
+- Fixed CLI savings regex to match both "saving" and "saves" patterns
+- Cleaned up README, removed internal doc references
+- Updated CLAUDE.md to reflect current architecture
+
 ## 1.2.2 (2026-07-22)
 
 - Add `--traffic` flag to `pretia profile run` for custom daily volume projections

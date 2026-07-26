@@ -270,11 +270,13 @@ class TestConcurrentCapture:
 
         from pretia.collectors.anthropic_sdk import (
             _make_create_wrapper,
+            _run_ctx,
         )
         from pretia.collectors.base import StepRecord
 
         captured: list[StepRecord] = []
         lock = asyncio.Lock()
+        counters: dict[str, int] = {}
 
         response = MagicMock()
         response.model = "claude-haiku-4-5"
@@ -288,14 +290,18 @@ class TestConcurrentCapture:
             await asyncio.sleep(0.01)
             return response
 
-        wrapper = _make_create_wrapper(fake_create, is_async=True, captured=captured, lock=lock)
+        wrapper = _make_create_wrapper(fake_create, is_async=True)
 
         async def run_three():
-            await asyncio.gather(
-                wrapper(model="claude-haiku-4-5"),
-                wrapper(model="claude-haiku-4-5"),
-                wrapper(model="claude-haiku-4-5"),
-            )
+            token = _run_ctx.set((captured, lock, counters))
+            try:
+                await asyncio.gather(
+                    wrapper(model="claude-haiku-4-5"),
+                    wrapper(model="claude-haiku-4-5"),
+                    wrapper(model="claude-haiku-4-5"),
+                )
+            finally:
+                _run_ctx.reset(token)
 
         asyncio.run(run_three())
         iterations = sorted(r.iteration for r in captured)
@@ -306,10 +312,11 @@ class TestConcurrentCapture:
         import asyncio
 
         from pretia.collectors.base import StepRecord
-        from pretia.collectors.openai_sdk import _make_create_wrapper
+        from pretia.collectors.openai_sdk import _make_create_wrapper, _run_ctx
 
         captured: list[StepRecord] = []
         lock = asyncio.Lock()
+        counters: dict[str, int] = {}
 
         response = MagicMock()
         response.model = "gpt-4o-mini"
@@ -322,14 +329,18 @@ class TestConcurrentCapture:
             await asyncio.sleep(0.01)
             return response
 
-        wrapper = _make_create_wrapper(fake_create, is_async=True, captured=captured, lock=lock)
+        wrapper = _make_create_wrapper(fake_create, is_async=True)
 
         async def run_three():
-            await asyncio.gather(
-                wrapper(model="gpt-4o-mini"),
-                wrapper(model="gpt-4o-mini"),
-                wrapper(model="gpt-4o-mini"),
-            )
+            token = _run_ctx.set((captured, lock, counters))
+            try:
+                await asyncio.gather(
+                    wrapper(model="gpt-4o-mini"),
+                    wrapper(model="gpt-4o-mini"),
+                    wrapper(model="gpt-4o-mini"),
+                )
+            finally:
+                _run_ctx.reset(token)
 
         asyncio.run(run_three())
         iterations = sorted(r.iteration for r in captured)

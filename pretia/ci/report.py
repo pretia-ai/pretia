@@ -17,6 +17,8 @@ def format_cost(value: float) -> str:
         return "$0.00"
     if abs(value) < 0.01:
         return f"${value:.4f}"
+    if abs(value) < 1:
+        return f"${value:.3f}"
     if abs(value) < 1000:
         return f"${value:,.2f}"
     return f"${value:,.0f}"
@@ -56,8 +58,9 @@ def format_cli_report(
     meta = session.metadata or {}
     stats = meta.get("stats")
     patterns = meta.get("patterns", [])
-    if cost_summary is None:
-        cost_summary = meta.get("cost_summary", {})
+    resolved_costs: dict[str, Any] = cost_summary if cost_summary is not None else (
+        meta.get("cost_summary") or {}
+    )
 
     renderables: list[Any] = []
 
@@ -79,13 +82,13 @@ def format_cli_report(
     )
     renderables.append(Panel(header, title="Pretia Report"))
 
-    renderables.append(_build_cost_summary_table(stats, cost_summary))
+    renderables.append(_build_cost_summary_table(stats, resolved_costs))
 
-    renderables.append(_build_step_table(stats, cost_summary, session.sample_size))
+    renderables.append(_build_step_table(stats, resolved_costs, session.sample_size))
 
     projection = meta.get("projection")
     renderables.append(
-        _build_projection_panel(stats, cost_summary, traffic, projection),
+        _build_projection_panel(stats, resolved_costs, traffic, projection),
     )
 
     renderables.append(_build_patterns_panel(patterns))
@@ -100,7 +103,7 @@ def format_cli_report(
 
     rec_data = meta.get("recommendations")
     if rec_data:
-        renderables.append(_build_recommendations_panel(rec_data))
+        renderables.append(_build_recommendations_panel(rec_data, traffic=traffic))
 
     saved_path = meta.get("saved_path", "")
     footer_parts = []
@@ -273,8 +276,19 @@ def _build_new_projection_panel(
     for v in volumes:
         table.add_column(f"{v:,}/day", justify="right")
 
-    for pct in ("p50", "p75", "p90", "p95", "Mean"):
-        row: list[str] = [pct]
+    pct_labels = {
+        "p50": "Median cost",
+        "---": "── Risk scenarios ──",
+        "p90": "Prepare for (with p90)",
+        "p95": "Protect against (with p95)",
+        "p99": "Max exposure (with p99)",
+        "Mean": "Mean",
+    }
+    for pct in ("p50", "---", "p90", "p95", "p99", "Mean"):
+        if pct == "---":
+            table.add_row(*([pct_labels[pct]] + [""] * len(volumes)))
+            continue
+        row: list[str] = [pct_labels.get(pct, pct)]
         for v in volumes:
             vol_data = projs.get(str(v), projs.get(v, {}))
             monthly = vol_data.get("monthly_cost", {})
@@ -446,7 +460,6 @@ def _build_score_panel(score: dict[str, Any]) -> Panel:
     zone = score.get("zone", "amber")
     zone_label = score.get("zone_label", "")
     total_savings = score.get("total_savings", 0)
-    waste_pct = score.get("waste_pct", 0)
     rec_count = score.get("recommendation_count", 0)
     scope_note = score.get("scope_note", "")
 
@@ -459,7 +472,6 @@ def _build_score_panel(score: dict[str, Any]) -> Panel:
     text.append("\n\n", style="")
     text.append("Recoverable savings: ", style="dim")
     text.append(format_cost(total_savings), style="bold")
-    text.append(f"  ({waste_pct:.0%} waste)", style="dim")
     text.append(f"  |  {rec_count} recommendation", style="dim")
     if rec_count != 1:
         text.append("s", style="dim")
@@ -470,7 +482,10 @@ def _build_score_panel(score: dict[str, Any]) -> Panel:
     return Panel(text, title="Optimization Score", expand=False)
 
 
-def _build_recommendations_panel(recommendations: list[dict[str, Any]]) -> Panel:
+def _build_recommendations_panel(
+    recommendations: list[dict[str, Any]],
+    traffic: int | None = None,
+) -> Panel:
     """Render recommendation cards as a Rich panel."""
     if not recommendations:
         return Panel(
@@ -486,6 +501,23 @@ def _build_recommendations_panel(recommendations: list[dict[str, Any]]) -> Panel
         desc = rec.get("description", "")
         savings = rec.get("monthly_savings", 0)
         confidence = rec.get("confidence", "")
+
+        if traffic is not None:
+            orig_vol = rec.get("evidence", {}).get("daily_volume", 10_000)
+            if orig_vol > 0 and traffic != orig_vol:
+                import re as _re
+
+                scale = traffic / orig_vol
+                savings = savings * scale
+                desc = _re.sub(
+                    r"sav(?:ing|es) \$[\d,]+/month",
+                    f"saves ${savings:,.0f}/month",
+                    desc,
+                )
+                desc = desc.replace(
+                    f"at {orig_vol:,} daily runs",
+                    f"at {traffic:,} daily runs",
+                )
 
         type_style = _REC_TYPE_STYLES.get(rec_type, "dim")
         conf_style = _CONFIDENCE_STYLES.get(confidence, "dim")

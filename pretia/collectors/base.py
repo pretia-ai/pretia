@@ -146,6 +146,9 @@ class StepRecord:
             raise ValueError(f"Missing required field {exc} in StepRecord data") from exc
 
 
+_DEFAULT_CONCURRENCY = 25
+
+
 class BaseCollector(ABC):
     """Interface that every framework-specific step collector implements."""
 
@@ -155,6 +158,7 @@ class BaseCollector(ABC):
         workflow: Any,
         inputs: list[str],
         on_run_complete: Callable[[int, int, list[StepRecord]], None] | None = None,
+        concurrency: int | None = None,
     ) -> list[list[StepRecord]]:
         """Run the workflow on each input and return one StepRecord list per run.
 
@@ -163,6 +167,7 @@ class BaseCollector(ABC):
             inputs: Input strings to run the workflow on.
             on_run_complete: Optional callback invoked after each run with
                 (run_index, total_runs, records).
+            concurrency: Max parallel runs. Defaults to _DEFAULT_CONCURRENCY.
 
         Returns:
             One list of StepRecords per input, in the same order as `inputs`.

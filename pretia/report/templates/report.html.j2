@@ -562,18 +562,11 @@ footer a:hover { color: var(--fg2); }
     <div class="score-hero">
       <div class="score-ring-left {% if score.score > 70 %}glow-green{% elif score.score > 40 %}glow-amber{% else %}glow-red{% endif %}">
         {{ score_ring_svg | safe }}
-        <div>
-          <span class="zone-badge" style="background:{{ score.zone_color }}">
-            {{ score.zone_label }}
-          </span>
-        </div>
       </div>
       <div class="hero-metrics">
         {% if score.total_savings > 0 %}
         <div class="hero-savings">{{ score.total_savings | format_cost }}</div>
         <div class="hero-savings-label">Recoverable savings</div>
-        <div class="hero-waste">{{ "%.0f" | format(score.waste_pct * 100) }}%</div>
-        <div class="hero-waste-label">Waste</div>
         {% else %}
         <div class="hero-clean">&#10003; No waste detected</div>
         {% endif %}
@@ -600,8 +593,6 @@ footer a:hover { color: var(--fg2); }
   <div class="section-label">Monthly Cost Projection</div>
   {% if confidence %}
   <p style="font-size:0.82rem;color:var(--fg-dim);margin:0 0 0.5rem">
-    {{ projection_method }}
-    &middot;
     <span class="confidence-label confidence-label--{{ confidence.tier | lower }}">
       {{ confidence.tier }}
     </span>
@@ -630,6 +621,9 @@ footer a:hover { color: var(--fg2); }
         {%- endfor -%}
       {%- endfor -%}
       {% for pct in percentiles %}
+      {% if pct == projection_section_break | default("") %}
+      <tr class="scenario-divider"><td colspan="{{ traffic_volumes | length + 1 }}" style="padding:0.1rem 0;border-bottom:2px solid var(--border)"><span style="font-size:0.72rem;color:var(--fg-dim);text-transform:uppercase;letter-spacing:0.06em">Risk scenarios</span></td></tr>
+      {% endif %}
       <tr{% if pct == "p50" %} class="row-emphasis"{% endif %}>
         <td>{{ pct_labels[pct] | default(pct) }}</td>
         {% for vol in traffic_volumes %}

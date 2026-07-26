@@ -55,7 +55,7 @@ def _prepare_context(
     meta = session.metadata or {}
     stats = meta.get("stats")
     score_data = meta.get("score")
-    recommendations = meta.get("recommendations", [])
+    recommendations = list(meta.get("recommendations", []))
     patterns = meta.get("patterns", [])
     projection = meta.get("projection")
 
@@ -83,15 +83,16 @@ def _prepare_context(
     current_cost = meta.get("current_cost")
 
     if traffic is not None:
-        if traffic not in projection_rows:
-            cpr_data = _extract_cost_per_run(stats, meta.get("cost_summary", {}))
-            mean_cpr = cpr_data.get("mean", 0)
+        if traffic not in projection_rows and projection_rows:
+            ref_vol = min(projection_rows.keys(), key=lambda v: abs(v - traffic))
+            ref_data = projection_rows[ref_vol]
+            ratio = traffic / ref_vol if ref_vol > 0 else 1
             for pct in ("p50", "p75", "p90", "p95", "p99"):
-                projection_rows.setdefault(traffic, {})[pct] = mean_cpr * traffic * 30
-        if has_cvar and traffic not in cvar_values:
-            base_cvar = next(iter(cvar_values.values()), 0) if cvar_values else 0
-            ref_vol = next(iter(cvar_values), 100) if cvar_values else 100
-            cvar_values[traffic] = base_cvar / ref_vol * traffic if ref_vol > 0 else 0
+                projection_rows.setdefault(traffic, {})[pct] = ref_data.get(pct, 0) * ratio
+        if has_cvar and traffic not in cvar_values and cvar_values:
+            ref_vol = min(cvar_values.keys(), key=lambda v: abs(v - traffic))
+            ratio = traffic / ref_vol if ref_vol > 0 else 1
+            cvar_values[traffic] = cvar_values[ref_vol] * ratio
         traffic_volumes = [traffic]
 
     hero_projected_cost = ""
@@ -127,13 +128,40 @@ def _prepare_context(
             )
 
     projection_labels = {
-        "p50": "Expected",
-        "p90": "Likely high",
-        "p95": "Bad month",
-        "p99": "Worst case",
+        "p50": "Median cost",
+        "p90": "Prepare for (with p90)",
+        "p95": "Protect against (with p95)",
+        "p99": "Maximum exposure (with p99)",
     }
 
     projection_display_pcts = ["p50", "p90", "p95", "p99"]
+    projection_section_break = "p90"
+
+    if traffic is not None and recommendations:
+        import re
+
+        scaled_recs = []
+        for rec in recommendations:
+            rec = dict(rec)
+            orig_vol = rec.get("evidence", {}).get("daily_volume", 10_000)
+            if orig_vol > 0 and traffic != orig_vol:
+                scale = traffic / orig_vol
+                orig_savings = rec.get("monthly_savings", 0)
+                new_savings = round(orig_savings * scale, 2)
+                rec["monthly_savings"] = new_savings
+                desc = rec.get("description", "")
+                desc = desc.replace(
+                    f"at {orig_vol:,} daily runs",
+                    f"at {traffic:,} daily runs",
+                )
+                desc = re.sub(
+                    r"saves \$[\d,]+/month",
+                    f"saves ${new_savings:,.0f}/month",
+                    desc,
+                )
+                rec["description"] = desc
+            scaled_recs.append(rec)
+        recommendations = scaled_recs
 
     raw_dict = _truncated_session_dict(session)
     raw_json = json.dumps(raw_dict, indent=2, default=str)
@@ -164,10 +192,10 @@ def _prepare_context(
         "has_cvar": has_cvar,
         "cvar_values": cvar_values,
         "confidence": confidence,
-        "projection_method": method,
         "hero_projected_cost": hero_projected_cost,
         "projection_labels": projection_labels,
         "projection_display_pcts": projection_display_pcts,
+        "projection_section_break": projection_section_break,
         "patterns": patterns,
         "has_patterns": bool(patterns),
         "recommendations": recommendations,
@@ -302,14 +330,7 @@ def _extract_projection(
     if not filtered_volumes:
         filtered_volumes = volumes  # keep all if everything is near-zero
 
-    has_cvar = mc_result is not None and "cvar_95" in (mc_result or {})
-    cvar_values: dict[int, float] = {}
-    if has_cvar and mc_result:
-        cvar_base = mc_result.get("cvar_95", 0)
-        for v in filtered_volumes:
-            cvar_values[v] = cvar_base * v * 30
-
-    return rows, filtered_volumes, has_cvar, cvar_values, confidence, method_label
+    return rows, filtered_volumes, False, {}, confidence, method_label
 
 
 def _truncated_session_dict(session: ProfilingSession) -> dict[str, Any]:

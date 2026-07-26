@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import random
 from dataclasses import dataclass, field
 from typing import Any
@@ -93,11 +94,16 @@ class ProjectionResult:
         return d
 
 
-def _linear_project(
+def _scenario_project(
     stats: ProfilingStats,
     traffic: list[int],
 ) -> dict[int, TrafficProjection]:
-    """Project cost distribution via empirical bootstrap resampling."""
+    """Project monthly costs using spread-adaptive interpolation.
+
+    Each monthly scenario blends the per-run median with higher percentiles,
+    dampened by the risk factor (derived from the per-run p95/p50 spread).
+    Volatile workflows get wide projections; stable ones stay tight.
+    """
     cpr = stats.cost_per_run
     zero = PercentileProjection(p50=0, p75=0, p90=0, p95=0, p99=0, mean=0)
     if cpr is None:
@@ -120,36 +126,30 @@ def _linear_project(
         mean=cpr.mean,
     )
 
-    run_costs = [rs.total_cost for rs in stats.run_stats]
-    if not run_costs or all(c == 0 for c in run_costs):
-        return {
-            v: TrafficProjection(
-                daily_volume=v,
-                monthly_cost=zero,
-                daily_cost=zero,
-                cost_per_run=per_run,
-            )
-            for v in traffic
-        }
+    spread = cpr.p95 / cpr.p50 if cpr.p50 > 0 else 1.0
+    risk_factor = min(math.log(max(spread, 1.01)) / math.log(5), 1.0)
+
+    def _blend(px: float) -> float:
+        return cpr.p50 + (px - cpr.p50) * risk_factor
 
     projections: dict[int, TrafficProjection] = {}
     for v in traffic:
-        bs = _bootstrap_daily(run_costs, v)
-        daily = PercentileProjection(
-            p50=bs["p50"],
-            p75=bs["p75"],
-            p90=bs["p90"],
-            p95=bs["p95"],
-            p99=bs["p99"],
-            mean=bs["mean"],
-        )
+        n = v * 30
         monthly = PercentileProjection(
-            p50=bs["p50"] * 30,
-            p75=bs["p75"] * 30,
-            p90=bs["p90"] * 30,
-            p95=bs["p95"] * 30,
-            p99=bs["p99"] * 30,
-            mean=bs["mean"] * 30,
+            p50=cpr.p50 * n,
+            p75=_blend(cpr.p75) * n,
+            p90=_blend(cpr.p90) * n,
+            p95=_blend(cpr.p95) * n,
+            p99=_blend(cpr.p99) * n,
+            mean=cpr.mean * n,
+        )
+        daily = PercentileProjection(
+            p50=cpr.p50 * v,
+            p75=_blend(cpr.p75) * v,
+            p90=_blend(cpr.p90) * v,
+            p95=_blend(cpr.p95) * v,
+            p99=_blend(cpr.p99) * v,
+            mean=cpr.mean * v,
         )
         projections[v] = TrafficProjection(
             daily_volume=v,
@@ -167,19 +167,55 @@ def _montecarlo_project(
     traffic: list[int],
     runs: list[list[StepRecord]],
 ) -> tuple[dict[int, TrafficProjection], dict[int, MonteCarloResult]]:
-    """Run Monte Carlo simulation for each traffic volume."""
-    projections: dict[int, TrafficProjection] = {}
+    """Run MC simulation for per-run cost modeling, then apply scenario projections.
+
+    MC captures pattern-specific per-run costs (context growth, loops). The
+    scenario formula then projects those per-run costs to monthly using
+    spread-adaptive interpolation instead of CLT aggregation.
+    """
     mc_results: dict[int, MonteCarloResult] = {}
 
     for v in traffic:
         mc = simulate(stats, patterns, daily_volume=v, runs=runs)
         mc_results[v] = mc
-        projections[v] = TrafficProjection(
-            daily_volume=v,
-            monthly_cost=mc.monthly_projection,
-            daily_cost=mc.daily_projection,
-            cost_per_run=mc.per_run_projection,
-        )
+
+    first_mc = mc_results[traffic[0]] if traffic else None
+    mc_per_run = first_mc.per_run_projection if first_mc else None
+
+    if mc_per_run and mc_per_run.p50 > 0:
+        spread = mc_per_run.p95 / mc_per_run.p50
+        risk_factor = min(math.log(max(spread, 1.01)) / math.log(5), 1.0)
+
+        def _blend(px: float) -> float:
+            return mc_per_run.p50 + (px - mc_per_run.p50) * risk_factor
+
+        projections: dict[int, TrafficProjection] = {}
+        for v in traffic:
+            n = v * 30
+            monthly = PercentileProjection(
+                p50=mc_per_run.p50 * n,
+                p75=_blend(mc_per_run.p75) * n,
+                p90=_blend(mc_per_run.p90) * n,
+                p95=_blend(mc_per_run.p95) * n,
+                p99=_blend(mc_per_run.p99) * n,
+                mean=mc_per_run.mean * n,
+            )
+            daily = PercentileProjection(
+                p50=mc_per_run.p50 * v,
+                p75=_blend(mc_per_run.p75) * v,
+                p90=_blend(mc_per_run.p90) * v,
+                p95=_blend(mc_per_run.p95) * v,
+                p99=_blend(mc_per_run.p99) * v,
+                mean=mc_per_run.mean * v,
+            )
+            projections[v] = TrafficProjection(
+                daily_volume=v,
+                monthly_cost=monthly,
+                daily_cost=daily,
+                cost_per_run=mc_per_run,
+            )
+    else:
+        projections = _scenario_project(stats, traffic)
 
     return projections, mc_results
 
@@ -278,7 +314,7 @@ def project(
                 "Falling back to linear projection."
             )
             method = "linear"
-            projections = _linear_project(stats, traffic)
+            projections = _scenario_project(stats, traffic)
         else:
             method = "montecarlo"
             for p in patterns:
@@ -299,7 +335,7 @@ def project(
     else:
         method = "linear"
         warnings.append("Linear projection used. No significant non-linear patterns detected.")
-        projections = _linear_project(stats, traffic)
+        projections = _scenario_project(stats, traffic)
 
     warm_discount = _estimate_warm_discount(runs, stats)
     if warm_discount is not None:

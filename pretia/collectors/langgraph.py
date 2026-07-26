@@ -20,7 +20,7 @@ except ImportError:
         "LangGraph support requires langchain-core. Install it with: pip install pretia[langgraph]"
     ) from None
 
-from pretia.collectors.base import BaseCollector, StepRecord
+from pretia.collectors.base import _DEFAULT_CONCURRENCY, BaseCollector, StepRecord
 
 logger = logging.getLogger(__name__)
 
@@ -368,41 +368,48 @@ class LangGraphCollector(BaseCollector):
         workflow: Any,
         inputs: list[str],
         on_run_complete: Callable[[int, int, list[StepRecord]], None] | None = None,
+        concurrency: int | None = None,
     ) -> list[list[StepRecord]]:
         """Run the workflow on each input with an injected callback handler.
 
-        Args:
-            workflow: A LangGraph compiled graph (or any object with ainvoke/invoke).
-            inputs: Input strings to run the workflow on.
-            on_run_complete: Optional callback after each run.
+        Runs execute concurrently via asyncio.gather for faster profiling.
         """
-        runs: list[list[StepRecord]] = []
         total = len(inputs)
-        for i, inp in enumerate(inputs):
+        results: list[list[StepRecord]] = [[] for _ in range(total)]
+        sem = asyncio.Semaphore(concurrency or _DEFAULT_CONCURRENCY)
+
+        async def _run_one(idx: int, inp: Any) -> None:
             handler = PretiaCallbackHandler()
             config: dict[str, Any] = {"callbacks": [handler]}
             payload: Any = inp if isinstance(inp, dict) else {"input": inp}
 
             try:
-                if hasattr(workflow, "ainvoke"):
-                    await workflow.ainvoke(payload, config=config)
-                elif hasattr(workflow, "invoke"):
-                    await asyncio.to_thread(workflow.invoke, payload, config=config)
-                else:
-                    logger.warning("Workflow has neither ainvoke nor invoke — skipping input")
-                    runs.append([])
-                    continue
+                async with sem:
+                    if hasattr(workflow, "ainvoke"):
+                        await workflow.ainvoke(payload, config=config)
+                    elif hasattr(workflow, "invoke"):
+                        await asyncio.to_thread(workflow.invoke, payload, config=config)
+                    else:
+                        logger.warning(
+                            "Workflow has neither ainvoke nor invoke — skipping input"
+                        )
+                        return
             except Exception:
                 logger.error(
                     "Run %d/%d failed on input %.80s",
-                    i + 1,
+                    idx + 1,
                     total,
                     str(inp)[:80],
                     exc_info=True,
                 )
 
             run_records = list(handler.records)
-            runs.append(run_records)
+            results[idx] = run_records
             if on_run_complete is not None:
-                on_run_complete(i, total, run_records)
-        return runs
+                try:
+                    on_run_complete(idx, total, run_records)
+                except Exception:
+                    logger.debug("on_run_complete callback failed", exc_info=True)
+
+        await asyncio.gather(*[_run_one(i, inp) for i, inp in enumerate(inputs)])
+        return results

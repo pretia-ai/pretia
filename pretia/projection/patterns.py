@@ -267,13 +267,11 @@ def _detect_context_growth(
 
         description = (
             f"Context grows by ~{slope:.0f} tokens per iteration in step "
-            f"'{step_name}' (r²={pearson_r_sq:.2f}, ρ²={spearman_r_sq:.2f}). "
+            f"'{step_name}'. "
             f"At iteration {int(max_iter)}, context is {ratio:.1f}x the initial size."
         )
         if growth_type == "nonlinear":
-            description += (
-                f" Non-linear {growth_classification} growth detected (α={power_law_alpha:.2f})."
-            )
+            description += f" Non-linear {growth_classification} growth detected."
 
         patterns.append(
             DetectedPattern(
@@ -348,7 +346,7 @@ def _detect_loop_count_variance(
                 },
                 description=(
                     f"Loop count for step '{step_name}' varies from {min_i} to {max_i} "
-                    f"iterations (mean={mean_iter:.1f}, CV={cv:.2f}). Worst-case runs "
+                    f"iterations. Worst-case runs "
                     f"cost ~{ratio:.1f}x the average."
                 ),
             )
@@ -453,8 +451,8 @@ def _detect_step_count_variance(
                 "max_active_steps": max_ac,
             },
             description=(
-                f"Active step count varies from {min_ac} to {max_ac} across runs "
-                f"(mean={mean_ac:.1f}, CV={cv:.2f}). Routing variance affects cost distribution."
+                f"Active step count varies from {min_ac} to {max_ac} across runs. "
+                f"Routing variance affects cost distribution."
             ),
             step_count_cv=round(cv, 4),
             step_count_min=min_ac,
@@ -599,10 +597,17 @@ def _detect_cache_utilization(
 ) -> list[DetectedPattern]:
     """Detect steps where cache utilization is low despite model support."""
     step_cache: dict[str, dict[str, list]] = defaultdict(
-        lambda: {"hit": [], "miss": [], "models": []}
+        lambda: {
+            "hit": [], "miss": [], "models": [], "run_miss_totals": [],
+            "sys_prompt_tokens": [], "tool_def_tokens": [], "input_tokens": [],
+        }
     )
 
     for run in runs:
+        run_miss: dict[str, int] = defaultdict(int)
+        run_sys: dict[str, int] = defaultdict(int)
+        run_tool: dict[str, int] = defaultdict(int)
+        run_inp: dict[str, int] = defaultdict(int)
         for rec in run:
             if rec.cache_hit_tokens is None and rec.cache_miss_tokens is None:
                 continue
@@ -611,12 +616,22 @@ def _detect_cache_utilization(
             step_cache[rec.step_name]["hit"].append(hit)
             step_cache[rec.step_name]["miss"].append(miss)
             step_cache[rec.step_name]["models"].append(rec.model)
+            run_miss[rec.step_name] += miss
+            run_sys[rec.step_name] += rec.system_prompt_tokens
+            run_tool[rec.step_name] += rec.tool_definitions_tokens
+            run_inp[rec.step_name] += rec.input_tokens
+        for sn in run_miss:
+            step_cache[sn]["run_miss_totals"].append(run_miss[sn])
+            step_cache[sn]["sys_prompt_tokens"].append(run_sys[sn])
+            step_cache[sn]["tool_def_tokens"].append(run_tool[sn])
+            step_cache[sn]["input_tokens"].append(run_inp[sn])
 
     patterns: list[DetectedPattern] = []
     for step_name, data in step_cache.items():
         hits = data["hit"]
         misses = data["miss"]
         models = data["models"]
+        run_miss_totals = data["run_miss_totals"]
         if not hits:
             continue
 
@@ -627,6 +642,15 @@ def _detect_cache_utilization(
             continue
 
         cache_hit_ratio = total_hit / total
+        n_runs = len(run_miss_totals)
+        mean_miss_per_run = total_miss / n_runs if n_runs > 0 else total_miss
+
+        sys_totals = data["sys_prompt_tokens"]
+        tool_totals = data["tool_def_tokens"]
+        inp_totals = data["input_tokens"]
+        mean_sys = sum(sys_totals) / len(sys_totals) if sys_totals else 0
+        mean_tool = sum(tool_totals) / len(tool_totals) if tool_totals else 0
+        mean_inp = sum(inp_totals) / len(inp_totals) if inp_totals else 0
 
         model = models[0]
         canonical = model
@@ -647,6 +671,11 @@ def _detect_cache_utilization(
                 evidence={
                     "cache_hit_ratio": round(cache_hit_ratio, 4),
                     "total_cache_miss_tokens": total_miss,
+                    "mean_cache_miss_tokens_per_run": round(mean_miss_per_run, 2),
+                    "n_runs_with_cache": n_runs,
+                    "mean_system_prompt_tokens": round(mean_sys, 2),
+                    "mean_tool_def_tokens": round(mean_tool, 2),
+                    "mean_input_tokens": round(mean_inp, 2),
                     "model": model,
                 },
                 description=(

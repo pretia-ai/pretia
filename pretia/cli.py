@@ -7,9 +7,13 @@ import os
 import sys
 import traceback
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 from rich.console import Console
+
+if TYPE_CHECKING:
+    from pretia.store import ProfilingSession
 
 console = Console()
 
@@ -159,6 +163,12 @@ def profile() -> None:
     help="Runs per day for monthly projection. Default: show 100/1K/10K.",
 )
 @click.option(
+    "--concurrency",
+    type=int,
+    default=None,
+    help="Max parallel profiling runs. Default: 25.",
+)
+@click.option(
     "--yes",
     "-y",
     is_flag=True,
@@ -184,6 +194,7 @@ def run(
     unit: str | None,
     current_cost: float | None,
     traffic: int | None,
+    concurrency: int | None,
     yes: bool,
 ) -> None:
     """Profile a workflow and generate a cost report."""
@@ -308,6 +319,7 @@ def run(
         generator_model=resolved_gen_model,
         corpus_path=corpus,
         entry_point=entry_point,
+        concurrency=concurrency,
     )
 
     try:
@@ -327,7 +339,7 @@ def run(
             session = runner.run_sync()
         elapsed = _time.monotonic() - t0
 
-        _enrich_with_recommendations(session)
+        _enrich_with_recommendations(session, traffic=traffic)
 
         if unit:
             session.metadata["unit_label"] = unit
@@ -463,7 +475,7 @@ def report_cmd(
         session.metadata["patterns"] = [p.to_dict() for p in patterns]
 
     if "recommendations" not in session.metadata:
-        _enrich_with_recommendations(session)
+        _enrich_with_recommendations(session, traffic=traffic)
 
     if unit:
         session.metadata["unit_label"] = unit
@@ -673,7 +685,7 @@ def analyze_cmd(
         saved_path = store.save(session)
         session.metadata["saved_path"] = str(saved_path)
 
-        _enrich_with_recommendations(session)
+        _enrich_with_recommendations(session, traffic=traffic)
 
         console.print()
         for renderable in format_cli_report(session, traffic=traffic):
@@ -1062,7 +1074,10 @@ def _show_profiling_summary(session: object, elapsed: float) -> None:
     console.print()
 
 
-def _enrich_with_recommendations(session: object) -> None:
+def _enrich_with_recommendations(
+    session: ProfilingSession,
+    traffic: int | None = None,
+) -> None:
     """Run the recommendation engine and store results in session metadata."""
     from pretia.recommend import compute_score, generate_recommendations
 
@@ -1070,20 +1085,39 @@ def _enrich_with_recommendations(session: object) -> None:
     session.metadata["recommendations"] = [r.to_dict() for r in recs]
 
     projected_cost = 0.0
+    hero_vol = 10_000
     projection = session.metadata.get("projection", {})
     projs = projection.get("projections", {})
-    for vol_data in projs.values():
-        monthly = vol_data.get("monthly_cost", {})
-        p50 = monthly.get("p50", 0)
-        if p50 > projected_cost:
-            projected_cost = p50
+
+    if traffic is not None:
+        hero_vol = traffic
+        if str(traffic) in projs or traffic in projs:
+            vol_data = projs.get(str(traffic), projs.get(traffic, {}))
+            projected_cost = vol_data.get("monthly_cost", {}).get("p50", 0)
+        elif projs:
+            ref_key = min(projs.keys(), key=lambda k: abs(int(k) - traffic))
+            ref_p50 = projs[ref_key].get("monthly_cost", {}).get("p50", 0)
+            ref_vol = int(ref_key) if isinstance(ref_key, str) else ref_key
+            projected_cost = ref_p50 * traffic / ref_vol if ref_vol > 0 else 0
+    else:
+        for vol_key, vol_data in projs.items():
+            monthly = vol_data.get("monthly_cost", {})
+            p50_val = monthly.get("p50", 0)
+            if p50_val > projected_cost:
+                projected_cost = p50_val
+                hero_vol = int(vol_key) if isinstance(vol_key, str) else vol_key
 
     if projected_cost == 0.0:
         cost_summary = session.metadata.get("cost_summary", {})
-        mean_cost = cost_summary.get("mean_cost_per_run", 0)
-        projected_cost = mean_cost * 10_000 * 30
+        p50_cost = cost_summary.get(
+            "median_cost_per_run", cost_summary.get("mean_cost_per_run", 0)
+        )
+        projected_cost = p50_cost * hero_vol * 30
 
-    score = compute_score(recs, projected_cost)
+    detected_patterns = session.metadata.get("patterns", [])
+    score = compute_score(
+        recs, projected_cost, daily_volume=hero_vol, patterns=detected_patterns
+    )
     session.metadata["score"] = score.to_dict()
 
 

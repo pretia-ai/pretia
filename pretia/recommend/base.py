@@ -19,6 +19,7 @@ CONFIDENCE_WEIGHTS: dict[str, float] = {
 }
 
 _DEFAULT_DAILY_VOLUME = 10_000
+_CONSERVATIVE_FACTOR = 0.5
 
 
 def compute_priority(monthly_savings: float, confidence: str) -> int:

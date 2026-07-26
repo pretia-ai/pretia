@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import hashlib
 import logging
 import time
@@ -11,9 +12,13 @@ from datetime import UTC, datetime
 from typing import Any
 
 from pretia.collectors._utils import get_caller_name
-from pretia.collectors.base import BaseCollector, StepRecord
+from pretia.collectors.base import _DEFAULT_CONCURRENCY, BaseCollector, StepRecord
 
 logger = logging.getLogger(__name__)
+
+_run_ctx: contextvars.ContextVar[
+    tuple[list[StepRecord], asyncio.Lock, dict[str, int]]
+] = contextvars.ContextVar("_anthropic_run_ctx")
 
 
 def _models_match(a: str, b: str) -> bool:
@@ -86,6 +91,7 @@ class AnthropicCollector(BaseCollector):
     """Intercept ``anthropic.messages.create`` calls to capture token usage.
 
     Patches both sync/async create and stream methods at the class level.
+    Runs execute concurrently via asyncio.gather for faster profiling.
     """
 
     async def collect(
@@ -93,6 +99,7 @@ class AnthropicCollector(BaseCollector):
         workflow: Any,
         inputs: list[str],
         on_run_complete: Callable[[int, int, list[StepRecord]], None] | None = None,
+        concurrency: int | None = None,
     ) -> list[list[StepRecord]]:
         try:
             import anthropic.resources
@@ -102,88 +109,84 @@ class AnthropicCollector(BaseCollector):
                 "Install it with: pip install anthropic"
             ) from exc
 
-        runs: list[list[StepRecord]] = []
         total = len(inputs)
+        results: list[list[StepRecord]] = [[] for _ in range(total)]
 
-        for i, inp in enumerate(inputs):
+        patches: list[tuple[Any, str, Any]] = []
+        for cls_name in ("AsyncMessages", "Messages"):
+            cls = getattr(anthropic.resources, cls_name, None)
+            if cls is None:
+                continue
+            is_async = "Async" in cls_name
+
+            original_create = getattr(cls, "create", None)
+            if original_create is not None:
+                wrapped = _make_create_wrapper(original_create, is_async)
+                patches.append((cls, "create", original_create))
+                cls.create = wrapped  # noqa: B010
+
+            original_stream = getattr(cls, "stream", None)
+            if original_stream is not None:
+                wrapped_stream = _make_stream_wrapper(original_stream, is_async)
+                patches.append((cls, "stream", original_stream))
+                cls.stream = wrapped_stream  # noqa: B010
+
+        sem = asyncio.Semaphore(concurrency or _DEFAULT_CONCURRENCY)
+
+        async def _run_one(idx: int, inp: str) -> None:
             captured: list[StepRecord] = []
             lock = asyncio.Lock()
-            patches: list[tuple[Any, str, Any]] = []
-
-            for cls_name in ("AsyncMessages", "Messages"):
-                cls = getattr(anthropic.resources, cls_name, None)
-                if cls is None:
-                    continue
-                is_async = "Async" in cls_name
-
-                original_create = getattr(cls, "create", None)
-                if original_create is not None:
-                    wrapped = _make_create_wrapper(original_create, is_async, captured, lock)
-                    patches.append((cls, "create", original_create))
-                    cls.create = wrapped  # noqa: B010
-
-                original_stream = getattr(cls, "stream", None)
-                if original_stream is not None:
-                    wrapped_stream = _make_stream_wrapper(
-                        original_stream, is_async, captured, lock
-                    )
-                    patches.append((cls, "stream", original_stream))
-                    cls.stream = wrapped_stream  # noqa: B010
-
+            counters: dict[str, int] = {}
+            token = _run_ctx.set((captured, lock, counters))
             try:
-                await workflow(inp)
+                async with sem:
+                    await workflow(inp)
             except Exception:
                 logger.error(
                     "Run %d/%d failed on input %.80s",
-                    i + 1,
+                    idx + 1,
                     total,
                     inp,
                     exc_info=True,
                 )
             finally:
-                for target, attr, original in patches:
-                    setattr(target, attr, original)
+                _run_ctx.reset(token)
 
             if not captured:
-                logger.warning("Run %d produced 0 steps.", i + 1)
+                logger.warning("Run %d produced 0 steps.", idx + 1)
 
-            runs.append(captured)
-            try:
-                if on_run_complete is not None:
-                    on_run_complete(i, total, captured)
-            except Exception:
-                logger.debug("on_run_complete callback failed", exc_info=True)
+            results[idx] = captured
+            if on_run_complete is not None:
+                try:
+                    on_run_complete(idx, total, captured)
+                except Exception:
+                    logger.debug("on_run_complete callback failed", exc_info=True)
 
-        return runs
+        try:
+            await asyncio.gather(*[_run_one(i, inp) for i, inp in enumerate(inputs)])
+        finally:
+            for target, attr, original in patches:
+                setattr(target, attr, original)
+
+        return results
 
 
 def _make_create_wrapper(
     original: Any,
     is_async: bool,
-    captured: list[StepRecord],
-    lock: asyncio.Lock | None = None,
 ) -> Any:
-    iteration_counters: dict[str, int] = {}
-
     if is_async:
 
         async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-            if lock is not None:
-                async with lock:
-                    step_name, _ = _step_name_and_iteration(kwargs, captured)
-                    iteration_counters[step_name] = iteration_counters.get(step_name, 0) + 1
-                    iteration = iteration_counters[step_name]
-            else:
-                step_name, iteration = _step_name_and_iteration(kwargs, captured)
+            captured, lock, counters = _run_ctx.get()
+            async with lock:
+                step_name, _ = _step_name_and_iteration(kwargs, captured)
+                counters[step_name] = counters.get(step_name, 0) + 1
+                iteration = counters[step_name]
             kwargs_meta = _extract_kwargs_metadata(kwargs)
             t0 = time.monotonic_ns()
             response = await original(*args, **kwargs)
-            if lock is not None:
-                async with lock:
-                    _record_from_response(
-                        response, t0, captured, step_name, iteration, kwargs_meta=kwargs_meta
-                    )
-            else:
+            async with lock:
                 _record_from_response(
                     response, t0, captured, step_name, iteration, kwargs_meta=kwargs_meta
                 )
@@ -192,7 +195,10 @@ def _make_create_wrapper(
         return async_wrapper
 
     def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-        step_name, iteration = _step_name_and_iteration(kwargs, captured)
+        captured, _, counters = _run_ctx.get()
+        step_name, _ = _step_name_and_iteration(kwargs, captured)
+        counters[step_name] = counters.get(step_name, 0) + 1
+        iteration = counters[step_name]
         kwargs_meta = _extract_kwargs_metadata(kwargs)
         t0 = time.monotonic_ns()
         response = original(*args, **kwargs)
@@ -207,21 +213,15 @@ def _make_create_wrapper(
 def _make_stream_wrapper(
     original: Any,
     is_async: bool,
-    captured: list[StepRecord],
-    lock: asyncio.Lock | None = None,
 ) -> Any:
-    iteration_counters: dict[str, int] = {}
-
     if is_async:
 
         async def async_stream_wrapper(*args: Any, **kwargs: Any) -> Any:
-            if lock is not None:
-                async with lock:
-                    step_name, _ = _step_name_and_iteration(kwargs, captured)
-                    iteration_counters[step_name] = iteration_counters.get(step_name, 0) + 1
-                    iteration = iteration_counters[step_name]
-            else:
-                step_name, iteration = _step_name_and_iteration(kwargs, captured)
+            captured, lock, counters = _run_ctx.get()
+            async with lock:
+                step_name, _ = _step_name_and_iteration(kwargs, captured)
+                counters[step_name] = counters.get(step_name, 0) + 1
+                iteration = counters[step_name]
             kwargs_meta = _extract_kwargs_metadata(kwargs)
             t0 = time.monotonic_ns()
             stream = await original(*args, **kwargs)
@@ -232,7 +232,10 @@ def _make_stream_wrapper(
         return async_stream_wrapper
 
     def sync_stream_wrapper(*args: Any, **kwargs: Any) -> Any:
-        step_name, iteration = _step_name_and_iteration(kwargs, captured)
+        captured, _, counters = _run_ctx.get()
+        step_name, _ = _step_name_and_iteration(kwargs, captured)
+        counters[step_name] = counters.get(step_name, 0) + 1
+        iteration = counters[step_name]
         kwargs_meta = _extract_kwargs_metadata(kwargs)
         t0 = time.monotonic_ns()
         stream = original(*args, **kwargs)

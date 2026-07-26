@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import hashlib
 import logging
 import time
@@ -11,9 +12,13 @@ from datetime import UTC, datetime
 from typing import Any
 
 from pretia.collectors._utils import get_caller_name
-from pretia.collectors.base import BaseCollector, StepRecord
+from pretia.collectors.base import _DEFAULT_CONCURRENCY, BaseCollector, StepRecord
 
 logger = logging.getLogger(__name__)
+
+_run_ctx: contextvars.ContextVar[
+    tuple[list[StepRecord], asyncio.Lock, dict[str, int]]
+] = contextvars.ContextVar("_openai_run_ctx")
 
 
 def _models_match(a: str, b: str) -> bool:
@@ -31,11 +36,7 @@ def _step_name_and_iteration(
     kwargs: dict[str, Any],
     captured: list[StepRecord],
 ) -> tuple[str, int]:
-    """Determine step name and iteration number for a call.
-
-    Same caller + same model → same step name, incrementing iteration (context growth).
-    Same caller + different model → ordinal suffix (step_1, step_2).
-    """
+    """Determine step name and iteration number for a call."""
     caller = get_caller_name()
     model = kwargs.get("model") or (args[0] if args else None) or ""
 
@@ -107,7 +108,7 @@ def _extract_tool_name(response: Any) -> str | None:
 class OpenAISDKCollector(BaseCollector):
     """Intercept ``openai.chat.completions.create`` calls to capture token usage.
 
-    Handles both sync/async clients and streaming responses.
+    Runs execute concurrently via asyncio.gather for faster profiling.
     """
 
     async def collect(
@@ -115,6 +116,7 @@ class OpenAISDKCollector(BaseCollector):
         workflow: Any,
         inputs: list[str],
         on_run_complete: Callable[[int, int, list[StepRecord]], None] | None = None,
+        concurrency: int | None = None,
     ) -> list[list[StepRecord]]:
         try:
             import openai.resources.chat
@@ -124,71 +126,74 @@ class OpenAISDKCollector(BaseCollector):
                 "Install it with: pip install openai"
             ) from exc
 
-        runs: list[list[StepRecord]] = []
         total = len(inputs)
+        results: list[list[StepRecord]] = [[] for _ in range(total)]
 
-        for i, inp in enumerate(inputs):
+        patches: list[tuple[Any, str, Any]] = []
+        for cls_name in ("AsyncCompletions", "Completions"):
+            target = getattr(openai.resources.chat, cls_name, None)
+            if target is None:
+                continue
+            original_create = getattr(target, "create", None)
+            if original_create is None:
+                continue
+            is_async = "Async" in cls_name
+            wrapped = _make_create_wrapper(original_create, is_async)
+            patches.append((target, "create", original_create))
+            target.create = wrapped  # noqa: B010
+
+        sem = asyncio.Semaphore(concurrency or _DEFAULT_CONCURRENCY)
+
+        async def _run_one(idx: int, inp: str) -> None:
             captured: list[StepRecord] = []
             lock = asyncio.Lock()
-            patches: list[tuple[Any, str, Any]] = []
-
-            for cls_name in ("AsyncCompletions", "Completions"):
-                target = getattr(openai.resources.chat, cls_name, None)
-                if target is None:
-                    continue
-                original_create = getattr(target, "create", None)
-                if original_create is None:
-                    continue
-                is_async = "Async" in cls_name
-                wrapped = _make_create_wrapper(original_create, is_async, captured, lock)
-                patches.append((target, "create", original_create))
-                target.create = wrapped  # noqa: B010
-
+            counters: dict[str, int] = {}
+            token = _run_ctx.set((captured, lock, counters))
             try:
-                await workflow(inp)
+                async with sem:
+                    await workflow(inp)
             except Exception:
                 logger.error(
                     "Run %d/%d failed on input %.80s",
-                    i + 1,
+                    idx + 1,
                     total,
                     inp,
                     exc_info=True,
                 )
             finally:
-                for target, attr, original in patches:
-                    setattr(target, attr, original)
+                _run_ctx.reset(token)
 
             if not captured:
-                logger.warning("Run %d produced 0 steps.", i + 1)
+                logger.warning("Run %d produced 0 steps.", idx + 1)
 
-            runs.append(captured)
-            try:
-                if on_run_complete is not None:
-                    on_run_complete(i, total, captured)
-            except Exception:
-                logger.debug("on_run_complete callback failed", exc_info=True)
+            results[idx] = captured
+            if on_run_complete is not None:
+                try:
+                    on_run_complete(idx, total, captured)
+                except Exception:
+                    logger.debug("on_run_complete callback failed", exc_info=True)
 
-        return runs
+        try:
+            await asyncio.gather(*[_run_one(i, inp) for i, inp in enumerate(inputs)])
+        finally:
+            for target, attr, original in patches:
+                setattr(target, attr, original)
+
+        return results
 
 
 def _make_create_wrapper(
     original: Any,
     is_async: bool,
-    captured: list[StepRecord],
-    lock: asyncio.Lock | None = None,
 ) -> Any:
-    iteration_counters: dict[str, int] = {}
-
     if is_async:
 
         async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-            if lock is not None:
-                async with lock:
-                    step_name, _ = _step_name_and_iteration(args, kwargs, captured)
-                    iteration_counters[step_name] = iteration_counters.get(step_name, 0) + 1
-                    iteration = iteration_counters[step_name]
-            else:
-                step_name, iteration = _step_name_and_iteration(args, kwargs, captured)
+            captured, lock, counters = _run_ctx.get()
+            async with lock:
+                step_name, _ = _step_name_and_iteration(args, kwargs, captured)
+                counters[step_name] = counters.get(step_name, 0) + 1
+                iteration = counters[step_name]
             kwargs_meta = _extract_kwargs_metadata(kwargs)
             t0 = time.monotonic_ns()
             stream = kwargs.get("stream", False)
@@ -200,12 +205,7 @@ def _make_create_wrapper(
                 return _AsyncStreamCapture(
                     response, t0, captured, step_name, kwargs_meta, iteration, lock
                 )
-            if lock is not None:
-                async with lock:
-                    _record_from_response(
-                        response, t0, captured, step_name, iteration, kwargs_meta=kwargs_meta
-                    )
-            else:
+            async with lock:
                 _record_from_response(
                     response, t0, captured, step_name, iteration, kwargs_meta=kwargs_meta
                 )
@@ -214,7 +214,10 @@ def _make_create_wrapper(
         return async_wrapper
 
     def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-        step_name, iteration = _step_name_and_iteration(args, kwargs, captured)
+        captured, _, counters = _run_ctx.get()
+        step_name, _ = _step_name_and_iteration(args, kwargs, captured)
+        counters[step_name] = counters.get(step_name, 0) + 1
+        iteration = counters[step_name]
         kwargs_meta = _extract_kwargs_metadata(kwargs)
         t0 = time.monotonic_ns()
         stream = kwargs.get("stream", False)
@@ -223,7 +226,9 @@ def _make_create_wrapper(
             kwargs["stream_options"]["include_usage"] = True
         response = original(*args, **kwargs)
         if stream:
-            return _SyncStreamCapture(response, t0, captured, step_name, kwargs_meta, iteration)
+            return _SyncStreamCapture(
+                response, t0, captured, step_name, kwargs_meta, iteration
+            )
         _record_from_response(
             response, t0, captured, step_name, iteration, kwargs_meta=kwargs_meta
         )

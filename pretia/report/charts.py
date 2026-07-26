@@ -11,8 +11,8 @@ from pretia.ci.report import format_cost
 _CIRCUMFERENCE = 2 * math.pi * 80  # 502.654...
 _BAR_HEIGHT = 28
 _BAR_GAP = 12
-_MAX_BAR_WIDTH = 480
-_LABEL_X = 120
+_MAX_BAR_WIDTH = 420
+_LABEL_X = 180
 _SVG_WIDTH = 700
 
 

@@ -53,6 +53,7 @@ STATUS.md
 PRE_LAUNCH_TESTS.md
 SESSION_9_PROMPT.md
 pretia-technical-spec-v5.md
+tests/synthetic/calibration_report.md
 bt_agents/
 /inputs/
 /prompts/

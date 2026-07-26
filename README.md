@@ -2,7 +2,7 @@
 
 **Know what your agent will cost before you deploy.**
 
-Pre-deployment cost intelligence for AI agent workflows. Two commands, zero config, ~$2. Get distributional cost projections (p50-p99), detect cost risks, and see exactly where the money goes.
+Pre-deployment cost intelligence for AI agent workflows. Two commands, zero config, about $2. You get distributional cost projections (p50 through p99), automatic detection of cost risks, and a clear breakdown of where the money goes.
 
 ## Install
 
@@ -18,37 +18,45 @@ pip install pretia
 pretia estimate my_agent.py
 ```
 
-This is a conservative upper bound, not a precise prediction. Static analysis reads your code but can't know runtime behavior (which branches execute, actual output lengths, caching effects). Expect estimates 2-5x higher than real costs. Use it to get a ballpark before committing to a full profile.
+This gives you a conservative upper bound. Static analysis reads your code but can't know runtime behavior (which branches run, actual output lengths, caching effects). Expect estimates 2-5x higher than real costs. Good for getting a ballpark before committing to a full profile.
 
-**Full profile** (runs your workflow, ~$2, ~3 minutes):
+**Full profile** (runs your workflow, about $2, a few minutes):
 
 ```bash
 pretia profile run my_agent.py
 ```
 
-This runs your workflow with real API calls and gives accurate distributional projections (typically within 10% of production costs). No config files, no JSONL datasets, no setup. Pretia reads your workflow, generates diverse synthetic inputs, runs 50 profiling runs, detects patterns, and opens an HTML report with projections and recommendations.
+This runs your workflow with real API calls and produces accurate distributional projections (typically within 10% of production costs). No config files, no JSONL datasets, no setup. Pretia reads your workflow, generates diverse synthetic inputs, runs profiling passes in parallel, detects patterns, and opens an HTML report with projections and recommendations.
 
 ## Features
 
 ### Distributional Projections
 
-Cost projections at p50, p75, p90, p95, and p99. Not averages. For workflows with non-linear behavior (context growth, variable loop counts), Pretia uses Monte Carlo simulation (10,000 runs) instead of linear scaling.
+Cost projections at p50, p75, p90, p95, and p99. Not averages. For workflows with non-linear behavior (context growth, variable loop counts), Pretia runs Monte Carlo simulation (10,000 iterations) instead of linear scaling.
 
 ### Automatic Pattern Detection
 
-Pretia scans your profiling data for cost risks: context windows that grow with each iteration, unpredictable retry loops, wide variance between typical and worst-case runs, routing branches that change cost profiles, and bimodal distributions where a cheap path and an expensive path create two distinct cost clusters. If something will surprise you at scale, the report flags it.
+Pretia scans your profiling data for cost risks:
+
+- Context windows that grow with each iteration
+- Unpredictable retry loops
+- Wide variance between typical and worst-case runs
+- Routing branches that change cost profiles
+- Bimodal distributions where a cheap path and an expensive path create two distinct cost clusters
+
+If something will surprise you at scale, the report flags it.
 
 ### Optimization Recommendations
 
-Each recommendation comes with estimated monthly savings in dollars. Pretia identifies where you're overspending and suggests specific changes to bring costs down.
+Each recommendation comes with estimated monthly savings in dollars. Pretia identifies where you're overspending and suggests specific changes. All estimates are conservative - actual savings are typically higher.
 
 ### Optimization Score
 
-A 0-100 score measuring workflow cost efficiency. Three zones: red (0-40, needs optimization), amber (41-70, room to improve), green (71-100, well optimized).
+A 0-100 score measuring workflow cost efficiency. The score factors in both recoverable savings and detected cost patterns. Three zones: red (0-30, needs optimization), amber (31-70, room to improve), green (71-100, well optimized).
 
 ### Five Input Modes
 
-A friction ladder from zero-effort to maximum precision:
+A friction ladder from zero effort to maximum precision:
 
 | Level | Command | What happens | Cost |
 |-------|---------|-------------|------|
@@ -71,7 +79,7 @@ on: [pull_request]
 
 permissions:
   contents: read
-  pull-requests: write  # required for PR comments
+  pull-requests: write
 
 jobs:
   cost-check:
@@ -86,7 +94,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-**Full profile mode** (opt-in, ~$2): real profiling with recommendations.
+**Full profile mode** (opt-in, about $2): real profiling with recommendations.
 
 ```yaml
       - uses: pretia-ai/pretia/action@v1
@@ -99,7 +107,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}  # or your provider key
 ```
 
-The PR comment shows the optimization score, projected monthly cost, cost delta vs. baseline, and recommendations in a collapsible section.
+The PR comment shows the optimization score, projected monthly cost, cost delta vs. baseline, and recommendations.
 
 ## CLI Commands
 
@@ -111,9 +119,18 @@ pretia recommend profile.json           # Generate optimization recommendations
 pretia analyze --from-langfuse          # Analyze Langfuse traces (no execution)
 pretia baseline update profile.json     # Save baseline for CI diffing
 pretia diff baseline.json new.json      # Compare profiles, show per-step deltas
-pretia doctor                           # Environment & dependency health check
+pretia doctor                           # Environment and dependency health check
 pretia doctor workflow.py               # Also verify workflow loads correctly
 pretia update-pricing                   # Fetch latest model pricing from providers
+```
+
+### Useful flags
+
+```bash
+pretia profile run workflow.py --traffic 5000      # Project costs at 5K runs/day
+pretia profile run workflow.py --concurrency 10    # Limit parallel profiling runs
+pretia profile run workflow.py --allow-cache       # Measure with prompt caching on
+pretia profile run workflow.py --input "test"      # Single specific input
 ```
 
 ## Supported Frameworks
@@ -126,6 +143,8 @@ pretia update-pricing                   # Fetch latest model pricing from provid
 | **OpenAI SDK** | Completions.create monkey-patch | `pip install pretia` + `openai` |
 | **Qwen-Agent** | LLM proxy | `pip install pretia[qwen]` |
 | **Generic** | `@collector.step()` decorator | `pip install pretia` |
+
+Auto-detection picks the right collector for your workflow. You can also specify one explicitly with `--collector`.
 
 ## How It Works
 
@@ -154,8 +173,6 @@ ruff check pretia/ tests/
 ruff format pretia/ tests/
 pyright pretia/
 ```
-
-See [CLAUDE.md](CLAUDE.md) for architecture details and coding conventions.
 
 ## Contributing
 

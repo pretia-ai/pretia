@@ -364,8 +364,7 @@ class TestExtractProjection:
         }
         _, _, has_cvar, cvar_values, _, method = _extract_projection(proj, {})
         assert "Monte Carlo" in method
-        assert has_cvar is True
-        assert 1000 in cvar_values
+        assert has_cvar is False
 
 
 class TestPrepareContext:
@@ -387,7 +386,6 @@ class TestPrepareContext:
             "has_cvar",
             "cvar_values",
             "confidence",
-            "projection_method",
             "patterns",
             "has_patterns",
             "recommendations",

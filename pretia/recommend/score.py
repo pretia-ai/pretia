@@ -8,15 +8,21 @@ from typing import Any
 from pretia.recommend.base import Recommendation
 
 _SCOPE_NOTE = (
-    "Score based on model and workflow optimization. "
-    "Architecture analysis improving in future versions."
+    "Score based on detected patterns, model selection, and workflow optimization."
 )
 
 _ZONE_CONFIG: list[tuple[int, str, str, str]] = [
-    (40, "red", "needs optimization", "#E53E3E"),
+    (30, "red", "needs optimization", "#E53E3E"),
     (70, "amber", "room to improve", "#DD6B20"),
     (100, "green", "well optimized", "#38A169"),
 ]
+
+_SEVERITY_PENALTY: dict[str, int] = {
+    "danger": 25,
+    "warning": 12,
+}
+
+_MAX_ARCHITECTURE_WASTE = 0.20
 
 
 def _classify_zone(score: int) -> tuple[str, str, str]:
@@ -54,36 +60,51 @@ class OptimizationScore:
         }
 
 
-_MAX_ARCHITECTURE_WASTE = 0.20
-
-
 def compute_score(
     recommendations: list[Recommendation],
     projected_monthly_cost: float,
+    daily_volume: int = 10_000,
+    patterns: list[dict[str, Any]] | None = None,
 ) -> OptimizationScore:
-    """Compute the optimization score from recommendations and projected cost.
+    """Compute the optimization score from recommendations, cost, and patterns.
 
-    Architecture recommendations (caching, context dedup) are capped at 20%
-    waste contribution because they're infrastructure tweaks, not design flaws.
+    The score starts at 100 and is reduced by two components:
+    - **Savings penalty**: ``waste_pct * 100`` (recoverable spend as % of cost)
+    - **Pattern penalty**: each detected pattern subtracts points based on
+      severity (danger=-25, warning=-12)
+
+    Architecture recommendations are capped at 20% waste contribution.
     """
     total_savings = 0.0
     design_savings = 0.0
     arch_savings = 0.0
     for r in recommendations:
-        total_savings += r.monthly_savings
+        orig_vol = r.evidence.get("daily_volume", 10_000) if r.evidence else 10_000
+        scale = daily_volume / orig_vol if orig_vol > 0 else 1.0
+        scaled = r.monthly_savings * scale
+        total_savings += scaled
         if r.type == "architecture":
-            arch_savings += r.monthly_savings
+            arch_savings += scaled
         else:
-            design_savings += r.monthly_savings
+            design_savings += scaled
 
     if projected_monthly_cost > 0:
+        total_savings = min(total_savings, projected_monthly_cost)
         design_waste = min(design_savings / projected_monthly_cost, 0.8)
         arch_waste = min(arch_savings / projected_monthly_cost, _MAX_ARCHITECTURE_WASTE)
         waste_pct = min(design_waste + arch_waste, 1.0)
     else:
         waste_pct = 0.0
 
-    score = round(100 * (1 - waste_pct))
+    savings_penalty = waste_pct * 100
+
+    pattern_penalty = 0
+    if patterns:
+        for p in patterns:
+            severity = p.get("severity", "warning")
+            pattern_penalty += _SEVERITY_PENALTY.get(severity, 0)
+
+    score = round(100 - savings_penalty - pattern_penalty)
     score = max(0, min(100, score))
 
     zone, zone_label, zone_color = _classify_zone(score)

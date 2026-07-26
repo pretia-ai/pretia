@@ -313,7 +313,7 @@ def run_full_profile(
     collector = framework if framework != "auto" else None
     runner = ProfileRunner(
         workflow_path=workflow_path,
-        collector_name=collector,
+        collector=collector,
     )
     session = runner.run_sync()
 
@@ -325,16 +325,21 @@ def run_full_profile(
     projs = projection.get("projections", {})
     for vol_data in projs.values():
         monthly = vol_data.get("monthly_cost", {})
-        p50 = monthly.get("p50", 0)
-        if p50 > projected_cost:
-            projected_cost = p50
+        p50_val = monthly.get("p50", 0)
+        if p50_val > projected_cost:
+            projected_cost = p50_val
 
     if projected_cost == 0.0:
         cost_summary = session.metadata.get("cost_summary", {})
-        mean_cost = cost_summary.get("mean_cost_per_run", 0)
-        projected_cost = mean_cost * daily_volume * 30
+        p50_cost = cost_summary.get(
+            "median_cost_per_run", cost_summary.get("mean_cost_per_run", 0)
+        )
+        projected_cost = p50_cost * daily_volume * 30
 
-    score = compute_score(recs, projected_cost)
+    detected_patterns = session.metadata.get("patterns", [])
+    score = compute_score(
+        recs, projected_cost, daily_volume=daily_volume, patterns=detected_patterns
+    )
     session.metadata["score"] = score.to_dict()
 
     report_path = render_and_save(session, open_browser=False)
