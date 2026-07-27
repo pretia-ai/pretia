@@ -5,5 +5,5 @@ from __future__ import annotations
 from pretia.collectors.base import StepRecord
 from pretia.runner import ProfileRunner
 
-__version__ = "1.2.4"
+__version__ = "1.2.5"
 __all__ = ["ProfileRunner", "StepRecord", "__version__"]
