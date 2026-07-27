@@ -12,10 +12,11 @@ def _make_record(
     step_name: str = "classify",
     input_tokens: int = 100,
     output_tokens: int = 50,
+    step_type: str = "llm",
 ) -> StepRecord:
     return StepRecord(
         step_name=step_name,
-        step_type="llm",
+        step_type=step_type,
         model="gpt-4o-mini",
         input_tokens=input_tokens,
         output_tokens=output_tokens,
@@ -85,6 +86,36 @@ class TestZeroTokenNoWarning:
             )
         warnings = validate_profiling_data(runs)
         assert len(warnings) == 0
+
+
+class TestToolStepsNotWarned:
+    def test_tool_steps_with_zero_tokens_ignored(self):
+        """Tool invocations consume no LLM tokens — no warning expected."""
+        runs = []
+        for _ in range(10):
+            runs.append(
+                [
+                    _make_record("agent", 500, 200),
+                    _make_record("lookup_order", 0, 0, step_type="tool"),
+                ]
+            )
+        warnings = validate_profiling_data(runs)
+        assert len(warnings) == 0
+
+    def test_llm_step_sharing_name_with_tool_still_warned(self):
+        """A zero-token LLM step warns even if tool records share its name."""
+        runs = []
+        for _ in range(10):
+            runs.append(
+                [
+                    _make_record("agent", 500, 200),
+                    _make_record("broken_step", 0, 0),
+                    _make_record("broken_step", 0, 0, step_type="tool"),
+                ]
+            )
+        warnings = validate_profiling_data(runs)
+        broken_warnings = [w for w in warnings if "broken_step" in w]
+        assert len(broken_warnings) == 1
 
 
 class TestZeroTokenMissingStep:

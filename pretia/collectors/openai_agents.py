@@ -354,6 +354,7 @@ class OpenAIAgentsCollector(BaseCollector):
             inputs: Input strings to run the workflow on.
             on_run_complete: Optional callback after each run.
         """
+        self.last_error = None
         runs: list[list[StepRecord]] = []
         total = len(inputs)
         for i, inp in enumerate(inputs):
@@ -361,10 +362,11 @@ class OpenAIAgentsCollector(BaseCollector):
 
             try:
                 result = await Runner.run(workflow, inp, hooks=hooks)
-            except Exception:
+            except (Exception, SystemExit) as exc:
+                self.last_error = exc
                 logger.warning(
                     "Workflow execution failed for input=%r, skipping",
-                    inp[:80],
+                    str(inp)[:80],
                     exc_info=True,
                 )
                 runs.append([])
@@ -380,5 +382,8 @@ class OpenAIAgentsCollector(BaseCollector):
 
             runs.append(steps)
             if on_run_complete is not None:
-                on_run_complete(i, total, steps)
+                try:
+                    on_run_complete(i, total, steps)
+                except Exception:
+                    logger.debug("on_run_complete callback failed", exc_info=True)
         return runs

@@ -5,9 +5,11 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import importlib.util
+import inspect
 import logging
 import re
 import statistics
+import sys
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -29,14 +31,115 @@ logger = logging.getLogger(__name__)
 
 _WORKFLOW_ATTR_NAMES = ("graph", "workflow", "agent", "app")
 _CALLABLE_ATTR_NAMES = ("run", "call", "process", "execute", "handle", "main")
+_GRAPH_BUILDER_NAMES = ("build_graph", "create_graph", "make_graph", "get_graph")
+_AGENT_BUILDER_NAMES = ("create_agent", "build_agent", "make_agent", "get_agent")
+_WRAPPER_FRAMEWORKS = (
+    "pydantic_ai",
+    "instructor",
+    "mirascope",
+    "llama_index",
+    "dspy",
+    "smolagents",
+    "haystack",
+)
+_INSTANCE_METHOD_NAMES = (
+    "run",
+    "call",
+    "process",
+    "execute",
+    "handle",
+    "chat",
+    "ask",
+    "respond",
+    "answer",
+    "query",
+    "reply",
+)
 _SYSTEM_PROMPT_RE = re.compile(
     r"(you are|your role|your task|system)",
     re.IGNORECASE,
 )
 
+_LLM_CLASS_NAMES = frozenset(
+    {
+        "ChatAnthropic",
+        "ChatOpenAI",
+        "ChatGoogleGenerativeAI",
+        "ChatMistralAI",
+        "ChatOllama",
+        "BaseChatModel",
+        "BaseLLM",
+    }
+)
+
+
+class EntrypointError(click.UsageError):
+    """No usable entrypoint found. Carries rejected candidates and a tailored wrapper."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        rejected: list[tuple[str, Any]],
+        wrapper_snippet: str,
+        workflow_path: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.rejected = rejected
+        self.wrapper_snippet = wrapper_snippet
+        self.workflow_path = workflow_path
+
+
+class AmbiguousEntrypointError(click.UsageError):
+    """Multiple valid entrypoint candidates found."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        candidates: list[tuple[str, str]],
+    ) -> None:
+        super().__init__(message)
+        self.candidates = candidates
+
+
+def _is_llm_model(obj: Any) -> bool:
+    """Return True if obj is a LangChain LLM/chat model (instance or class)."""
+    name = type(obj).__name__
+    if name in _LLM_CLASS_NAMES:
+        return True
+    cls_name = getattr(obj, "__name__", "")
+    if cls_name in _LLM_CLASS_NAMES:
+        return True
+    for base in getattr(obj, "__mro__", ()):
+        if getattr(base, "__name__", "") in _LLM_CLASS_NAMES:
+            return True
+    return False
+
+
+def _is_tool_object(obj: Any) -> bool:
+    """Return True if obj is a LangChain tool instance (@tool decorator output)."""
+    for base in getattr(type(obj), "__mro__", ()):
+        if getattr(base, "__name__", "") == "BaseTool":
+            return True
+    return False
+
+
+_CLI_COMMAND_NAMES = frozenset({"BaseCommand", "Command", "Group", "MultiCommand", "Typer"})
+
+
+def _is_cli_command(obj: Any) -> bool:
+    """Return True if obj is a click/typer CLI command (never a workflow)."""
+    for base in getattr(type(obj), "__mro__", ()):
+        if getattr(base, "__name__", "") in _CLI_COMMAND_NAMES:
+            return True
+    return False
+
 
 def _is_workflow_candidate(obj: Any) -> bool:
     if obj is None or isinstance(obj, (str, int, float, bool, list, dict, set, type)):
+        return False
+    if _is_llm_model(obj) or _is_cli_command(obj):
         return False
     if hasattr(obj, "ainvoke") or hasattr(obj, "invoke"):
         return True
@@ -45,81 +148,613 @@ def _is_workflow_candidate(obj: Any) -> bool:
     return False
 
 
-def _find_workflow(module: Any, entry_point: str | None = None) -> Any | None:
+def _registered_tool_names(module: Any) -> set[str]:
+    """Collect names of functions registered as tools in the module.
+
+    Detects two patterns:
+    - Dict registries: ``TOOL_DISPATCH = {"fn_name": fn, ...}`` — collects
+      ``__name__`` of every callable value.
+    - Schema lists: ``TOOLS = [{"function": {"name": "fn_name"}}, ...]`` or
+      ``[{"name": "fn_name"}, ...]`` — collects string ``"name"`` values at
+      depth <= 3.
+    """
+    names: set[str] = set()
+    for attr_name in dir(module):
+        if attr_name.startswith("_"):
+            continue
+        obj = getattr(module, attr_name, None)
+        if isinstance(obj, dict):
+            for v in obj.values():
+                if callable(v):
+                    fn_name = getattr(v, "__name__", None)
+                    if fn_name:
+                        names.add(fn_name)
+        elif isinstance(obj, list):
+            _collect_schema_names(obj, names, depth=0)
+    return names
+
+
+def _collect_schema_names(obj: Any, names: set[str], depth: int) -> None:
+    if depth > 3:
+        return
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k == "name" and isinstance(v, str):
+                names.add(v)
+            elif isinstance(v, (dict, list)):
+                _collect_schema_names(v, names, depth + 1)
+    elif isinstance(obj, list):
+        for item in obj:
+            if isinstance(item, (dict, list)):
+                _collect_schema_names(item, names, depth + 1)
+
+
+def _find_system_prompt_name(module: Any) -> str | None:
+    """Return the attribute name of the system prompt variable, if any."""
+    for name in dir(module):
+        if name.startswith("_"):
+            continue
+        obj = getattr(module, name, None)
+        if isinstance(obj, str) and len(obj) > 50 and _SYSTEM_PROMPT_RE.search(obj):
+            return name
+    return None
+
+
+def _try_instantiate_class(cls: type) -> Any | None:
+    """Instantiate a class with no arguments, returning None on failure.
+
+    Only attempts classes whose constructor has zero required positional params.
+    """
+    try:
+        sig = inspect.signature(cls)
+    except (ValueError, TypeError):
+        return None
+    for p in sig.parameters.values():
+        if (
+            p.kind
+            in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            )
+            and p.default is inspect.Parameter.empty
+        ):
+            return None
+    try:
+        return cls()
+    except Exception as exc:
+        logger.warning(
+            "Class %s() has a zero-arg constructor but instantiation failed (%s: %s).",
+            getattr(cls, "__name__", cls),
+            type(exc).__name__,
+            exc,
+        )
+        logger.debug("Class %s() instantiation traceback", cls, exc_info=True)
+        return None
+
+
+def _resolve_instance_method(instance: Any) -> tuple[str, Any] | None:
+    """Find a single-input method on an instance suitable as a workflow entrypoint.
+
+    Checks __call__ first, then method names from _INSTANCE_METHOD_NAMES.
+    Returns (method_name, bound_method_or_instance) or None.
+    """
+    if callable(instance) and _callable_accepts_single_input(instance):
+        return ("__call__", instance)
+    for name in _INSTANCE_METHOD_NAMES:
+        method = getattr(instance, name, None)
+        if method is not None and callable(method) and _callable_accepts_single_input(method):
+            return (name, method)
+    return None
+
+
+def _make_entry_wrapper(
+    cls: type | None,
+    method_name: str,
+    fallback_bound: Any,
+) -> Any:
+    """Build a per-run wrapper that reinstantiates the class for state isolation.
+
+    If cls is provided, each call creates a fresh instance. If cls is None (e.g.
+    discovery from a module-level instance whose class needs args), falls back to
+    the shared bound method.
+    """
+    is_async = asyncio.iscoroutinefunction(fallback_bound)
+
+    if cls is None:
+        return fallback_bound
+
+    if method_name == "__call__":
+        if is_async:
+
+            async def _async_call_wrapper(inp: str) -> Any:
+                return await cls()(inp)
+
+            _async_call_wrapper.__name__ = getattr(cls, "__name__", "agent")
+            return _async_call_wrapper
+
+        def _sync_call_wrapper(inp: str) -> Any:
+            return cls()(inp)
+
+        _sync_call_wrapper.__name__ = getattr(cls, "__name__", "agent")
+        return _sync_call_wrapper
+
+    if is_async:
+
+        async def _async_method_wrapper(inp: str) -> Any:
+            return await getattr(cls(), method_name)(inp)
+
+        _async_method_wrapper.__name__ = f"{getattr(cls, '__name__', 'agent')}.{method_name}"
+        return _async_method_wrapper
+
+    def _sync_method_wrapper(inp: str) -> Any:
+        return getattr(cls(), method_name)(inp)
+
+    _sync_method_wrapper.__name__ = f"{getattr(cls, '__name__', 'agent')}.{method_name}"
+    return _sync_method_wrapper
+
+
+def _check_signature_accepts_single(sig: inspect.Signature) -> bool:
+    """Check a resolved Signature for the single-input contract."""
+    required_positional = 0
+    has_positional_slot = False
+    for p in sig.parameters.values():
+        if p.kind in (
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        ):
+            has_positional_slot = True
+            if p.default is inspect.Parameter.empty:
+                required_positional += 1
+        elif p.kind is inspect.Parameter.VAR_POSITIONAL:
+            has_positional_slot = True
+        elif p.kind is inspect.Parameter.KEYWORD_ONLY and p.default is inspect.Parameter.empty:
+            return False
+    return has_positional_slot and required_positional <= 1
+
+
+def _callable_accepts_single_input(fn: Any) -> bool:
+    """Return True if fn(inp) with one positional string argument is a valid call."""
+    try:
+        sig = inspect.signature(fn)
+    except (ValueError, TypeError):
+        return True
+    if _check_signature_accepts_single(sig):
+        return True
+    if hasattr(fn, "__wrapped__"):
+        try:
+            unwrapped_sig = inspect.signature(fn, follow_wrapped=False)
+        except (ValueError, TypeError):
+            return True
+        return _check_signature_accepts_single(unwrapped_sig)
+    return False
+
+
+def _signature_str(name: str, fn: Any) -> str:
+    """Format a callable's name and signature for error messages."""
+    try:
+        return f"{name}{inspect.signature(fn)}"
+    except (ValueError, TypeError):
+        return f"{name}(...)"
+
+
+def _rejection_reason(fn: Any) -> str:
+    """Describe why a callable fails the single-input contract."""
+    try:
+        sig = inspect.signature(fn)
+    except (ValueError, TypeError):
+        return "signature not introspectable"
+    required = sum(
+        1
+        for p in sig.parameters.values()
+        if p.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+        and p.default is inspect.Parameter.empty
+    )
+    if required == 0:
+        return "takes no arguments"
+    return f"takes {required} required arguments"
+
+
+def _set_provenance(prov: dict[str, str] | None, entrypoint: str, rule: str) -> None:
+    if prov is not None:
+        prov["entrypoint"] = entrypoint
+        prov["rule"] = rule
+
+
+def _find_workflow(
+    module: Any,
+    entry_point: str | None = None,
+    workflow_path: str | None = None,
+    provenance: dict[str, str] | None = None,
+) -> Any | None:
     if entry_point is not None:
         obj = getattr(module, entry_point, None)
         if obj is not None:
+            if hasattr(obj, "ainvoke") or hasattr(obj, "invoke"):
+                _set_provenance(provenance, entry_point, "--entry-point")
+                return obj
+            if isinstance(obj, type):
+                instance = _try_instantiate_class(obj)
+                if instance is not None:
+                    resolved = _resolve_instance_method(instance)
+                    if resolved is not None:
+                        method_name, bound = resolved
+                        _set_provenance(
+                            provenance,
+                            f"{entry_point}.{method_name}",
+                            "--entry-point",
+                        )
+                        return _make_entry_wrapper(obj, method_name, bound)
+                    raise click.UsageError(
+                        f"--entry-point '{entry_point}' is a class but has no "
+                        f"single-input method (run, call, process, etc.). "
+                        f"Add a run(self, input) method or create an instance at "
+                        f"module level and use --entry-point <instance_name>."
+                    )
+                raise click.UsageError(
+                    f"--entry-point '{entry_point}' is a class that requires "
+                    f"constructor arguments. Create an instance at module level:\n"
+                    f"    agent = {entry_point}(...)\n"
+                    f"and re-run, or use --entry-point agent."
+                )
+            if not callable(obj):
+                resolved = _resolve_instance_method(obj)
+                if resolved is not None:
+                    method_name, bound = resolved
+                    cls = type(obj)
+                    reinstantiable = _try_instantiate_class(cls) if cls is not type else None
+                    _set_provenance(
+                        provenance,
+                        f"{entry_point}.{method_name}",
+                        "--entry-point",
+                    )
+                    return _make_entry_wrapper(
+                        cls if reinstantiable is not None else None,
+                        method_name,
+                        bound,
+                    )
+                raise click.UsageError(
+                    f"--entry-point '{entry_point}' resolved to {type(obj).__name__} "
+                    f"and cannot be profiled. Pretia calls the entrypoint as "
+                    f"{entry_point}(input) with a single input string."
+                )
+            if not _callable_accepts_single_input(obj):
+                raise click.UsageError(
+                    f"--entry-point '{entry_point}' has signature "
+                    f"{_signature_str(entry_point, obj)}, but Pretia calls the "
+                    f"entrypoint as {entry_point}(input) with a single input string. "
+                    f"Wrap it in a one-argument function or choose another entrypoint."
+                )
+            _set_provenance(provenance, entry_point, "--entry-point")
             return obj
         raise click.UsageError(
             f"--entry-point '{entry_point}' not found in module. "
             f"Available names: {_list_candidates(module)}"
         )
 
+    tool_names = _registered_tool_names(module)
+
     # 1a. Prefer canonical names that have ainvoke/invoke (compiled graphs)
     for name in _WORKFLOW_ATTR_NAMES:
         obj = getattr(module, name, None)
-        if obj is not None and (hasattr(obj, "ainvoke") or hasattr(obj, "invoke")):
+        if (
+            obj is not None
+            and not _is_llm_model(obj)
+            and (hasattr(obj, "ainvoke") or hasattr(obj, "invoke"))
+        ):
+            _set_provenance(provenance, name, f"canonical name '{name}' (invoke object)")
             return obj
 
-    # 1b. Fall back to any non-None canonical name
+    # 1b. Fall back to canonical names: workflow candidates, class instances
+    # with agent methods, or callable instances (arity-checked to avoid
+    # picking ASGI/WSGI apps like FastAPI or Flask).
     for name in _WORKFLOW_ATTR_NAMES:
         obj = getattr(module, name, None)
-        if obj is not None:
-            return obj
-
-    # 2. Check for ainvoke/invoke (framework compiled graphs)
-    for name in dir(module):
-        if name.startswith("_"):
+        if obj is None or _is_llm_model(obj):
             continue
-        obj = getattr(module, name, None)
+        if isinstance(obj, type):
+            continue
         if hasattr(obj, "ainvoke") or hasattr(obj, "invoke"):
+            continue  # already handled by 1a
+        if callable(obj) and _callable_accepts_single_input(obj):
+            _set_provenance(provenance, name, f"canonical name '{name}'")
             return obj
+        resolved = _resolve_instance_method(obj)
+        if resolved is not None:
+            method_name, bound = resolved
+            cls = type(obj)
+            reinstantiable = _try_instantiate_class(cls) if cls is not type else None
+            _set_provenance(
+                provenance,
+                f"{name}.{method_name}",
+                f"instance method at canonical name '{name}'",
+            )
+            return _make_entry_wrapper(
+                cls if reinstantiable is not None else None,
+                method_name,
+                bound,
+            )
 
-    # 3. Check common callable names
-    for name in _CALLABLE_ATTR_NAMES:
-        obj = getattr(module, name, None)
-        if obj is not None and (asyncio.iscoroutinefunction(obj) or callable(obj)):
-            return obj
+    # 1c. Try graph/agent builder functions
+    for name in (*_GRAPH_BUILDER_NAMES, *_AGENT_BUILDER_NAMES):
+        fn = getattr(module, name, None)
+        if fn is not None and callable(fn) and not _is_llm_model(fn):
+            try:
+                result = fn()
+                if hasattr(result, "ainvoke") or hasattr(result, "invoke"):
+                    _set_provenance(provenance, f"{name}()", f"builder {name}()")
+                    return result
+                resolved = _resolve_instance_method(result)
+                if resolved is not None:
+                    method_name, bound = resolved
 
-    # 4. Find any async callable
-    candidates: list[tuple[str, Any]] = []
+                    def _factory_wrapper_sync(
+                        inp: str, _f: Any = fn, _m: str = method_name
+                    ) -> Any:
+                        return getattr(_f(), _m)(inp)
+
+                    async def _factory_wrapper_async(
+                        inp: str, _f: Any = fn, _m: str = method_name
+                    ) -> Any:
+                        return await getattr(_f(), _m)(inp)
+
+                    if asyncio.iscoroutinefunction(bound):
+                        _factory_wrapper_async.__name__ = f"{name}().{method_name}"
+                        _set_provenance(
+                            provenance,
+                            f"{name}().{method_name}",
+                            f"builder {name}()",
+                        )
+                        return _factory_wrapper_async
+                    _factory_wrapper_sync.__name__ = f"{name}().{method_name}"
+                    _set_provenance(
+                        provenance,
+                        f"{name}().{method_name}",
+                        f"builder {name}()",
+                    )
+                    return _factory_wrapper_sync
+            except Exception as exc:
+                logger.warning(
+                    "Found %s() but calling it failed (%s: %s). "
+                    "Falling back to other workflow candidates.",
+                    name,
+                    type(exc).__name__,
+                    exc,
+                )
+                logger.debug("Builder %s() traceback", name, exc_info=True)
+
+    # 1d. Try agent-like classes and module-level instances with agent methods.
+    mod_name_1d = getattr(module, "__name__", "")
+    class_candidates: list[tuple[str, str, Any]] = []
     for name in dir(module):
         if name.startswith("_"):
             continue
         obj = getattr(module, name, None)
-        if asyncio.iscoroutinefunction(obj):
-            candidates.append((name, obj))
+        if obj is None or _is_llm_model(obj):
+            continue
+        if isinstance(obj, type):
+            if getattr(obj, "__module__", None) != mod_name_1d:
+                continue
+            instance = _try_instantiate_class(obj)
+            if instance is None:
+                continue
+            resolved = _resolve_instance_method(instance)
+            if resolved is not None:
+                method_name, bound = resolved
+                wrapper = _make_entry_wrapper(obj, method_name, bound)
+                class_candidates.append((f"{name}.{method_name}", name, wrapper))
+        elif not isinstance(obj, (str, int, float, bool, list, dict, set)):
+            if hasattr(obj, "ainvoke") or hasattr(obj, "invoke"):
+                continue
+            if callable(obj):
+                continue
+            resolved = _resolve_instance_method(obj)
+            if resolved is not None:
+                method_name, bound = resolved
+                cls = type(obj)
+                reinstantiable = _try_instantiate_class(cls) if cls is not type else None
+                wrapper = _make_entry_wrapper(
+                    cls if reinstantiable is not None else None,
+                    method_name,
+                    bound,
+                )
+                class_candidates.append((f"{name}.{method_name}", name, wrapper))
 
-    if len(candidates) == 1:
-        return candidates[0][1]
+    if len(class_candidates) == 1:
+        label, cname, wrapper = class_candidates[0]
+        is_class = isinstance(getattr(module, cname, None), type)
+        rule = "agent class scan" if is_class else "module instance scan"
+        _set_provenance(provenance, label, rule)
+        return wrapper
 
-    if len(candidates) > 1:
-        names = ", ".join(f"'{n}'" for n, _ in candidates)
-        raise click.UsageError(
-            f"Found multiple async callables in module: {names}. "
-            f"Specify which one to profile with --entry-point <name>."
+    if len(class_candidates) > 1:
+        candidates = [(label, _signature_str(label, w)) for label, _, w in class_candidates]
+        names = ", ".join(f"'{label}'" for label, _, _ in class_candidates)
+        raise AmbiguousEntrypointError(
+            f"Found multiple agent classes/instances in module: {names}. "
+            f"Specify which one to profile with --entry-point <name>.",
+            candidates=candidates,
         )
 
-    # 5. Find any sync callable as last resort
+    # 2. Check for ainvoke/invoke (framework compiled graphs, skip LLM models).
+    # Skip classes: an unbound Cls.ainvoke(payload) puts payload in `self` and
+    # fails with "missing 1 required positional argument". Skip tools: @tool
+    # objects have ainvoke but are workflow components, not the workflow.
     for name in dir(module):
         if name.startswith("_"):
             continue
         obj = getattr(module, name, None)
-        if _is_workflow_candidate(obj) and callable(obj):
+        if (
+            isinstance(obj, type)
+            or _is_llm_model(obj)
+            or _is_tool_object(obj)
+            or _is_cli_command(obj)
+        ):
+            continue
+        if hasattr(obj, "ainvoke") or hasattr(obj, "invoke"):
+            _set_provenance(provenance, name, f"invoke object '{name}'")
             return obj
+
+    # 3. Check common callable names (arity-validated).
+    # CLI commands (click/typer) are unwrapped to their callback function.
+    rejected: list[tuple[str, Any]] = []
+    for name in _CALLABLE_ATTR_NAMES:
+        obj = getattr(module, name, None)
+        if obj is None:
+            continue
+        if _is_cli_command(obj):
+            callback = getattr(obj, "callback", None)
+            if callback is not None and _callable_accepts_single_input(callback):
+                _set_provenance(
+                    provenance,
+                    name,
+                    f"click command '{name}' (unwrapped callback)",
+                )
+                return callback
+            if callback is not None:
+                rejected.append((name, callback))
+            continue
+        if not _is_workflow_candidate(obj):
+            continue
+        if _callable_accepts_single_input(obj):
+            _set_provenance(provenance, name, f"named function '{name}'")
+            return obj
+        rejected.append((name, obj))
+
+    # 4. Find any async callable (arity-validated), excluding tool functions
+    valid: list[tuple[str, Any]] = []
+    for name in dir(module):
+        if name.startswith("_"):
+            continue
+        obj = getattr(module, name, None)
+        if not asyncio.iscoroutinefunction(obj):
+            continue
+        if name in tool_names:
+            continue
+        if _callable_accepts_single_input(obj):
+            valid.append((name, obj))
+        else:
+            rejected.append((name, obj))
+
+    # Prefer names declared in __all__ to reduce false ambiguity.
+    mod_all = getattr(module, "__all__", None)
+    if isinstance(mod_all, (list, tuple)) and len(valid) > 1:
+        exported = [(n, o) for n, o in valid if n in mod_all]
+        if exported:
+            valid = exported
+
+    if len(valid) == 1:
+        _set_provenance(provenance, valid[0][0], f"sole async function '{valid[0][0]}'")
+        return valid[0][1]
+
+    if len(valid) > 1:
+        candidates = [(n, _signature_str(n, o)) for n, o in valid]
+        names = ", ".join(f"'{n}'" for n, _ in valid)
+        raise AmbiguousEntrypointError(
+            f"Found multiple async callables in module: {names}. "
+            f"Specify which one to profile with --entry-point <name>.",
+            candidates=candidates,
+        )
+
+    # 5. Find sync callables as last resort (arity-validated), excluding tool
+    # functions. Picking the alphabetically-first match silently profiles the
+    # wrong function when a script has several single-arg helpers (e.g. tool
+    # implementations), so a unique match is required.
+    sync_valid: list[tuple[str, Any]] = []
+    for name in dir(module):
+        if name.startswith("_"):
+            continue
+        obj = getattr(module, name, None)
+        if not (_is_workflow_candidate(obj) and callable(obj)):
+            continue
+        if name in tool_names:
+            continue
+        if _callable_accepts_single_input(obj):
+            sync_valid.append((name, obj))
+        else:
+            rejected.append((name, obj))
+
+    # Prefer functions defined in the workflow file over imports.
+    # When local rejected candidates exist (user's real functions that fail the
+    # arity contract), don't fall back to imported utilities like load_dotenv.
+    mod_name = getattr(module, "__name__", "")
+    local_valid = [(n, o) for n, o in sync_valid if getattr(o, "__module__", None) == mod_name]
+    if local_valid:
+        sync_valid = local_valid
+    elif rejected:
+        local_rejected = [
+            (n, o) for n, o in rejected if getattr(o, "__module__", None) == mod_name
+        ]
+        if local_rejected:
+            sync_valid = []
+
+    if isinstance(mod_all, (list, tuple)) and len(sync_valid) > 1:
+        exported = [(n, o) for n, o in sync_valid if n in mod_all]
+        if exported:
+            sync_valid = exported
+
+    if len(sync_valid) == 1:
+        _set_provenance(
+            provenance,
+            sync_valid[0][0],
+            f"sole single-argument function '{sync_valid[0][0]}'",
+        )
+        return sync_valid[0][1]
+
+    if len(sync_valid) > 1:
+        candidates = [(n, _signature_str(n, o)) for n, o in sync_valid]
+        lines = [f"  - {sig}" for _, sig in candidates]
+        raise AmbiguousEntrypointError(
+            "Found multiple single-argument callables and cannot tell which one "
+            "is your workflow entrypoint:\n"
+            + "\n".join(lines)
+            + "\nFix: select one with --entry-point <name>, or add a function "
+            "named workflow(user_input) that invokes your agent end-to-end "
+            "and returns the raw response.",
+            candidates=candidates,
+        )
+
+    # No usable entrypoint. Build a tailored wrapper snippet.
+    from pretia.wrapper_hint import build_wrapper_snippet
+
+    snippet = build_wrapper_snippet(module, rejected)
+
+    if rejected:
+        mod_name = getattr(module, "__name__", "")
+        local = [(n, o) for n, o in rejected if getattr(o, "__module__", None) == mod_name]
+        shown = local if local else rejected
+        seen: set[str] = set()
+        lines: list[str] = []
+        for name, obj in shown:
+            sig_line = _signature_str(name, obj)
+            if sig_line in seen:
+                continue
+            seen.add(sig_line)
+            lines.append(f"  - {sig_line} — {_rejection_reason(obj)}")
+        raise EntrypointError(
+            "No usable entrypoint found in the workflow module. Pretia calls "
+            "your workflow as entrypoint(input) with a single input string, "
+            "but none of these callables accept exactly one argument:\n" + "\n".join(lines),
+            rejected=rejected,
+            wrapper_snippet=snippet,
+            workflow_path=workflow_path,
+        )
 
     return None
 
 
 def _list_candidates(module: Any) -> str:
-    names = [
-        n
-        for n in dir(module)
-        if not n.startswith("_") and _is_workflow_candidate(getattr(module, n, None))
-    ]
-    if not names:
+    parts: list[str] = []
+    for n in dir(module):
+        if n.startswith("_"):
+            continue
+        obj = getattr(module, n, None)
+        if hasattr(obj, "ainvoke") or hasattr(obj, "invoke"):
+            parts.append(f"'{n}'")
+        elif _is_workflow_candidate(obj) and callable(obj):
+            parts.append(_signature_str(n, obj))
+    if not parts:
         return "(none found)"
-    return ", ".join(f"'{n}'" for n in names)
+    return ", ".join(parts)
 
 
 def _extract_system_prompt(module: Any) -> str:
@@ -133,7 +768,11 @@ def _extract_system_prompt(module: Any) -> str:
 
 
 def _detect_graph_input_key(graph: Any) -> str:
-    """Detect the first string-typed field from a LangGraph state schema."""
+    """Detect the input key from a LangGraph state schema.
+
+    Returns "messages" if the state uses the standard LangGraph message pattern,
+    otherwise looks for a plain str-typed field, falling back to "input".
+    """
     import typing
 
     schema = None
@@ -144,12 +783,16 @@ def _detect_graph_input_key(graph: Any) -> str:
     if schema is None:
         channels = getattr(graph, "channels", None)
         if channels and isinstance(channels, dict):
+            if "messages" in channels:
+                return "messages"
             for key in channels:
                 if isinstance(key, str):
                     return key
 
     if schema is not None:
         annotations = getattr(schema, "__annotations__", {})
+        if "messages" in annotations:
+            return "messages"
         for key, type_hint in annotations.items():
             origin = getattr(type_hint, "__origin__", None)
             if type_hint is str or (origin is None and type_hint is str):
@@ -164,17 +807,20 @@ def _detect_graph_input_key(graph: Any) -> str:
 
 
 def _module_uses_sdk(module: Any, sdk_name: str) -> bool:
-    """Check if a loaded module has imported a given SDK package."""
-    import sys
+    """Check if a loaded module imported a given SDK package (module or symbols)."""
+    import types
 
-    for attr_name in dir(module):
-        obj = getattr(module, attr_name, None)
+    prefix = sdk_name + "."
+    for obj in vars(module).values():
+        if isinstance(obj, types.ModuleType):
+            mod_name = getattr(obj, "__name__", "")
+            if mod_name == sdk_name or mod_name.startswith(prefix):
+                return True
+            continue
         obj_module = getattr(obj, "__module__", None) or ""
-        if obj_module.startswith(sdk_name):
+        if obj_module == sdk_name or obj_module.startswith(prefix):
             return True
-    return f"{sdk_name}" in {
-        m.split(".")[0] for m in sys.modules if m in getattr(module, "__dict__", {})
-    }
+    return False
 
 
 def _load_workflow_module(path: str) -> Any:
@@ -182,23 +828,144 @@ def _load_workflow_module(path: str) -> Any:
     if not p.exists():
         raise FileNotFoundError(f"Workflow file not found: {path}")
 
-    spec = importlib.util.spec_from_file_location(p.stem, str(p))
+    if p.suffix == ".ipynb":
+        raise click.UsageError(
+            "Jupyter notebooks can't be profiled directly. Export first:\n"
+            f"  jupyter nbconvert --to script {path}\n"
+            "then run pretia on the resulting .py file."
+        )
+    if p.suffix and p.suffix != ".py":
+        raise click.UsageError(
+            f"Cannot load '{path}' — pretia profiles .py files. Got '{p.suffix}' extension."
+        )
+
+    # Detect package context: walk up while __init__.py exists.
+    package_parts: list[str] = []
+    parent = p.parent
+    while (parent / "__init__.py").exists():
+        package_parts.append(parent.name)
+        parent = parent.parent
+    package_root = parent
+    package_parts.reverse()
+
+    # Ensure the workflow directory (or package root) is importable.
+    root_str = str(package_root)
+    if root_str not in sys.path:
+        sys.path.insert(0, root_str)
+
+    if package_parts:
+        dotted = ".".join([*package_parts, p.stem])
+    else:
+        dotted = p.stem
+
+    mod_name = dotted
+    if mod_name in sys.modules:
+        mod_name = f"_pretia_workflow_{dotted.replace('.', '_')}"
+
+    # Register parent packages so relative imports resolve.
+    if package_parts:
+        for i in range(len(package_parts)):
+            parent_dotted = ".".join(package_parts[: i + 1])
+            if parent_dotted not in sys.modules:
+                try:
+                    importlib.import_module(parent_dotted)
+                except Exception:
+                    logger.debug(
+                        "Could not import parent package %s",
+                        parent_dotted,
+                        exc_info=True,
+                    )
+
+    spec = importlib.util.spec_from_file_location(
+        mod_name,
+        str(p),
+        submodule_search_locations=([str(p.parent)] if package_parts else None),
+    )
     if spec is None or spec.loader is None:
         raise click.UsageError(f"Cannot load module from '{path}'.")
     module = importlib.util.module_from_spec(spec)
+    if package_parts:
+        module.__package__ = ".".join(package_parts)
+
+    # Register before exec: `from __future__ import annotations` makes all
+    # annotations strings, and get_type_hints() (called by LangGraph's
+    # StateGraph on TypedDict schemas) resolves them via
+    # sys.modules[cls.__module__].__dict__ — without this entry it raises
+    # NameError on names the workflow file imported.
+    # Guard: Streamlit/Gradio apps cause hangs or confusing errors.
+    try:
+        source = p.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        source = ""
+    if re.search(r"^\s*(?:import|from)\s+streamlit\b", source, re.MULTILINE):
+        raise click.UsageError(
+            f"'{path}' is a Streamlit app. Pretia profiles agent functions, "
+            f"not UI scripts. Extract the agent logic into a separate module:\n"
+            f"  def workflow(user_input: str): ...\n"
+            f"and point pretia at that file."
+        )
+    if re.search(r"^\s*(?:import|from)\s+gradio\b", source, re.MULTILINE) and re.search(
+        r"^\w[^\n]*\.launch\(", source, re.MULTILINE
+    ):
+        raise click.UsageError(
+            f"'{path}' launches a Gradio server at import time. "
+            f"Point pretia at the function Gradio wraps (the fn= argument) "
+            f"in a separate file instead."
+        )
+
+    sys.modules[mod_name] = module
+    loaded = False
     try:
         spec.loader.exec_module(module)
+        loaded = True
     except ImportError as exc:
+        sys.modules.pop(mod_name, None)
         pkg = exc.name or str(exc)
+        pkg_as_path = p.parent / pkg
+        if (pkg_as_path.with_suffix(".py")).exists() or pkg_as_path.is_dir():
+            raise ImportError(
+                f"'{path}' tried to import '{pkg}' which exists locally "
+                f"but failed to load. Ensure the file is valid Python "
+                f"and any dependencies are installed."
+            ) from exc
         raise ImportError(
             f"'{path}' requires '{pkg}' which is not installed. Install it with: pip install {pkg}"
         ) from exc
     except SyntaxError as exc:
+        sys.modules.pop(mod_name, None)
         raise click.UsageError(
             f"Syntax error in '{path}' on line {exc.lineno}: {exc.msg}"
         ) from exc
+    except SystemExit as exc:
+        sys.modules.pop(mod_name, None)
+        raise click.UsageError(
+            f"'{path}' called sys.exit() during import. "
+            f"Guard module-level code with: if __name__ == '__main__':"
+        ) from exc
     except Exception as exc:
-        raise click.UsageError(f"Failed to load '{path}': {type(exc).__name__}: {exc}") from exc
+        sys.modules.pop(mod_name, None)
+        exc_name = type(exc).__name__
+        msg = str(exc)
+        api_exc_names = {
+            "OpenAIError",
+            "AuthenticationError",
+            "APIError",
+            "APIStatusError",
+            "APIConnectionError",
+            "AnthropicError",
+        }
+        if exc_name in api_exc_names or "api_key" in msg.lower():
+            raise click.UsageError(
+                f"'{path}' failed during import due to an API/auth "
+                f"configuration error:\n  {exc_name}: {msg}\n"
+                f"Hint: set the required API key environment variable "
+                f"(e.g. in .env), or move client initialization inside "
+                f"your workflow function."
+            ) from exc
+        raise click.UsageError(f"Failed to load '{path}': {exc_name}: {exc}") from exc
+    finally:
+        if not loaded:
+            sys.modules.pop(mod_name, None)
     return module
 
 
@@ -330,18 +1097,29 @@ class ProfileRunner:
         self.corpus_path = corpus_path
         self.entry_point = entry_point
         self.concurrency = concurrency
+        self.discovery_info: dict[str, str] | None = None
 
     def _load_workflow(self) -> tuple[Any, str, Any]:
         module = _load_workflow_module(self.workflow_path)
-        workflow = _find_workflow(module, entry_point=self.entry_point)
+        prov: dict[str, str] = {}
+        workflow = _find_workflow(
+            module,
+            entry_point=self.entry_point,
+            workflow_path=self.workflow_path,
+            provenance=prov,
+        )
+        self.discovery_info = prov if prov else None
         if workflow is None:
-            candidates = _list_candidates(module)
-            raise click.UsageError(
+            from pretia.wrapper_hint import build_wrapper_snippet
+
+            snippet = build_wrapper_snippet(module, [])
+            raise EntrypointError(
                 f"Could not find a workflow in '{self.workflow_path}'. "
                 f"No variable named graph/workflow/agent/app, no ainvoke/invoke object, "
-                f"and no async callable found. "
-                f"Available candidates: {candidates}. "
-                f"Use --entry-point <name> to specify which object to profile."
+                f"and no async callable found.",
+                rejected=[],
+                wrapper_snippet=snippet,
+                workflow_path=self.workflow_path,
             )
         system_prompt = _extract_system_prompt(module)
         return workflow, system_prompt, module
@@ -381,12 +1159,19 @@ class ProfileRunner:
 
         uses_openai_raw = module is not None and _module_uses_sdk(module, "openai")
         uses_langchain_openai = module is not None and _module_uses_sdk(module, "langchain_openai")
+        uses_langchain_anthropic = module is not None and _module_uses_sdk(
+            module, "langchain_anthropic"
+        )
         uses_anthropic_raw = module is not None and _module_uses_sdk(module, "anthropic")
 
         has_ainvoke = hasattr(workflow, "ainvoke")
         has_nodes = hasattr(workflow, "nodes")
         if has_ainvoke and has_nodes:
-            if uses_langchain_openai or not (uses_openai_raw or uses_anthropic_raw):
+            if (
+                uses_langchain_openai
+                or uses_langchain_anthropic
+                or not (uses_openai_raw or uses_anthropic_raw)
+            ):
                 from pretia.collectors.langgraph import LangGraphCollector
 
                 return LangGraphCollector()
@@ -419,6 +1204,26 @@ class ProfileRunner:
             from pretia.collectors.openai_sdk import OpenAISDKCollector
 
             return OpenAISDKCollector()
+
+        # Indirect SDK detection: wrapper frameworks (pydantic_ai, instructor,
+        # etc.) import openai/anthropic internally. If the workflow module uses
+        # one of these frameworks, pick the SDK collector based on what's loaded.
+        uses_wrapper = module is not None and any(
+            _module_uses_sdk(module, fw) for fw in _WRAPPER_FRAMEWORKS
+        )
+        if uses_wrapper:
+            if "anthropic" in sys.modules and "openai" in sys.modules:
+                from pretia.collectors.multi_sdk import MultiSDKCollector
+
+                return MultiSDKCollector()
+            if "anthropic" in sys.modules:
+                from pretia.collectors.anthropic_sdk import AnthropicCollector
+
+                return AnthropicCollector()
+            if "openai" in sys.modules:
+                from pretia.collectors.openai_sdk import OpenAISDKCollector
+
+                return OpenAISDKCollector()
 
         logger.info(
             "Using GenericCollector. Instrument your code with "
@@ -522,10 +1327,38 @@ class ProfileRunner:
             input_key = _detect_graph_input_key(graph)
 
             async def _ainvoke_wrapper(inp: str) -> Any:
-                payload: Any = inp if isinstance(inp, dict) else {input_key: inp}
-                return await graph.ainvoke(payload)
+                if isinstance(inp, dict):
+                    payload: Any = inp
+                elif input_key == "messages":
+                    from langchain_core.messages import HumanMessage
+
+                    payload = {"messages": [HumanMessage(content=inp)]}
+                else:
+                    payload = {input_key: inp}
+                config = {"configurable": {"thread_id": f"pretia-run-{uuid.uuid4()}"}}
+                return await graph.ainvoke(payload, config=config)
 
             return _ainvoke_wrapper
+
+        if inspect.isasyncgenfunction(workflow):
+            gen_fn = workflow
+
+            async def _drain_async_gen(inp: str) -> Any:
+                return [chunk async for chunk in gen_fn(inp)]
+
+            _drain_async_gen.__name__ = getattr(workflow, "__name__", "generator")
+            logger.info("Wrapped async generator in drain shim for profiling.")
+            return _drain_async_gen
+
+        if inspect.isgeneratorfunction(workflow):
+            gen_fn = workflow
+
+            async def _drain_sync_gen(inp: str) -> Any:
+                return await asyncio.to_thread(lambda: list(gen_fn(inp)))
+
+            _drain_sync_gen.__name__ = getattr(workflow, "__name__", "generator")
+            logger.info("Wrapped sync generator in drain shim for profiling.")
+            return _drain_sync_gen
 
         if callable(workflow) and not asyncio.iscoroutinefunction(workflow):
             sync_fn = workflow
@@ -614,18 +1447,110 @@ class ProfileRunner:
 
         return session
 
+    @staticmethod
+    def _validate_inputs(inputs: list[str], selection: InputSelection) -> list[str]:
+        """Validate and coerce the resolved input list before profiling runs."""
+        coerced: list[str] = []
+        for i, item in enumerate(inputs):
+            if isinstance(item, (str, dict)):
+                coerced.append(item)  # type: ignore[arg-type]
+            else:
+                logger.warning(
+                    "Input %d is %s (expected str), coercing via str().",
+                    i,
+                    type(item).__name__,
+                )
+                coerced.append(str(item))
+
+        non_blank = [
+            x for x in coerced if isinstance(x, dict) or (isinstance(x, str) and x.strip())
+        ]
+        if not non_blank:
+            hints: dict[str, str] = {
+                "file": ("Check that the inputs file contains at least one non-empty line."),
+                "langfuse": ("No traces returned — check LANGFUSE_* env vars and --last N."),
+                "auto-generate": (
+                    "Input generation returned nothing — check the generator model "
+                    "API key or pass --input explicitly."
+                ),
+            }
+            hint = hints.get(selection.mode, 'Pass --input "..." to supply one directly.')
+            raise ValueError(
+                f"Input resolution produced 0 inputs (mode: {selection.mode}); "
+                f"nothing to profile. {hint}"
+            )
+        return coerced
+
     async def run(self) -> ProfilingSession:
         """Execute the full profiling pipeline."""
         workflow, system_prompt, module = self._load_workflow()
+        entry_name = getattr(workflow, "__name__", type(workflow).__name__)
         collector = self._select_collector(workflow, module=module)
         workflow = self._maybe_wrap_sync(workflow, collector)
         selection, inputs = await self._resolve_inputs(system_prompt)
-        runs = await collector.collect(
-            workflow,
-            inputs,
-            on_run_complete=self.progress_callback,
-            concurrency=self.concurrency,
+        inputs = self._validate_inputs(inputs, selection)
+
+        total = len(inputs)
+        cb = self.progress_callback
+        collector_name = type(collector).__name__
+
+        def _preflight_cb(i: int, t: int, recs: list[StepRecord]) -> None:
+            if cb is not None:
+                cb(0, total, recs)
+
+        def _batch_cb(i: int, t: int, recs: list[StepRecord]) -> None:
+            if cb is not None:
+                cb(i + 1, total, recs)
+
+        first_runs = await collector.collect(
+            workflow, inputs[:1], on_run_complete=_preflight_cb, concurrency=1
         )
+        preflight_error = getattr(collector, "last_error", None)
+        first = first_runs[0] if first_runs else []
+
+        if not first:
+            if isinstance(preflight_error, BaseException):
+                exc_type = type(preflight_error).__name__
+                remaining = total - 1
+                raise ValueError(
+                    f"First profiling run failed with {exc_type}: {preflight_error}\n"
+                    f"No steps were captured, so the remaining {remaining} runs were "
+                    f"skipped. Common fixes: verify your API key/credentials are set; "
+                    f"confirm the entrypoint accepts a single input string; "
+                    f"run with -v for the full traceback."
+                ) from preflight_error
+            else:
+                remaining = total - 1
+                raise ValueError(
+                    f"First run executed successfully but captured 0 LLM steps, so the "
+                    f"remaining {remaining} runs were skipped.\n"
+                    f"Pretia profiled the entrypoint '{entry_name}' using "
+                    f"{collector_name}"
+                    + (
+                        f" (selected via: {self.discovery_info['rule']})"
+                        if self.discovery_info
+                        else ""
+                    )
+                    + ".\n"
+                    f"Likely causes:\n"
+                    f"  - '{entry_name}' is not your agent's real entrypoint (e.g. a "
+                    f"helper or tool function was auto-selected). Add a function named "
+                    f"workflow(user_input) that runs your agent end-to-end, or pass "
+                    f"--entry-point <name>.\n"
+                    f"  - The wrong collector was selected. Try --collector langgraph "
+                    f"| anthropic | openai-sdk | openai | qwen | generic.\n"
+                    f"  - Your workflow returns processed text instead of the raw LLM "
+                    f"response object."
+                )
+
+        rest = inputs[1:]
+        rest_runs: list[list[StepRecord]] = []
+        if rest:
+            rest_runs = await collector.collect(
+                workflow, rest, on_run_complete=_batch_cb, concurrency=self.concurrency
+            )
+        runs = first_runs + rest_runs
+        last_error = getattr(collector, "last_error", None) or preflight_error
 
         valid_runs = [r for r in runs if r]
         failed_count = len(runs) - len(valid_runs)
@@ -638,8 +1563,17 @@ class ProfileRunner:
 
         total_steps = sum(len(run) for run in valid_runs)
         if total_steps == 0:
+            if isinstance(last_error, BaseException):
+                exc_type = type(last_error).__name__
+                raise ValueError(
+                    f"Profiling captured 0 steps across {len(runs)} runs "
+                    f"({failed_count} runs raised errors). "
+                    f"Last error: {exc_type}: {last_error}\n"
+                    f"Run with -v for the full traceback."
+                ) from last_error
             raise ValueError(
-                "Profiling captured 0 steps across all runs. No LLM calls were recorded. "
+                f"Profiling captured 0 steps across {len(runs)} runs "
+                f"({failed_count} runs raised errors). No LLM calls were recorded. "
                 "Common causes: workflow returned response.content instead of the raw "
                 "response object, API key is invalid, or the wrong collector was "
                 "auto-selected. Try: --collector langgraph (for LangGraph workflows), "

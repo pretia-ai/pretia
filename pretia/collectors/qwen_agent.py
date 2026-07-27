@@ -233,6 +233,7 @@ class QwenAgentCollector(BaseCollector):
             inputs: Input strings to run the workflow on.
             on_run_complete: Optional callback after each run.
         """
+        self.last_error = None
         agent_name = _extract_agent_name(workflow)
         system_prompt = _extract_system_prompt(workflow)
         prompt_hash = hashlib.sha256(system_prompt.encode()).hexdigest()
@@ -255,10 +256,11 @@ class QwenAgentCollector(BaseCollector):
                 response_gen = workflow.run(messages)
                 for _ in response_gen:
                     pass
-            except Exception:
+            except (Exception, SystemExit) as exc:
+                self.last_error = exc
                 logger.warning(
                     "Workflow execution failed for input=%r, skipping",
-                    inp[:80],
+                    str(inp)[:80],
                     exc_info=True,
                 )
                 runs.append([])
@@ -276,7 +278,10 @@ class QwenAgentCollector(BaseCollector):
             )
             runs.append(steps)
             if on_run_complete is not None:
-                on_run_complete(i, total, steps)
+                try:
+                    on_run_complete(i, total, steps)
+                except Exception:
+                    logger.debug("on_run_complete callback failed", exc_info=True)
 
         return runs
 

@@ -108,6 +108,36 @@ class TestExtractModels:
         src = "run_step(model=some_variable)\n"
         assert _extract_models(src) == []
 
+    def test_class_attribute_model_detected(self) -> None:
+        src = (
+            "class Agent:\n"
+            '    MODEL = "gpt-4o"\n'
+            "    def run(self):\n"
+            "        client.create(model=self.MODEL)\n"
+        )
+        models = _extract_models(src)
+        assert len(models) == 1
+        assert models[0]["model_name"] == "gpt-4o"
+
+    def test_module_level_model_constant(self) -> None:
+        src = (
+            'MODEL = "gpt-4.1-nano"\ndef run(inp):\n    client.create(model=MODEL, messages=[])\n'
+        )
+        models = _extract_models(src)
+        assert len(models) == 1
+        assert models[0]["model_name"] == "gpt-4.1-nano"
+
+    def test_model_constant_without_call_site(self) -> None:
+        src = 'MODEL = "gpt-4o"\ndef run(inp): pass\n'
+        models = _extract_models(src)
+        assert len(models) == 1
+        assert models[0]["model_name"] == "gpt-4o"
+
+    def test_model_constant_unrecognized_not_added(self) -> None:
+        src = 'MODEL = "not-a-real-model"\ndef run(inp): pass\n'
+        models = _extract_models(src)
+        assert len(models) == 0
+
 
 class TestExtractSystemPrompts:
     def test_system_prompt_kwarg(self) -> None:

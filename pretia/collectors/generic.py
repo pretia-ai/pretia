@@ -226,6 +226,7 @@ class GenericCollector(BaseCollector):
         used directly.  Otherwise, the return value is inspected for token usage
         (works with raw Anthropic/OpenAI response objects).
         """
+        self.last_error = None
         runs: list[list[StepRecord]] = []
         total = len(inputs)
         for i, inp in enumerate(inputs):
@@ -235,7 +236,8 @@ class GenericCollector(BaseCollector):
                     result = await workflow(inp)
                     if not self._current_run:
                         _try_extract(tracker, result)
-            except Exception:
+            except (Exception, SystemExit) as exc:
+                self.last_error = exc
                 logger.error(
                     "Run %d/%d failed on input %.80s",
                     i + 1,

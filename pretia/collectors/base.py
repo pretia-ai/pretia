@@ -152,6 +152,11 @@ _DEFAULT_CONCURRENCY = 25
 class BaseCollector(ABC):
     """Interface that every framework-specific step collector implements."""
 
+    #: Last exception raised by a workflow run during collect(). Reset at the
+    #: start of each collect() call so the runner can attribute it to the
+    #: current batch. Diagnostic only — last-writer-wins under concurrency.
+    last_error: BaseException | None = None
+
     @abstractmethod
     async def collect(
         self,
@@ -179,9 +184,10 @@ class BaseCollector(ABC):
         workflow: Any,
         inputs: list[str],
         on_run_complete: Callable[[int, int, list[StepRecord]], None] | None = None,
+        concurrency: int | None = None,
     ) -> list[list[StepRecord]]:
         """Run `collect()` to completion synchronously. Convenience wrapper for CLI use."""
-        return asyncio.run(self.collect(workflow, inputs, on_run_complete))
+        return asyncio.run(self.collect(workflow, inputs, on_run_complete, concurrency))
 
 
 @dataclass(frozen=True, slots=True)

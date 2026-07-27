@@ -26,6 +26,7 @@ class MultiSDKCollector(BaseCollector):
         on_run_complete: Callable[[int, int, list[StepRecord]], None] | None = None,
         concurrency: int | None = None,
     ) -> list[list[StepRecord]]:
+        self.last_error = None
         total = len(inputs)
         results: list[list[StepRecord]] = [[] for _ in range(total)]
 
@@ -56,7 +57,8 @@ class MultiSDKCollector(BaseCollector):
             try:
                 async with sem:
                     await workflow(inp)
-            except Exception:
+            except (Exception, SystemExit) as exc:
+                self.last_error = exc
                 logger.error(
                     "Run %d/%d failed on input %.80s",
                     idx + 1,

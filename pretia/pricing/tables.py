@@ -12,8 +12,10 @@ _DATE_SUFFIX_RE = re.compile(r"-(\d{8}|\d{4}-\d{2}-\d{2})$")
 # announced pricing as of May 2026; see vendor docs for the source of truth.
 MODEL_PRICING: dict[str, tuple[float, float]] = {
     # Anthropic — https://docs.anthropic.com/en/docs/about-claude/pricing
+    "claude-opus-4-8": (5.00, 25.00),
     "claude-opus-4-7": (5.00, 25.00),
     "claude-opus-4-6": (5.00, 25.00),
+    "claude-sonnet-5": (3.00, 15.00),
     "claude-sonnet-4-6": (3.00, 15.00),
     "claude-haiku-4-5": (1.00, 5.00),
     # Legacy Anthropic — retiring June 15, 2026
@@ -104,6 +106,8 @@ MODEL_TIERS: dict[str, str] = {
     "gemini-2.5-pro": "frontier",
     "mistral-large-latest": "frontier",
     "deepseek-v4-pro": "frontier",
+    "claude-opus-4-8": "frontier",
+    "claude-sonnet-5": "mid",
     "claude-sonnet-4-6": "mid",
     "claude-sonnet-4-20250514": "mid",
     "gpt-4.1": "mid",
@@ -137,8 +141,10 @@ PRICING_LAST_UPDATED = "2026-06-05"
 
 MODEL_CACHE_HIT_PRICING: dict[str, float] = {
     # Anthropic — cache read is 10% of standard input price
+    "claude-opus-4-8": 0.50,
     "claude-opus-4-7": 0.50,
     "claude-opus-4-6": 0.50,
+    "claude-sonnet-5": 0.30,
     "claude-sonnet-4-6": 0.30,
     "claude-haiku-4-5": 0.10,
     "claude-opus-4-20250514": 1.50,

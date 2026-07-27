@@ -20,6 +20,11 @@ _MODEL_KWARGS = frozenset(
     }
 )
 
+_MODEL_CONST_RE = re.compile(
+    r"^(?:MODEL(?:_NAME|_ID)?|LLM_MODEL|DEFAULT_MODEL)$",
+    re.IGNORECASE,
+)
+
 _SYSTEM_PROMPT_KWARGS = frozenset(
     {
         "system",
@@ -318,7 +323,14 @@ def _extract_models(
     source: str,
     _parse_errors: list[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """Extract model references from the AST."""
+    """Extract model references from the AST.
+
+    Finds models in two ways:
+    1. Direct keyword arguments: ``create(model="gpt-4o")``
+    2. String constants assigned to model-named variables (``MODEL = "gpt-4o"``,
+       class attributes) — used when calls reference the variable indirectly
+       (``model=self.MODEL``, ``model=MODEL``).
+    """
     try:
         tree = ast.parse(source)
     except SyntaxError as exc:
@@ -329,7 +341,26 @@ def _extract_models(
         return []
 
     results: list[dict[str, Any]] = []
+    model_constants: dict[str, str] = {}
 
+    # First pass: collect string constants that look like model names.
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                name = None
+                if isinstance(target, ast.Name):
+                    name = target.id
+                elif isinstance(target, ast.Attribute):
+                    name = target.attr
+                if (
+                    name is not None
+                    and _MODEL_CONST_RE.match(name)
+                    and isinstance(node.value, ast.Constant)
+                    and isinstance(node.value.value, str)
+                ):
+                    model_constants[name] = node.value.value
+
+    # Second pass: extract from call sites.
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
@@ -345,26 +376,45 @@ def _extract_models(
             inner = node.func.value
             is_tool_call = True
 
-        for info in _extract_from_call(inner):
+        for info in _extract_from_call(inner, model_constants):
             info["is_tool_call"] = is_tool_call
             results.append(info)
+
+    # If no calls referenced any model but constants were found, check if
+    # any constant value is a recognized model name.
+    if not results and model_constants:
+        for _const_name, const_val in model_constants.items():
+            canonical, _, _ = _resolve_pricing(const_val)
+            if canonical is not None:
+                results.append(
+                    {
+                        "model_name": const_val,
+                        "step_name": None,
+                        "max_tokens": None,
+                        "is_tool_call": False,
+                    }
+                )
 
     return results
 
 
-def _extract_from_call(node: ast.Call) -> list[dict[str, Any]]:
+def _extract_from_call(
+    node: ast.Call,
+    model_constants: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
     """Extract model info from a function/constructor call node."""
     step_name = None
     max_tokens = None
     model_names: list[str] = []
 
     for kw in node.keywords:
-        if (
-            kw.arg in _MODEL_KWARGS
-            and isinstance(kw.value, ast.Constant)
-            and isinstance(kw.value.value, str)
-        ):
-            model_names.append(kw.value.value)
+        if kw.arg in _MODEL_KWARGS:
+            if isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str):
+                model_names.append(kw.value.value)
+            elif model_constants is not None:
+                ref_name = _resolve_name_ref(kw.value)
+                if ref_name and ref_name in model_constants:
+                    model_names.append(model_constants[ref_name])
         elif kw.arg == "step_name" and isinstance(kw.value, ast.Constant):
             step_name = kw.value.value
         elif (
@@ -378,6 +428,15 @@ def _extract_from_call(node: ast.Call) -> list[dict[str, Any]]:
         {"model_name": name, "step_name": step_name, "max_tokens": max_tokens}
         for name in model_names
     ]
+
+
+def _resolve_name_ref(node: ast.expr) -> str | None:
+    """Resolve ``self.MODEL``, ``cls.MODEL``, or bare ``MODEL`` to the attr name."""
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    if isinstance(node, ast.Name):
+        return node.id
+    return None
 
 
 def _extract_system_prompts(source: str) -> list[str]:

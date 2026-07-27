@@ -101,6 +101,7 @@ class AnthropicCollector(BaseCollector):
         on_run_complete: Callable[[int, int, list[StepRecord]], None] | None = None,
         concurrency: int | None = None,
     ) -> list[list[StepRecord]]:
+        self.last_error = None
         try:
             import anthropic.resources
         except ImportError as exc:
@@ -141,7 +142,8 @@ class AnthropicCollector(BaseCollector):
             try:
                 async with sem:
                     await workflow(inp)
-            except Exception:
+            except (Exception, SystemExit) as exc:
+                self.last_error = exc
                 logger.error(
                     "Run %d/%d failed on input %.80s",
                     idx + 1,
@@ -195,7 +197,11 @@ def _make_create_wrapper(
         return async_wrapper
 
     def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-        captured, _, counters = _run_ctx.get()
+        ctx = _run_ctx.get(None)
+        if ctx is None:
+            logger.debug("SDK call outside profiling context, skipping capture")
+            return original(*args, **kwargs)
+        captured, _, counters = ctx
         step_name, _ = _step_name_and_iteration(kwargs, captured)
         counters[step_name] = counters.get(step_name, 0) + 1
         iteration = counters[step_name]
@@ -232,7 +238,11 @@ def _make_stream_wrapper(
         return async_stream_wrapper
 
     def sync_stream_wrapper(*args: Any, **kwargs: Any) -> Any:
-        captured, _, counters = _run_ctx.get()
+        ctx = _run_ctx.get(None)
+        if ctx is None:
+            logger.debug("SDK call outside profiling context, skipping capture")
+            return original(*args, **kwargs)
+        captured, _, counters = ctx
         step_name, _ = _step_name_and_iteration(kwargs, captured)
         counters[step_name] = counters.get(step_name, 0) + 1
         iteration = counters[step_name]

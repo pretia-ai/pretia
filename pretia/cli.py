@@ -384,8 +384,36 @@ def run(
     except NotImplementedError as exc:
         console.print(f"[yellow]Not yet implemented:[/yellow] {exc}")
         sys.exit(1)
-    except click.UsageError:
-        raise
+    except click.UsageError as exc:
+        from pretia.runner import AmbiguousEntrypointError, EntrypointError
+
+        if isinstance(exc, AmbiguousEntrypointError):
+            _handle_ambiguous_entrypoint(
+                exc,
+                workflow_path=workflow_path,
+                collector=collector,
+                auto_generate=auto_generate,
+                single_input=single_input,
+                inputs_file=inputs_file,
+                from_langfuse=from_langfuse,
+                langfuse_last_n=langfuse_last_n,
+                output_dir=output_dir,
+                verbose=verbose,
+                allow_cache=allow_cache,
+                generator_model=generator_model,
+                corpus=corpus,
+                no_html=no_html,
+                no_open=no_open,
+                unit=unit,
+                current_cost=current_cost,
+                traffic=traffic,
+                concurrency=concurrency,
+                yes=yes,
+            )
+        elif isinstance(exc, EntrypointError):
+            _show_entrypoint_panel(exc)
+        else:
+            raise
     except Exception as exc:
         if verbose:
             console.print(traceback.format_exc())
@@ -394,6 +422,135 @@ def run(
                 f"[red]Error:[/red] {exc}\nRun with -v for full traceback.",
             )
         sys.exit(1)
+
+
+def _handle_ambiguous_entrypoint(
+    exc: click.UsageError,
+    *,
+    workflow_path: str,
+    yes: bool,
+    **run_kwargs: object,
+) -> None:
+    """Show a numbered picker for ambiguous entrypoints, or fall through to panel."""
+    from pretia.runner import AmbiguousEntrypointError, EntrypointError
+
+    assert isinstance(exc, AmbiguousEntrypointError)
+    candidates = exc.candidates
+    is_tty = sys.stdin.isatty()
+
+    if is_tty and not yes:
+        console.print()
+        console.print("[bold]Which function is your workflow entrypoint?[/bold]")
+        for i, (_name, sig) in enumerate(candidates, 1):
+            console.print(f"  {i}. {sig}")
+        console.print(f"  {len(candidates) + 1}. None of these — show me how to add a wrapper")
+        console.print()
+
+        choice = click.prompt(
+            "Pick a number",
+            type=click.IntRange(1, len(candidates) + 1),
+        )
+
+        if choice <= len(candidates):
+            picked_name = candidates[choice - 1][0]
+            console.print(
+                f"\n  Using [bold]{picked_name}[/bold]  "
+                f"(tip: pass [bold]--entry-point {picked_name}[/bold] to skip this next time)\n"
+            )
+            ctx = click.get_current_context()
+            ctx.invoke(
+                run,
+                workflow_path=workflow_path,
+                entry_point=picked_name,
+                yes=yes,
+                **run_kwargs,
+            )
+            return
+
+    from pretia.wrapper_hint import build_wrapper_snippet
+
+    module = None
+    try:
+        from pretia.runner import _load_workflow_module
+
+        module = _load_workflow_module(workflow_path)
+    except Exception:
+        logging.debug("Could not reload module for wrapper snippet", exc_info=True)
+
+    snippet = build_wrapper_snippet(module, []) if module else ""
+    panel_exc = EntrypointError(
+        str(exc),
+        rejected=[],
+        wrapper_snippet=snippet,
+        workflow_path=workflow_path,
+    )
+    _show_entrypoint_panel(panel_exc)
+
+
+def _show_entrypoint_panel(exc: click.UsageError) -> None:
+    """Render a friendly rich Panel for EntrypointError and exit."""
+    from rich.panel import Panel
+    from rich.syntax import Syntax
+    from rich.text import Text
+
+    from pretia.runner import EntrypointError
+
+    assert isinstance(exc, EntrypointError)
+    wp = exc.workflow_path or "your script"
+
+    parts: list[Text | Syntax] = []
+    parts.append(
+        Text.assemble(
+            (
+                "Pretia calls your workflow as a single-input function, "
+                f"and couldn't find one in {wp}.\n",
+                "",
+            ),
+        )
+    )
+
+    if exc.rejected:
+        parts.append(Text("\nCandidates that didn't fit:\n", style="dim"))
+        from pretia.runner import _rejection_reason, _signature_str
+
+        seen: set[str] = set()
+        for name, obj in exc.rejected:
+            sig = _signature_str(name, obj)
+            if sig in seen:
+                continue
+            seen.add(sig)
+            parts.append(
+                Text.assemble(
+                    ("  - ", "dim"),
+                    (sig, "bold"),
+                    (f" — {_rejection_reason(obj)}", "dim"),
+                    ("\n", ""),
+                )
+            )
+
+    if exc.wrapper_snippet:
+        parts.append(Text("\nAdd this to your script:\n\n", style=""))
+        parts.append(Syntax(exc.wrapper_snippet, "python", theme="monokai", line_numbers=False))
+
+    parts.append(
+        Text.assemble(
+            ("\n\nThen re-run: ", "dim"),
+            (f"pretia profile run {wp}", "bold"),
+            ("\n", ""),
+        )
+    )
+
+    from rich.console import Group
+
+    console.print()
+    console.print(
+        Panel(
+            Group(*parts),
+            title="[bold yellow]One small step needed[/bold yellow]",
+            expand=False,
+        )
+    )
+    sys.exit(1)
 
 
 @cli.command("report")
@@ -1488,15 +1645,22 @@ def doctor_cmd(workflow_path: str | None) -> None:
                 str(p),
             )
 
-            try:
-                from pretia.runner import ProfileRunner
+            from pretia.runner import (
+                AmbiguousEntrypointError,
+                EntrypointError,
+                ProfileRunner,
+            )
 
+            try:
                 runner = ProfileRunner(workflow_path=workflow_path)
                 workflow, _prompt, module = runner._load_workflow()
+                info = runner.discovery_info or {}
+                ep_name = info.get("entrypoint", type(workflow).__name__)
+                rule = info.get("rule", "unknown")
                 table.add_row(
-                    "Workflow import",
-                    "[green]OK[/green]",
-                    f"Found: {type(workflow).__name__}",
+                    "Entrypoint",
+                    "[green]auto-detected[/green]",
+                    f"{ep_name} — via {rule}",
                 )
 
                 collector = runner._select_collector(workflow, module=module)
@@ -1510,6 +1674,13 @@ def doctor_cmd(workflow_path: str | None) -> None:
                     "Workflow import",
                     "[red]FAIL[/red]",
                     f"Missing dependency: {exc}",
+                )
+            except (AmbiguousEntrypointError, EntrypointError) as exc:
+                first_line = str(exc).split("\n")[0][:80]
+                table.add_row(
+                    "Entrypoint",
+                    "[yellow]needs input[/yellow]",
+                    first_line,
                 )
             except Exception as exc:
                 table.add_row(

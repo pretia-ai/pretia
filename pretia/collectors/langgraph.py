@@ -7,6 +7,7 @@ import hashlib
 import json
 import logging
 import time
+import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -360,6 +361,19 @@ class PretiaCallbackHandler(BaseCallbackHandler):
         return ""
 
 
+def _has_messages_state(graph: Any) -> bool:
+    """Check if a LangGraph compiled graph uses 'messages' in its state."""
+    builder = getattr(graph, "builder", None)
+    if builder is not None:
+        schema = getattr(builder, "schema", None)
+        if schema is not None:
+            return "messages" in getattr(schema, "__annotations__", {})
+    channels = getattr(graph, "channels", None)
+    if channels and isinstance(channels, dict):
+        return "messages" in channels
+    return False
+
+
 class LangGraphCollector(BaseCollector):
     """Auto-instrument LangGraph workflows via LangChain callback injection."""
 
@@ -374,14 +388,25 @@ class LangGraphCollector(BaseCollector):
 
         Runs execute concurrently via asyncio.gather for faster profiling.
         """
+        self.last_error = None
         total = len(inputs)
         results: list[list[StepRecord]] = [[] for _ in range(total)]
         sem = asyncio.Semaphore(concurrency or _DEFAULT_CONCURRENCY)
 
         async def _run_one(idx: int, inp: Any) -> None:
             handler = PretiaCallbackHandler()
-            config: dict[str, Any] = {"callbacks": [handler]}
-            payload: Any = inp if isinstance(inp, dict) else {"input": inp}
+            config: dict[str, Any] = {
+                "callbacks": [handler],
+                "configurable": {"thread_id": f"pretia-run-{uuid.uuid4()}"},
+            }
+            if isinstance(inp, dict):
+                payload: Any = inp
+            elif _has_messages_state(workflow):
+                from langchain_core.messages import HumanMessage
+
+                payload = {"messages": [HumanMessage(content=inp)]}
+            else:
+                payload = {"input": inp}
 
             try:
                 async with sem:
@@ -392,7 +417,8 @@ class LangGraphCollector(BaseCollector):
                     else:
                         logger.warning("Workflow has neither ainvoke nor invoke — skipping input")
                         return
-            except Exception:
+            except (Exception, SystemExit) as exc:
+                self.last_error = exc
                 logger.error(
                     "Run %d/%d failed on input %.80s",
                     idx + 1,

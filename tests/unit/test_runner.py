@@ -87,23 +87,23 @@ class TestBuildCostSummary:
 class TestWorkflowLoading:
     def test_found_by_graph_attr(self, tmp_path):
         f = tmp_path / "agent.py"
-        f.write_text("graph = 'fake_workflow'\n")
+        f.write_text("class _G:\n    def ainvoke(self, x): return x\ngraph = _G()\n")
         runner = ProfileRunner(
             workflow_path=str(f),
             single_input="test",
         )
         workflow, _, _mod = runner._load_workflow()
-        assert workflow == "fake_workflow"
+        assert hasattr(workflow, "ainvoke")
 
     def test_found_by_workflow_attr(self, tmp_path):
         f = tmp_path / "agent.py"
-        f.write_text("workflow = 'my_wf'\n")
+        f.write_text("workflow = lambda x: x\n")
         runner = ProfileRunner(
             workflow_path=str(f),
             single_input="test",
         )
         workflow, _, _mod = runner._load_workflow()
-        assert workflow == "my_wf"
+        assert callable(workflow)
 
     def test_not_found_raises(self, tmp_path):
         f = tmp_path / "empty.py"
@@ -189,14 +189,24 @@ class TestInputPassthrough:
 class TestFullPipeline:
     def test_happy_path(self, tmp_path):
         wf = tmp_path / "agent.py"
-        wf.write_text("graph = 'fake'\n")
+        wf.write_text("async def workflow(inp): return inp\n")
         out_dir = tmp_path / "output"
 
         records = [
             _make_record("classify", "gpt-4o-mini", 100, 50),
             _make_record("respond", "gpt-4o-mini", 200, 100),
         ]
-        mock_runs = [records, records]
+
+        # The runner now calls collect() twice: preflight (1 input) + batch (rest).
+        # With 3 inputs: first call returns [[records]], second returns [records, records].
+        call_count = 0
+
+        async def _collect_side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return [records]
+            return [records, records]
 
         with (
             patch(
@@ -205,22 +215,23 @@ class TestFullPipeline:
             patch(
                 "pretia.runner.generate_inputs",
                 new_callable=AsyncMock,
-                return_value=["input1", "input2"],
+                return_value=["input1", "input2", "input3"],
             ),
         ):
             fake_collector = AsyncMock()
-            fake_collector.collect = AsyncMock(return_value=mock_runs)
+            fake_collector.last_error = None
+            fake_collector.collect = AsyncMock(side_effect=_collect_side_effect)
             mock_coll.return_value = fake_collector
 
             runner = ProfileRunner(
                 workflow_path=str(wf),
-                auto_generate=2,
+                auto_generate=3,
                 output_dir=str(out_dir),
             )
             session = runner.run_sync()
 
-        assert session.sample_size == 2
-        assert len(session.runs) == 2
+        assert session.sample_size == 3
+        assert len(session.runs) == 3
         assert session.workflow_name == str(wf)
         assert "cost_summary" in session.metadata
         assert "stats" in session.metadata
@@ -232,7 +243,7 @@ class TestFullPipeline:
         assert cost["mean_cost_per_run"] > 0
 
         stats = session.metadata["stats"]
-        assert stats["total_runs"] == 2
+        assert stats["total_runs"] == 3
         assert isinstance(session.metadata["patterns"], list)
 
         proj = session.metadata["projection"]
@@ -245,7 +256,7 @@ class TestFullPipeline:
 
     def test_profile_saved_to_disk(self, tmp_path):
         wf = tmp_path / "agent.py"
-        wf.write_text("graph = 'fake'\n")
+        wf.write_text("async def workflow(inp): return inp\n")
         out_dir = tmp_path / "profiles"
 
         with (
@@ -259,6 +270,8 @@ class TestFullPipeline:
             ),
         ):
             fake_collector = AsyncMock()
+            fake_collector.last_error = None
+            # Single input: only one collect() call (preflight only, no batch).
             fake_collector.collect = AsyncMock(
                 return_value=[[_make_record()]],
             )

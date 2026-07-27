@@ -23,6 +23,9 @@ def validate_profiling_data(records: list[list[StepRecord]]) -> list[str]:
         step_tokens: dict[str, int] = defaultdict(int)
         steps_seen: set[str] = set()
         for rec in run:
+            # Tool invocations legitimately consume no LLM tokens.
+            if rec.step_type == "tool":
+                continue
             step_tokens[rec.step_name] += rec.input_tokens + rec.output_tokens
             steps_seen.add(rec.step_name)
 
