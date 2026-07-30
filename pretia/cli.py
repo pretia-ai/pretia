@@ -1100,10 +1100,19 @@ _RAG_IMPORTS = frozenset(
     {
         "langchain.vectorstores",
         "langchain_community.vectorstores",
+        "langchain_chroma",
+        "langchain_pinecone",
+        "langchain_qdrant",
+        "langchain_weaviate",
+        "langchain_milvus",
+        "langchain_postgres",
         "chromadb",
         "pinecone",
         "faiss",
         "qdrant_client",
+        "weaviate",
+        "pymilvus",
+        "pgvector",
     }
 )
 

@@ -106,7 +106,8 @@ def _extract_tool_name(response: Any) -> str | None:
 
 
 class OpenAISDKCollector(BaseCollector):
-    """Intercept ``openai.chat.completions.create`` calls to capture token usage.
+    """Intercept ``openai.chat.completions.create`` and ``embeddings.create``
+    calls to capture token usage.
 
     Runs execute concurrently via asyncio.gather for faster profiling.
     """
@@ -142,6 +143,24 @@ class OpenAISDKCollector(BaseCollector):
             wrapped = _make_create_wrapper(original_create, is_async)
             patches.append((target, "create", original_create))
             target.create = wrapped  # noqa: B010
+
+        # Embedding calls (RAG query embedding) live in a separate resource module.
+        try:
+            import openai.resources.embeddings as _embeddings_module
+        except ImportError:
+            _embeddings_module = None
+        if _embeddings_module is not None:
+            for cls_name in ("AsyncEmbeddings", "Embeddings"):
+                target = getattr(_embeddings_module, cls_name, None)
+                if target is None:
+                    continue
+                original_create = getattr(target, "create", None)
+                if original_create is None:
+                    continue
+                is_async = "Async" in cls_name
+                wrapped = _make_embeddings_wrapper(original_create, is_async)
+                patches.append((target, "create", original_create))
+                target.create = wrapped  # noqa: B010
 
         sem = asyncio.Semaphore(concurrency or _DEFAULT_CONCURRENCY)
 
@@ -239,6 +258,82 @@ def _make_create_wrapper(
         return response
 
     return sync_wrapper
+
+
+def _make_embeddings_wrapper(
+    original: Any,
+    is_async: bool,
+) -> Any:
+    if is_async:
+
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+            ctx = _run_ctx.get(None)
+            if ctx is None:
+                return await original(*args, **kwargs)
+            captured, lock, counters = ctx
+            caller = get_caller_name()
+            step_name = f"{caller}_embedding"
+            async with lock:
+                counters[step_name] = counters.get(step_name, 0) + 1
+                iteration = counters[step_name]
+            t0 = time.monotonic_ns()
+            response = await original(*args, **kwargs)
+            async with lock:
+                _record_from_embedding_response(response, t0, captured, step_name, iteration)
+            return response
+
+        return async_wrapper
+
+    def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+        ctx = _run_ctx.get(None)
+        if ctx is None:
+            return original(*args, **kwargs)
+        captured, _, counters = ctx
+        caller = get_caller_name()
+        step_name = f"{caller}_embedding"
+        counters[step_name] = counters.get(step_name, 0) + 1
+        iteration = counters[step_name]
+        t0 = time.monotonic_ns()
+        response = original(*args, **kwargs)
+        _record_from_embedding_response(response, t0, captured, step_name, iteration)
+        return response
+
+    return sync_wrapper
+
+
+def _record_from_embedding_response(
+    response: Any,
+    t0_ns: int,
+    captured: list[StepRecord],
+    step_name: str,
+    iteration: int,
+) -> None:
+    """Extract token usage from an OpenAI CreateEmbeddingResponse."""
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return
+    model = getattr(response, "model", "unknown") or "unknown"
+    input_tokens = getattr(usage, "prompt_tokens", 0) or 0
+    duration_ms = (time.monotonic_ns() - t0_ns) // 1_000_000
+    captured.append(
+        StepRecord(
+            step_name=step_name,
+            step_type="retrieval",
+            model=model,
+            input_tokens=input_tokens,
+            output_tokens=0,
+            context_size=input_tokens,
+            tool_definitions_tokens=0,
+            system_prompt_hash=hashlib.sha256(b"").hexdigest(),
+            system_prompt_tokens=0,
+            output_format="text",
+            is_retry=False,
+            iteration=iteration,
+            parent_step=None,
+            duration_ms=duration_ms,
+            timestamp=datetime.now(UTC),
+        )
+    )
 
 
 class _AsyncStreamCapture:

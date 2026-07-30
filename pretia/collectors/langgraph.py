@@ -300,6 +300,82 @@ class PretiaCallbackHandler(BaseCallbackHandler):
         except Exception:
             logger.debug("Failed to process on_tool_end for run_id=%s", run_id, exc_info=True)
 
+    def on_retriever_start(
+        self,
+        serialized: dict[str, Any],
+        query: str,
+        *,
+        run_id: UUID,
+        parent_run_id: UUID | None = None,
+        **kwargs: Any,
+    ) -> None:
+        try:
+            step_name = (
+                serialized.get("name")
+                or kwargs.get("name")
+                or self._find_node_name(parent_run_id)
+                or "retriever"
+            )
+            self._inflight[run_id] = {
+                "step_name": step_name,
+                "step_type": "retrieval",
+                "start_ns": time.monotonic_ns(),
+                "timestamp": datetime.now(UTC),
+            }
+        except Exception:
+            logger.debug(
+                "Failed to process on_retriever_start for run_id=%s", run_id, exc_info=True
+            )
+
+    def on_retriever_end(
+        self,
+        documents: Any,
+        *,
+        run_id: UUID,
+        **kwargs: Any,
+    ) -> None:
+        try:
+            inflight = self._inflight.pop(run_id, None)
+            if inflight is None:
+                logger.debug("on_retriever_end for unknown run_id=%s (missed start event)", run_id)
+                return
+
+            duration_ms = (time.monotonic_ns() - inflight["start_ns"]) // 1_000_000
+            step_name = inflight["step_name"]
+            iteration = self._next_iteration(step_name)
+
+            # Token counts stay 0: retrieved context is billed on the downstream
+            # LLM call's input tokens, and counting it here would double-count.
+            record = StepRecord(
+                step_name=step_name,
+                step_type="retrieval",
+                model="",
+                input_tokens=0,
+                output_tokens=0,
+                context_size=0,
+                tool_definitions_tokens=0,
+                system_prompt_hash=_EMPTY_HASH,
+                system_prompt_tokens=0,
+                output_format="text",
+                is_retry=False,
+                iteration=iteration,
+                parent_step=None,
+                duration_ms=duration_ms,
+                timestamp=inflight["timestamp"],
+            )
+            self.records.append(record)
+        except Exception:
+            logger.debug("Failed to process on_retriever_end for run_id=%s", run_id, exc_info=True)
+
+    def on_retriever_error(
+        self,
+        error: BaseException,
+        *,
+        run_id: UUID,
+        **kwargs: Any,
+    ) -> None:
+        self._inflight.pop(run_id, None)
+
     @staticmethod
     def _extract_tokens(response: LLMResult) -> tuple[int, int]:
         """Pull input/output token counts from whichever location LangChain put them."""

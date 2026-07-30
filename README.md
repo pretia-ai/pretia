@@ -59,6 +59,18 @@ pretia profile run my_agent.py
 
 Any module-level compiled graph, agent object with `.invoke()`/`.ainvoke()`, or function that takes one input string works. Message-based graph states are handled automatically (the input string is wrapped in a `HumanMessage`). If Pretia picks the wrong entrypoint or can't find one, point it at the right object with `--entry-point <name>`. The error messages will tell you exactly what it looked at and why it was rejected.
 
+### RAG workflows
+
+Pretia auto-detects RAG patterns (imports from `langchain.vectorstores`, `chromadb`, `pinecone`, `faiss`, `qdrant_client`) and warns you when synthetic inputs might not trigger retrieval effectively. For accurate profiling of a RAG pipeline, point Pretia at your document corpus so generated inputs are grounded in your actual data:
+
+```bash
+pretia profile run rag_agent.py --corpus ./docs/
+```
+
+Without `--corpus`, the auto-generated inputs are based on the system prompt alone and may not match anything in your vector store, so retrieval returns little and the generation calls look artificially cheap. With it, inputs are generated from your documents so retrieval and generation both get exercised realistically.
+
+What gets measured: every LLM call (including the full retrieved context stuffed into the prompt, which is where nearly all RAG cost lives), query-time embedding calls (captured automatically via the OpenAI SDK, priced with the embedding models in the pricing table), and retriever steps (LangChain/LangGraph retrievers show up as retrieval nodes with their latency). The report breaks down retrieval vs. generation so you can see exactly where the money goes.
+
 ## Features
 
 ### Distributional Projections
@@ -184,6 +196,7 @@ pretia profile run workflow.py --concurrency 10    # Limit parallel profiling ru
 pretia profile run workflow.py --allow-cache       # Measure with prompt caching on
 pretia profile run workflow.py --input "test"      # Single specific input
 pretia profile run workflow.py --entry-point app   # Choose the workflow object explicitly
+pretia profile run workflow.py --corpus ./docs/    # RAG: generate inputs from your documents
 ```
 
 ## Supported Frameworks
