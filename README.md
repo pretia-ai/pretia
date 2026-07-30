@@ -57,7 +57,7 @@ app = builder.compile()  # Pretia finds `app` automatically
 pretia profile run my_agent.py
 ```
 
-Any module-level compiled graph, agent object with `.invoke()`/`.ainvoke()`, or function that takes one input string works. Message-based graph states are handled automatically (the input string is wrapped in a `HumanMessage`). If Pretia picks the wrong entrypoint or can't find one, point it at the right object with `--entry-point <name>` — the error messages will tell you exactly what it looked at and why it was rejected.
+Any module-level compiled graph, agent object with `.invoke()`/`.ainvoke()`, or function that takes one input string works. Message-based graph states are handled automatically (the input string is wrapped in a `HumanMessage`). If Pretia picks the wrong entrypoint or can't find one, point it at the right object with `--entry-point <name>`. The error messages will tell you exactly what it looked at and why it was rejected.
 
 ## Features
 
@@ -79,7 +79,7 @@ If something will surprise you at scale, the report flags it.
 
 ### Optimization Recommendations
 
-Each recommendation comes with estimated monthly savings in dollars. Pretia identifies where you're overspending and suggests specific changes. All estimates are conservative - actual savings are typically higher.
+Each recommendation comes with estimated monthly savings in dollars. Pretia identifies where you're overspending and suggests specific changes. All estimates are conservative; actual savings are typically higher.
 
 ### Optimization Score
 
@@ -97,7 +97,7 @@ A friction ladder from zero effort to maximum precision:
 | 3 | `--from-langfuse --last 100` | Re-run your workflow on real production inputs pulled from Langfuse. | Execution only |
 | 4 | `--inputs samples.jsonl` | User-curated test dataset. Maximum precision. | Execution only |
 
-Already have production traces? `pretia analyze --from-langfuse` projects costs directly from your existing Langfuse traces with **zero execution and zero cost** — see [Analyze production traces](#analyze-production-traces-langfuse).
+Already have production traces? `pretia analyze --from-langfuse` projects costs directly from your existing Langfuse traces with **zero execution and zero cost**. See [Analyze production traces](#analyze-production-traces-langfuse).
 
 ## Analyze Production Traces (Langfuse)
 
@@ -113,7 +113,7 @@ export LANGFUSE_HOST=https://cloud.langfuse.com  # default; set for self-hosted
 pretia analyze --from-langfuse --last 100 --traffic 5000
 ```
 
-What happens: Pretia fetches your most recent traces via the Langfuse API (`--last N`, default 10, max 100; filter by workflow with `--name`), converts each trace's observations into step records, and runs the full projection pipeline — distributional stats, pattern detection, Monte Carlo when needed, HTML report. No code, no re-execution, no API spend.
+What happens: Pretia fetches your most recent traces via the Langfuse API (`--last N`, default 10, max 100; filter by workflow with `--name`), converts each trace's observations into step records, and runs the full projection pipeline: distributional stats, pattern detection, Monte Carlo when needed, HTML report. No code, no re-execution, no API spend.
 
 One requirement: your traces need `GENERATION` observations with usage data (model + token counts). If your instrumentation only logs spans, token counts read as zero and Pretia will warn you.
 
@@ -121,7 +121,7 @@ One requirement: your traces need `GENERATION` observations with usage data (mod
 
 Pretia ships a GitHub Action that comments on every PR with cost analysis.
 
-**Diff-only mode** (free, default): static analysis in seconds.
+**Diff-only mode** (free, the default): static analysis in seconds.
 
 ```yaml
 # .github/workflows/pretia.yml
