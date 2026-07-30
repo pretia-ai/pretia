@@ -66,8 +66,7 @@ qwen-workspace-singapore.csv
 
 # Docs (most are local-only; public ones are force-tracked)
 docs/
-!docs/system-architecture-guide.md
-!docs/known-limitations.md
+!docs/customer_support_agent_demo.html
 
 # Claude Code local config
 .claude/
