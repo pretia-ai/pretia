@@ -10,6 +10,10 @@ Pre-deployment cost intelligence for AI agent workflows. Two commands, zero conf
 pip install pretia
 ```
 
+Requires Python 3.11+.
+
+Profiling runs your workflow with real API calls, so your provider key must be set in the environment (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.). `pretia estimate` is the only command that needs no key.
+
 ## Quick Start
 
 **Zero-cost estimate** (static analysis, no execution):
@@ -26,7 +30,34 @@ This gives you a conservative upper bound. Static analysis reads your code but c
 pretia profile run my_agent.py
 ```
 
-This runs your workflow with real API calls and produces accurate distributional projections (typically within 10% of production costs). No config files, no JSONL datasets, no setup. Pretia reads your workflow, generates diverse synthetic inputs, runs profiling passes in parallel, detects patterns, and opens an HTML report with projections and recommendations.
+This runs your workflow with real API calls and produces accurate distributional projections (typically within 10% of production costs). No config files, no JSONL datasets, no setup. Pretia reads your workflow, generates diverse synthetic inputs, runs profiling passes in parallel, detects patterns, and opens an HTML report with projections and recommendations. Profiles are saved as JSON in `.pretia/` so you can re-render reports or diff them later.
+
+### What Pretia expects from your file
+
+Pretia imports your file, finds your workflow, and calls it as `entrypoint(input)` with a single input string. A minimal LangGraph example:
+
+```python
+# my_agent.py
+from langchain.chat_models import init_chat_model
+from langgraph.graph import END, START, MessagesState, StateGraph
+
+llm = init_chat_model("openai:gpt-4o-mini")
+
+def respond(state: MessagesState):
+    return {"messages": [llm.invoke(state["messages"])]}
+
+builder = StateGraph(MessagesState)
+builder.add_node("respond", respond)
+builder.add_edge(START, "respond")
+builder.add_edge("respond", END)
+app = builder.compile()  # Pretia finds `app` automatically
+```
+
+```bash
+pretia profile run my_agent.py
+```
+
+Any module-level compiled graph, agent object with `.invoke()`/`.ainvoke()`, or function that takes one input string works. Message-based graph states are handled automatically (the input string is wrapped in a `HumanMessage`). If Pretia picks the wrong entrypoint or can't find one, point it at the right object with `--entry-point <name>` — the error messages will tell you exactly what it looked at and why it was rejected.
 
 ## Features
 
@@ -63,8 +94,28 @@ A friction ladder from zero effort to maximum precision:
 | 0 | `pretia estimate workflow.py` | Static code analysis only. No execution. | Free |
 | 1 | `--input "How do I reset my password?"` | One run + priors for variance estimation. | ~$0.10 |
 | 2 | `--auto-generate N` **(default)** | LLM generates diverse inputs from system prompt. | ~$2 |
-| 3 | `--from-langfuse --last 100` | Pull real inputs from Langfuse production traces. | Free |
+| 3 | `--from-langfuse --last 100` | Re-run your workflow on real production inputs pulled from Langfuse. | Execution only |
 | 4 | `--inputs samples.jsonl` | User-curated test dataset. Maximum precision. | Execution only |
+
+Already have production traces? `pretia analyze --from-langfuse` projects costs directly from your existing Langfuse traces with **zero execution and zero cost** — see [Analyze production traces](#analyze-production-traces-langfuse).
+
+## Analyze Production Traces (Langfuse)
+
+If your agent is already in production with Langfuse tracing, Pretia can project costs from your existing traces without executing anything:
+
+```bash
+pip install pretia[langfuse]
+
+export LANGFUSE_SECRET_KEY=sk-lf-...
+export LANGFUSE_PUBLIC_KEY=pk-lf-...
+export LANGFUSE_HOST=https://cloud.langfuse.com  # default; set for self-hosted
+
+pretia analyze --from-langfuse --last 100 --traffic 5000
+```
+
+What happens: Pretia fetches your most recent traces via the Langfuse API (`--last N`, default 10, max 100; filter by workflow with `--name`), converts each trace's observations into step records, and runs the full projection pipeline — distributional stats, pattern detection, Monte Carlo when needed, HTML report. No code, no re-execution, no API spend.
+
+One requirement: your traces need `GENERATION` observations with usage data (model + token counts). If your instrumentation only logs spans, token counts read as zero and Pretia will warn you.
 
 ## Add to Your CI in 2 Minutes
 
@@ -121,7 +172,8 @@ pretia baseline update profile.json     # Save baseline for CI diffing
 pretia diff baseline.json new.json      # Compare profiles, show per-step deltas
 pretia doctor                           # Environment and dependency health check
 pretia doctor workflow.py               # Also verify workflow loads correctly
-pretia update-pricing                   # Fetch latest model pricing from providers
+pretia update-pricing                   # Refresh model pricing from community data (LiteLLM)
+pretia update-pricing --file p.json     # Or load custom pricing from a local JSON file
 ```
 
 ### Useful flags
@@ -131,6 +183,7 @@ pretia profile run workflow.py --traffic 5000      # Project costs at 5K runs/da
 pretia profile run workflow.py --concurrency 10    # Limit parallel profiling runs
 pretia profile run workflow.py --allow-cache       # Measure with prompt caching on
 pretia profile run workflow.py --input "test"      # Single specific input
+pretia profile run workflow.py --entry-point app   # Choose the workflow object explicitly
 ```
 
 ## Supported Frameworks

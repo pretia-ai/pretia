@@ -9,9 +9,12 @@ _DATE_SUFFIX_RE = re.compile(r"-(\d{8}|\d{4}-\d{2}-\d{2})$")
 
 # Per-million-token pricing in USD: (input_price_per_M, output_price_per_M).
 # Updated manually when vendors change rates. Numbers reflect publicly
-# announced pricing as of May 2026; see vendor docs for the source of truth.
+# announced pricing as of July 2026; see vendor docs for the source of truth.
+# Policy: standard list prices, never promotional/introductory rates —
+# projections target ongoing monthly cost, and promos expire.
 MODEL_PRICING: dict[str, tuple[float, float]] = {
     # Anthropic — https://docs.anthropic.com/en/docs/about-claude/pricing
+    "claude-fable-5": (10.00, 50.00),
     "claude-opus-4-8": (5.00, 25.00),
     "claude-opus-4-7": (5.00, 25.00),
     "claude-opus-4-6": (5.00, 25.00),
@@ -23,8 +26,8 @@ MODEL_PRICING: dict[str, tuple[float, float]] = {
     "claude-sonnet-4-20250514": (3.00, 15.00),
     # OpenAI — https://openai.com/api/pricing/
     "gpt-5.5": (5.00, 30.00),
-    "gpt-5.4": (2.50, 10.00),
-    "gpt-5.4-nano": (0.12, 0.48),
+    "gpt-5.4": (2.50, 15.00),
+    "gpt-5.4-nano": (0.20, 1.25),
     "gpt-4.1": (2.00, 8.00),
     "gpt-4.1-mini": (0.40, 1.60),
     "gpt-4.1-nano": (0.10, 0.40),
@@ -38,13 +41,13 @@ MODEL_PRICING: dict[str, tuple[float, float]] = {
     # Google Gemini — https://ai.google.dev/gemini-api/docs/pricing
     # Prices shown for ≤200k-context tier.
     "gemini-2.5-pro": (1.25, 10.00),
-    "gemini-2.5-flash": (0.15, 0.60),
+    "gemini-2.5-flash": (0.30, 2.50),
     # Meta Llama via Together AI — https://www.together.ai/pricing
     "llama-4-maverick": (0.27, 0.85),
-    "llama-4-scout": (0.10, 0.40),
-    # Mistral — https://mistral.ai/pricing
-    "mistral-large-latest": (2.00, 6.00),
-    "mistral-small-latest": (0.10, 0.30),
+    "llama-4-scout": (0.08, 0.30),
+    # Mistral — https://mistral.ai/pricing ("latest" = Large 3 / Small 4 as of July 2026)
+    "mistral-large-latest": (0.50, 1.50),
+    "mistral-small-latest": (0.15, 0.60),
     # DeepSeek — https://api-docs.deepseek.com/quick_start/pricing
     # DeepSeek cache-hit pricing is dramatically cheaper ($0.0028/MTok for V4 Flash).
     # v1 uses cache-miss rates for conservative projections. Actual costs will be
@@ -67,6 +70,7 @@ MODEL_PRICING: dict[str, tuple[float, float]] = {
 }
 
 MODEL_ALIASES: dict[str, str] = {
+    "claude-fable": "claude-fable-5",
     "claude-opus-4": "claude-opus-4-7",
     "claude-sonnet-4": "claude-sonnet-4-6",
     "claude-haiku-4": "claude-haiku-4-5",
@@ -97,6 +101,7 @@ MODEL_ALIASES: dict[str, str] = {
 # Capability tier, not price. Stored separately because hosted llama/mistral
 # pricing varies enough by provider that derived tiers would be misleading.
 MODEL_TIERS: dict[str, str] = {
+    "claude-fable-5": "frontier",
     "claude-opus-4-7": "frontier",
     "claude-opus-4-6": "frontier",
     "claude-opus-4-20250514": "frontier",
@@ -137,10 +142,11 @@ MODEL_TIERS: dict[str, str] = {
     "qwen-long": "fast",
 }
 
-PRICING_LAST_UPDATED = "2026-06-05"
+PRICING_LAST_UPDATED = "2026-07-30"
 
 MODEL_CACHE_HIT_PRICING: dict[str, float] = {
     # Anthropic — cache read is 10% of standard input price
+    "claude-fable-5": 1.00,
     "claude-opus-4-8": 0.50,
     "claude-opus-4-7": 0.50,
     "claude-opus-4-6": 0.50,

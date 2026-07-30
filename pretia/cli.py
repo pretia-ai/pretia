@@ -1483,8 +1483,15 @@ def estimate_cmd(workflow_path: str, traffic: int | None, verbose: bool) -> None
     default=False,
     help="Remove user overrides and revert to built-in pricing.",
 )
-def update_pricing_cmd(pricing_file: str | None, reset: bool) -> None:
-    """Update model pricing data from a file or remote source."""
+@click.option(
+    "--yes",
+    "-y",
+    is_flag=True,
+    default=False,
+    help="Apply fetched price changes without asking for confirmation.",
+)
+def update_pricing_cmd(pricing_file: str | None, reset: bool, yes: bool) -> None:
+    """Update model pricing from the LiteLLM community dataset or a local file."""
     import json
 
     from pretia.pricing.tables import _VALID_TIERS, MODEL_PRICING, _get_user_pricing_path
@@ -1500,15 +1507,70 @@ def update_pricing_cmd(pricing_file: str | None, reset: bool) -> None:
         return
 
     if pricing_file is None:
+        from pretia.pricing.remote import (
+            LITELLM_PRICING_URL,
+            fetch_remote_pricing,
+            refresh_known_model_pricing,
+        )
+
+        console.print(f"Fetching pricing data from [dim]{LITELLM_PRICING_URL}[/dim] ...")
+        try:
+            data = fetch_remote_pricing()
+        except (ConnectionError, ValueError) as exc:
+            console.print(f"[red]Error:[/red] {exc}")
+            console.print(
+                "You can still update pricing from a local file: "
+                "pretia update-pricing --file prices.json",
+            )
+            sys.exit(1)
+
+        from pretia.pricing.remote import is_suspicious_change
+
+        result = refresh_known_model_pricing(data)
+
+        if not result.changed:
+            console.print(
+                f"Built-in pricing is up to date "
+                f"({len(result.unchanged)} models verified against community data)."
+            )
+            return
+
+        suspicious = 0
+        for name, (inp, out) in sorted(result.changed.items()):
+            old = MODEL_PRICING[name]
+            line = f"  {name}: ${old[0]}/{old[1]} -> ${inp}/{out} per M tokens (in/out)"
+            if is_suspicious_change(old, (inp, out)):
+                suspicious += 1
+                line += (
+                    " [yellow][!] >2x change — verify against the vendor's pricing page[/yellow]"
+                )
+            console.print(line)
+
+        if suspicious:
+            console.print(
+                f"[yellow]{suspicious} change(s) exceed 2x — community data sometimes maps "
+                f"to a different model generation or a promotional rate.[/yellow]"
+            )
+
+        if not yes and not click.confirm(
+            f"Apply these {len(result.changed)} change(s)?", default=False
+        ):
+            console.print("Cancelled. Built-in pricing unchanged.")
+            return
+
+        from datetime import date
+
+        payload = {"models": result.to_models_dict(), "updated": date.today().isoformat()}
+        user_path.parent.mkdir(parents=True, exist_ok=True)
+        user_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
         console.print(
-            "Usage:\n"
-            "  pretia update-pricing --file prices.json   Load from a local file\n"
-            "  pretia update-pricing --reset               Revert to built-in pricing\n\n"
-            "JSON format (both key styles accepted):\n"
-            '  {"models": {"model-name": {"input": 1.0, "output": 5.0, "tier": "mid"}}}\n'
-            '  {"models": {"model-name": {"input_price": 1.0, "output_price": 5.0}}}\n\n'
-            "Prices are per million tokens in USD.\n"
-            "See scripts/pricing_sources.md for vendor pricing page URLs.",
+            f"Pricing updated: {len(result.changed)} models changed, "
+            f"{len(result.unchanged)} unchanged."
+        )
+        console.print(f"Saved to [bold]{user_path}[/bold]")
+        console.print(
+            "[dim]Run 'pretia update-pricing --reset' to revert to built-in pricing.[/dim]"
         )
         return
 
